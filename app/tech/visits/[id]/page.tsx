@@ -2,8 +2,12 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient, getCurrentUser } from "@/lib/supabase/server";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type SearchParams = {
   error?: string;
+  saved?: string;
 };
 
 async function startVisit(formData: FormData) {
@@ -95,6 +99,7 @@ async function handleResponses(formData: FormData) {
           value_bool: checked,
           value_number: null,
           value_text: null,
+          created_by: user.id,
         };
       }
 
@@ -110,6 +115,7 @@ async function handleResponses(formData: FormData) {
           value_number: Number.isNaN(value as number) ? null : value,
           value_text: null,
           value_bool: null,
+          created_by: user.id,
         };
       }
 
@@ -123,6 +129,7 @@ async function handleResponses(formData: FormData) {
         value_text: rawText || null,
         value_number: null,
         value_bool: null,
+        created_by: user.id,
       };
     }) ?? [];
 
@@ -134,11 +141,11 @@ async function handleResponses(formData: FormData) {
     );
   }
 
-  const { error: upsertError } = await supabase
+  const { error: insertError } = await supabase
     .from("visit_responses")
-    .upsert(responses, { onConflict: "visit_id,item_id" });
+    .insert(responses);
 
-  if (upsertError) {
+  if (insertError) {
     redirect(
       `/tech/visits/${visitId}?error=${encodeURIComponent(
         "No se pudieron guardar las respuestas."
@@ -165,7 +172,11 @@ async function handleResponses(formData: FormData) {
     }
   }
 
-  redirect(`/tech/visits/${visitId}`);
+  if (action === "complete") {
+    redirect(`/tech/today?completed=1`);
+  }
+
+  redirect(`/tech/visits/${visitId}?saved=1`);
 }
 
 export default async function TechVisitPage({
@@ -212,7 +223,7 @@ export default async function TechVisitPage({
     .order("sort_order", { ascending: true });
 
   const { data: responses } = await supabase
-    .from("visit_responses")
+    .from("visit_latest_responses")
     .select("item_id,value_text,value_number,value_bool")
     .eq("visit_id", visit.id);
 
@@ -233,6 +244,12 @@ export default async function TechVisitPage({
           {visit.building?.name ?? "Building"} · {visit.template?.name ?? "Template"}
         </p>
       </div>
+
+      {searchParams?.saved ? (
+        <div className="mb-4 rounded border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+          Guardado ✅
+        </div>
+      ) : null}
 
       {searchParams?.error ? (
         <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">

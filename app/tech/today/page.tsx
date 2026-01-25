@@ -2,7 +2,11 @@ import Link from "next/link";
 import { getCurrentUser, createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
-export default async function TechTodayPage() {
+export default async function TechTodayPage({
+  searchParams,
+}: {
+  searchParams?: { completed?: string };
+}) {
   const user = await getCurrentUser();
 
   if (!user || user.role !== "tech") {
@@ -35,6 +39,8 @@ export default async function TechTodayPage() {
       .replace(/\b\w/g, (match) => match.toUpperCase());
   };
 
+  const showCompletedBanner = searchParams?.completed === "1";
+
   return (
     <div className="min-h-screen p-8">
       <div className="mb-4 flex items-center justify-between">
@@ -51,6 +57,12 @@ export default async function TechTodayPage() {
           Refresh
         </Link>
       </div>
+
+      {showCompletedBanner ? (
+        <div className="mb-4 rounded border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800">
+          Visita completada ✅
+        </div>
+      ) : null}
 
       {error ? (
         <div className="mt-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">

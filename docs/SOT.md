@@ -28,7 +28,7 @@ Sistema de gestión de mantenimiento preventivo para cuadrillas de bombas e ince
 - **visits**: Scheduled maintenance visits to buildings. Linked to crew, building, date, status.
 - **visit_templates**: Templates for visit checklists (category-based).
 - **template_items**: Items within a visit template (checkbox/number/text).
-- **visit_responses**: Tech responses to template items per visit.
+- **visit_responses**: Tech responses to template items per visit; append-only history with latest snapshot via `visit_latest_responses`.
 - **observations**: Issues found during visits. Linked to visit/building, status, quotes, work orders.
 - **emergencies**: Emergency calls/dispatches. Linked to building, crew, status, timestamps.
 - **media**: Photos/documents attached to visits, observations, or emergencies. Stored in Supabase Storage.

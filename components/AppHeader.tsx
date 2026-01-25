@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { logout } from "@/app/actions/auth";
 import { getCurrentUser } from "@/lib/supabase/server";
+import AppNavLinks from "@/components/AppNavLinks";
 
 const roleLabelMap: Record<string, string> = {
   tech: "Tech",
@@ -22,19 +23,25 @@ export default async function AppHeader() {
 
   const links =
     role === "tech"
-      ? [{ href: "/tech/today", label: "Today" }]
+      ? [{ href: "/tech/today", label: "Today", activeMatch: "exact" }]
       : role === "ops_manager"
         ? [
-            { href: "/ops/dashboard", label: "Dashboard" },
-            { href: "/ops/buildings", label: "Buildings" },
-            { href: "/ops/templates", label: "Templates" },
-            { href: "/ops/visits/new", label: "New Visit" },
-            { href: "/ops/staff", label: "Personal" },
+            { href: "/ops/dashboard", label: "Dashboard", activeMatch: "exact" },
+            { href: "/ops/buildings", label: "Buildings", activeMatch: "exact" },
+            {
+              href: "/ops/visits",
+              label: "Agenda",
+              activeMatch: "startsWith",
+              activeExclude: ["/ops/visits/new"],
+            },
+            { href: "/ops/templates", label: "Templates", activeMatch: "exact" },
+            { href: "/ops/visits/new", label: "New Visit", activeMatch: "exact" },
+            { href: "/ops/staff", label: "Personal", activeMatch: "exact" },
           ]
         : role === "director"
           ? [
-              { href: "/dir/overview", label: "Overview" },
-              { href: "/ops/buildings", label: "Buildings" },
+              { href: "/dir/overview", label: "Overview", activeMatch: "exact" },
+              { href: "/ops/buildings", label: "Buildings", activeMatch: "exact" },
             ]
           : [];
 
@@ -45,17 +52,7 @@ export default async function AppHeader() {
           <Link href="/" className="text-sm font-semibold text-gray-900">
             MAPELEC
           </Link>
-          <nav className="flex items-center gap-4 text-sm text-gray-700">
-            {links.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="hover:text-gray-900"
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
+          <AppNavLinks links={links} />
         </div>
         <div className="flex items-center gap-4 text-sm text-gray-600">
           <span>{displayName} · {roleLabel}</span>
