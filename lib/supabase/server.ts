@@ -64,22 +64,17 @@ async function getCurrentUser(): Promise<CurrentUser | null> {
     .maybeSingle();
 
   if (profileError) {
-    console.log("[getCurrentUser] profile query error:", profileError.message);
-    console.log("[getCurrentUser] error code:", profileError.code);
-    console.log("[getCurrentUser] error details:", profileError.details);
-    console.log("[getCurrentUser] error hint:", profileError.hint);
-    console.log("[getCurrentUser] profile missing or blocked by RLS for user:", user.id);
-    // Profile might not exist yet, return user without profile
+    console.log("[getCurrentUser] uid", user.id, "email", user.email);
+    console.log(
+      "[getCurrentUser] profileError",
+      profileError?.code,
+      profileError?.message
+    );
     return {
       id: user.id,
       email: user.email,
       role: null,
     };
-  }
-
-  if (!profile) {
-    console.log("[getCurrentUser] profile query returned no data (null) for user:", user.id);
-    console.log("[getCurrentUser] profile missing for user:", user.id);
   }
 
   const safeProfile = profile as Profile | null;

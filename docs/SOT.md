@@ -12,9 +12,9 @@ Sistema de gestión de mantenimiento preventivo para cuadrillas de bombas e ince
 
 ## RLS Notes
 
-- Profiles role checks use `public.get_user_role()` (SECURITY DEFINER) to avoid RLS recursion.
-- See migration `db/migrations/006_profiles_rls_fix.sql`.
-- Profiles policies include self read/write/insert and ops_manager read/manage without recursion.
+- All role checks in RLS policies use `public.get_user_role()` (SECURITY DEFINER) to avoid recursion.
+- Profiles policies do not query `profiles` directly; they rely on the role function.
+- See migration `db/migrations/007_rls_use_get_user_role.sql`.
 
 ## Crews
 
