@@ -1,0 +1,29 @@
+# MAPELEC MVP - Cursor Rules
+
+## NON-NEGOTIABLES
+
+- **Supabase is DB/Auth/Storage**: Use Supabase for all database, authentication, and file storage. No alternatives.
+- **RLS from day 1**: Row Level Security must be enabled on all tables. Never bypass RLS for MVP. All queries must respect RLS policies.
+- **No features outside current phase scope**: Only implement features that belong to the current MVP phase. Check `docs/SOT.md` for phase boundaries.
+- **Small, incremental changes**: Make small, focused changes. No mega-edits or large refactors in a single change.
+
+## PROJECT FACTS
+
+- **5 crews**: 4 pump crews (Pump Crew 1-4), 1 fire crew (Fire Crew)
+- **Roles**: `tech`, `ops_manager`, `director`
+- **Crews are default but interchangeable**: Users have a default home_crew_id, but crews can be overridden per assignment/visit
+- **Frequency**: 80% pump monthly, 20% fire monthly/bimonthly
+- **Root entity**: PH/building is the root entity (all visits, observations, emergencies belong to a building)
+
+## WORKFLOW
+
+1. **Before editing**: Always list files to be changed before making edits
+2. **When changing migrations/auth/roles/statuses/storage rules**: Update `docs/SOT.md` in the same change
+3. **After changes**: Run dev server (`npm run dev`) or typecheck (`npm run type-check` if available) and provide test steps
+
+## TECH STACK
+
+- Next.js 14 (App Router) + TypeScript
+- Tailwind CSS for styling
+- Supabase (PostgreSQL + Auth + Storage)
+- RLS enabled on all tables
