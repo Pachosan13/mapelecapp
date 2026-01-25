@@ -2,6 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "@/types/database";
 
+type Profile = Database["public"]["Tables"]["profiles"]["Row"];
+
 async function createClient() {
   const cookieStore = await cookies();
 
@@ -57,9 +59,9 @@ async function getCurrentUser(): Promise<CurrentUser | null> {
   // Get profile
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("*")
+    .select("role")
     .eq("user_id", user.id)
-    .single();
+    .maybeSingle();
 
   if (profileError) {
     console.log("[getCurrentUser] profile query error:", profileError.message);
@@ -80,10 +82,12 @@ async function getCurrentUser(): Promise<CurrentUser | null> {
     console.log("[getCurrentUser] profile missing for user:", user.id);
   }
 
+  const safeProfile = profile as Profile | null;
+
   return {
     id: user.id,
     email: user.email,
-    role: profile?.role ?? null,
+    role: safeProfile?.role ?? null,
   };
 }
 

@@ -13,9 +13,8 @@ Sistema de gestión de mantenimiento preventivo para cuadrillas de bombas e ince
 ## RLS Notes
 
 - Profiles role checks use `public.get_user_role()` (SECURITY DEFINER) to avoid RLS recursion.
-- See migration `db/migrations/002_fix_rls_recursion.sql`.
-- Legacy policies `profiles_admin_read_all` and `profiles_self_read` are removed
-  in `db/migrations/003_drop_conflicting_policies.sql`.
+- See migration `db/migrations/006_profiles_rls_fix.sql`.
+- Profiles policies include self read/write/insert and ops_manager read/manage without recursion.
 
 ## Crews
 
@@ -24,8 +23,11 @@ Sistema de gestión de mantenimiento preventivo para cuadrillas de bombas e ince
 
 ## Core Entities
 
-- **buildings**: Root entity (PH). Contains name, address, lat/lng, service_flags, notes.
+- **buildings**: Root entity (PH). Contains name, address, lat/lng, service_flags, notes, created_by, created_at, updated_at.
 - **visits**: Scheduled maintenance visits to buildings. Linked to crew, building, date, status.
+- **visit_templates**: Templates for visit checklists (category-based).
+- **template_items**: Items within a visit template (checkbox/number/text).
+- **visit_responses**: Tech responses to template items per visit.
 - **observations**: Issues found during visits. Linked to visit/building, status, quotes, work orders.
 - **emergencies**: Emergency calls/dispatches. Linked to building, crew, status, timestamps.
 - **media**: Photos/documents attached to visits, observations, or emergencies. Stored in Supabase Storage.
