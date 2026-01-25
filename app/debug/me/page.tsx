@@ -4,13 +4,15 @@ export default async function DebugMePage() {
   const user = await getCurrentUser();
   const supabase = await createClient();
 
-  let profilesRow: { user_id: string; role: string } | null = null;
+  let profilesRow:
+    | { user_id: string; role: string; is_active: boolean }
+    | null = null;
   let profilesError: unknown = null;
 
   if (user?.id) {
     const { data, error } = await supabase
       .from("profiles")
-      .select("user_id,role")
+      .select("user_id,role,is_active")
       .eq("user_id", user.id)
       .maybeSingle();
 
@@ -20,7 +22,6 @@ export default async function DebugMePage() {
 
   const payload = {
     authUserId: user?.id ?? null,
-    authEmail: user?.email ?? null,
     getCurrentUserRole: user?.role ?? null,
     profilesRow,
     profilesError,

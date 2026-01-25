@@ -41,6 +41,7 @@ async function createClient() {
 export interface CurrentUser {
   id: string;
   email?: string;
+  full_name?: string | null;
   role: "tech" | "ops_manager" | "director" | null;
 }
 
@@ -59,7 +60,7 @@ async function getCurrentUser(): Promise<CurrentUser | null> {
   // Get profile
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role,full_name")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -73,6 +74,7 @@ async function getCurrentUser(): Promise<CurrentUser | null> {
     return {
       id: user.id,
       email: user.email,
+      full_name: null,
       role: null,
     };
   }
@@ -82,6 +84,7 @@ async function getCurrentUser(): Promise<CurrentUser | null> {
   return {
     id: user.id,
     email: user.email,
+    full_name: safeProfile?.full_name ?? null,
     role: safeProfile?.role ?? null,
   };
 }

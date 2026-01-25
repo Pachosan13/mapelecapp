@@ -15,6 +15,7 @@ Sistema de gestión de mantenimiento preventivo para cuadrillas de bombas e ince
 - All role checks in RLS policies use `public.get_user_role()` (SECURITY DEFINER) to avoid recursion.
 - Profiles policies do not query `profiles` directly; they rely on the role function.
 - See migration `db/migrations/007_rls_use_get_user_role.sql`.
+- Profiles are auto-created on successful login via server action (no middleware side-effects).
 
 ## Crews
 

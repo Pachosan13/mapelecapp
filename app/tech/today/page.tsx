@@ -9,6 +9,8 @@ export default async function TechTodayPage() {
     redirect("/login");
   }
 
+  const displayName =
+    user.full_name?.trim() || `Usuario ${user.id.slice(0, 6)}`;
   const supabase = await createClient();
   const today = new Date().toISOString().slice(0, 10);
 
@@ -38,7 +40,9 @@ export default async function TechTodayPage() {
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Tech - Hoy</h1>
-          <p className="text-gray-600">Visitas programadas para hoy</p>
+          <p className="text-gray-600">
+            {displayName} · Visitas programadas para hoy
+          </p>
         </div>
         <Link
           href="/tech/today"

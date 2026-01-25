@@ -17,6 +17,8 @@ export default async function AppHeader() {
 
   const role = user.role ?? "unknown";
   const roleLabel = roleLabelMap[role] ?? "User";
+  const displayName =
+    user.full_name?.trim() || `Usuario ${user.id.slice(0, 6)}`;
 
   const links =
     role === "tech"
@@ -27,6 +29,7 @@ export default async function AppHeader() {
             { href: "/ops/buildings", label: "Buildings" },
             { href: "/ops/templates", label: "Templates" },
             { href: "/ops/visits/new", label: "New Visit" },
+            { href: "/ops/staff", label: "Personal" },
           ]
         : role === "director"
           ? [
@@ -55,9 +58,7 @@ export default async function AppHeader() {
           </nav>
         </div>
         <div className="flex items-center gap-4 text-sm text-gray-600">
-          <span>
-            {user.email ?? "Usuario"} · {roleLabel} ({role}) · {user.id}
-          </span>
+          <span>{displayName} · {roleLabel}</span>
           <form action={logout}>
             <button
               type="submit"

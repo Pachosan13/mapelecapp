@@ -137,7 +137,7 @@ export default async function NewVisitPage({
             <option value="">Selecciona un tech</option>
             {techs.map((tech) => (
               <option key={tech.user_id} value={tech.user_id}>
-                {tech.full_name ? tech.full_name : tech.user_id}
+                {tech.full_name?.trim() || `Usuario ${tech.user_id.slice(0, 6)}`}
               </option>
             ))}
           </select>
