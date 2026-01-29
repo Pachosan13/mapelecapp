@@ -50,12 +50,14 @@ export default async function TechTodayPage({
             {displayName} · Visitas programadas para hoy
           </p>
         </div>
-        <Link
-          href="/tech/today"
-          className="text-sm text-blue-600 hover:underline"
-        >
-          Refresh
-        </Link>
+        <div className="flex items-center gap-4 text-sm">
+          <Link href="/tech/history" className="text-blue-600 hover:underline">
+            Ver historial
+          </Link>
+          <Link href="/tech/today" className="text-blue-600 hover:underline">
+            Refresh
+          </Link>
+        </div>
       </div>
 
       {showCompletedBanner ? (

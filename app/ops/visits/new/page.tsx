@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import NewVisitForm from "./NewVisitForm";
 
 type SearchParams = {
   error?: string;
@@ -54,8 +55,12 @@ export default async function NewVisitPage({
 }) {
   const supabase = await createClient();
 
-  const [buildingsResult, templatesResult, techsResult] = await Promise.all([
-    supabase.from("buildings").select("id,name").order("name", { ascending: true }),
+  const [buildingsResult, templatesResult, techsResult, equipmentResult] =
+    await Promise.all([
+    supabase
+      .from("buildings")
+      .select("id,name,systems")
+      .order("name", { ascending: true }),
     supabase
       .from("visit_templates")
       .select("id,name,category")
@@ -66,11 +71,17 @@ export default async function NewVisitPage({
       .select("user_id,full_name")
       .eq("role", "tech")
       .order("full_name", { ascending: true }),
+    supabase
+      .from("equipment")
+      .select("id,building_id,name,equipment_type,is_active")
+      .eq("is_active", true)
+      .order("name", { ascending: true }),
   ]);
 
   const buildings = buildingsResult.data ?? [];
   const templates = templatesResult.data ?? [];
   const techs = techsResult.data ?? [];
+  const equipment = equipmentResult.data ?? [];
 
   return (
     <div className="min-h-screen p-8">
@@ -86,74 +97,13 @@ export default async function NewVisitPage({
           {decodeURIComponent(searchParams.error)}
         </div>
       ) : null}
-
-      <form action={createVisit} className="max-w-xl space-y-4">
-        <div>
-          <label className="mb-1 block text-sm font-medium">Building</label>
-          <select
-            name="building_id"
-            required
-            className="w-full rounded border px-3 py-2"
-          >
-            <option value="">Selecciona un building</option>
-            {buildings.map((building) => (
-              <option key={building.id} value={building.id}>
-                {building.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Template</label>
-          <select
-            name="template_id"
-            required
-            className="w-full rounded border px-3 py-2"
-          >
-            <option value="">Selecciona un template</option>
-            {templates.map((template) => (
-              <option key={template.id} value={template.id}>
-                {template.name} ({template.category})
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Scheduled for</label>
-          <input
-            type="date"
-            name="scheduled_for"
-            required
-            className="w-full rounded border px-3 py-2"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Assign tech</label>
-          <select
-            name="assigned_tech_user_id"
-            required
-            className="w-full rounded border px-3 py-2"
-          >
-            <option value="">Selecciona un tech</option>
-            {techs.map((tech) => (
-              <option key={tech.user_id} value={tech.user_id}>
-                {tech.full_name?.trim() || `Usuario ${tech.user_id.slice(0, 6)}`}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex gap-3">
-          <button type="submit" className="rounded bg-black px-4 py-2 text-white">
-            Create visit
-          </button>
-          <Link
-            href="/ops/dashboard"
-            className="rounded border px-4 py-2 text-gray-700"
-          >
-            Cancel
-          </Link>
-        </div>
-      </form>
+      <NewVisitForm
+        action={createVisit}
+        buildings={buildings}
+        templates={templates}
+        techs={techs}
+        equipment={equipment}
+      />
     </div>
   );
 }

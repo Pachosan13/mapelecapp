@@ -88,16 +88,28 @@ export default async function BuildingsPage({
                     {new Date(building.created_at).toLocaleDateString()}
                   </td>
                   <td className="px-4 py-3">
-                    {isOpsManager ? (
+                    <div className="flex items-center gap-3">
                       <Link
-                        href={`/ops/buildings/${building.id}/edit`}
+                        href={`/ops/buildings/${building.id}/history`}
                         className="text-blue-600 hover:underline"
                       >
-                        Edit
+                        Historial
                       </Link>
-                    ) : (
-                      <span className="text-gray-400">—</span>
-                    )}
+                      <Link
+                        href={`/ops/buildings/${building.id}/equipment`}
+                        className="text-blue-600 hover:underline"
+                      >
+                        Equipos
+                      </Link>
+                      {isOpsManager ? (
+                        <Link
+                          href={`/ops/buildings/${building.id}/edit`}
+                          className="text-blue-600 hover:underline"
+                        >
+                          Edit
+                        </Link>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ))

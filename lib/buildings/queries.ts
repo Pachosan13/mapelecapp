@@ -4,7 +4,7 @@ import type { Building } from "@/types/database";
 type BuildingListItem = Pick<Building, "id" | "name" | "address" | "created_at">;
 type BuildingDetail = Pick<
   Building,
-  "id" | "name" | "address" | "notes" | "created_at"
+  "id" | "name" | "address" | "notes" | "created_at" | "systems"
 >;
 
 export async function listBuildings(query?: string) {
@@ -37,7 +37,7 @@ export async function getBuildingById(id: string) {
 
   const { data, error } = await supabase
     .from("buildings")
-    .select("id,name,address,notes,created_at")
+    .select("id,name,address,notes,created_at,systems")
     .eq("id", id)
     .maybeSingle();
 

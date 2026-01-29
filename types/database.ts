@@ -9,10 +9,10 @@ export type Json =
 export type Role = "tech" | "ops_manager" | "director";
 export type Category = "pump" | "fire";
 export type Frequency = "monthly" | "bimonthly";
-export type VisitStatus = "planned" | "in_progress" | "completed" | "missed";
+export type VisitStatus = "planned" | "in_progress" | "completed";
 export type ObsStatus = "open" | "quoted" | "approved" | "in_progress" | "closed";
 export type EmergencyStatus = "open" | "dispatched" | "resolved";
-export type TemplateItemType = "checkbox" | "number" | "text";
+export type TemplateItemType = "checkbox" | "number" | "text" | "textarea";
 
 export interface Database {
   public: {
@@ -74,6 +74,7 @@ export interface Database {
           id: string;
           name: string;
           address: string | null;
+          systems: Category[] | null;
           lat: number | null;
           lng: number | null;
           service_flags: string | null;
@@ -86,6 +87,7 @@ export interface Database {
           id?: string;
           name: string;
           address?: string | null;
+          systems?: Category[] | null;
           lat?: number | null;
           lng?: number | null;
           service_flags?: string | null;
@@ -98,6 +100,7 @@ export interface Database {
           id?: string;
           name?: string;
           address?: string | null;
+          systems?: Category[] | null;
           lat?: number | null;
           lng?: number | null;
           service_flags?: string | null;
@@ -105,6 +108,53 @@ export interface Database {
           created_by?: string;
           created_at?: string;
           updated_at?: string | null;
+        };
+      };
+      equipment: {
+        Row: {
+          id: string;
+          building_id: string;
+          name: string;
+          equipment_type: Category;
+          is_active: boolean;
+          manufacturer: string | null;
+          model: string | null;
+          serial: string | null;
+          location: string | null;
+          tag: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          building_id: string;
+          name: string;
+          equipment_type: Category;
+          is_active?: boolean;
+          manufacturer?: string | null;
+          model?: string | null;
+          serial?: string | null;
+          location?: string | null;
+          tag?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          building_id?: string;
+          name?: string;
+          equipment_type?: Category;
+          is_active?: boolean;
+          manufacturer?: string | null;
+          model?: string | null;
+          serial?: string | null;
+          location?: string | null;
+          tag?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
         };
       };
       visit_templates: {
@@ -205,6 +255,7 @@ export interface Database {
           id: string;
           visit_id: string | null;
           item_id: string | null;
+          equipment_id: string | null;
           value_text: string | null;
           value_number: number | null;
           value_bool: boolean | null;
@@ -214,6 +265,7 @@ export interface Database {
           id?: string;
           visit_id?: string | null;
           item_id?: string | null;
+          equipment_id?: string | null;
           value_text?: string | null;
           value_number?: number | null;
           value_bool?: boolean | null;
@@ -223,6 +275,7 @@ export interface Database {
           id?: string;
           visit_id?: string | null;
           item_id?: string | null;
+          equipment_id?: string | null;
           value_text?: string | null;
           value_number?: number | null;
           value_bool?: boolean | null;
@@ -236,3 +289,4 @@ export interface Database {
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 export type Crew = Database["public"]["Tables"]["crews"]["Row"];
 export type Building = Database["public"]["Tables"]["buildings"]["Row"];
+export type Equipment = Database["public"]["Tables"]["equipment"]["Row"];

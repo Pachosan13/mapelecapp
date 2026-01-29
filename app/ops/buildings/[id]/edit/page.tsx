@@ -4,6 +4,11 @@ import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import { getBuildingById } from "@/lib/buildings/queries";
 import DeleteButton from "./DeleteButton";
 
+const SYSTEM_OPTIONS = [
+  { value: "pump", label: "Bombas" },
+  { value: "fire", label: "Incendio" },
+];
+
 type SearchParams = {
   error?: string;
 };
@@ -25,9 +30,19 @@ async function updateBuilding(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const address = String(formData.get("address") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim();
+  const systems = formData
+    .getAll("systems")
+    .map((value) => String(value))
+    .filter((value) => SYSTEM_OPTIONS.some((option) => option.value === value));
 
   if (!name) {
     redirect(`/ops/buildings/${id}/edit?error=Nombre%20requerido`);
+  }
+
+  if (systems.length === 0) {
+    redirect(
+      `/ops/buildings/${id}/edit?error=Selecciona%20al%20menos%20un%20sistema`
+    );
   }
 
   const { error } = await supabase
@@ -36,6 +51,7 @@ async function updateBuilding(formData: FormData) {
       name,
       address: address || null,
       notes: notes || null,
+      systems,
     })
     .eq("id", id);
 
@@ -106,6 +122,8 @@ export default async function EditBuildingPage({
     notFound();
   }
 
+  const currentSystems = building.systems ?? [];
+
   return (
     <div className="min-h-screen p-8">
       <div className="mb-6">
@@ -150,6 +168,27 @@ export default async function EditBuildingPage({
             defaultValue={building.notes ?? ""}
             className="w-full rounded border px-3 py-2"
           />
+        </div>
+        <div>
+          <p className="mb-2 text-sm font-medium">Sistemas</p>
+          <div className="space-y-2">
+            {SYSTEM_OPTIONS.map((option) => (
+              <label key={option.value} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  name="systems"
+                  value={option.value}
+                  defaultChecked={currentSystems.includes(option.value)}
+                />
+                <span>{option.label}</span>
+              </label>
+            ))}
+          </div>
+          {currentSystems.length === 0 ? (
+            <p className="mt-2 text-xs text-amber-600">
+              Este building no tiene sistemas configurados (pump/fire).
+            </p>
+          ) : null}
         </div>
         <div className="flex gap-3">
           <button type="submit" className="rounded bg-black px-4 py-2 text-white">

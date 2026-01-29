@@ -2,6 +2,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
+const SYSTEM_OPTIONS = [
+  { value: "pump", label: "Bombas" },
+  { value: "fire", label: "Incendio" },
+];
+
 type SearchParams = {
   error?: string;
 };
@@ -22,15 +27,24 @@ async function createBuilding(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const address = String(formData.get("address") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim();
+  const systems = formData
+    .getAll("systems")
+    .map((value) => String(value))
+    .filter((value) => SYSTEM_OPTIONS.some((option) => option.value === value));
 
   if (!name) {
     redirect("/ops/buildings/new?error=Nombre%20requerido");
+  }
+
+  if (systems.length === 0) {
+    redirect("/ops/buildings/new?error=Selecciona%20al%20menos%20un%20sistema");
   }
 
   const { error } = await supabase.from("buildings").insert({
     name,
     address: address || null,
     notes: notes || null,
+    systems,
     created_by: user.id,
   });
 
@@ -90,6 +104,17 @@ export default function NewBuildingPage({
             rows={4}
             className="w-full rounded border px-3 py-2"
           />
+        </div>
+        <div>
+          <p className="mb-2 text-sm font-medium">Sistemas</p>
+          <div className="space-y-2">
+            {SYSTEM_OPTIONS.map((option) => (
+              <label key={option.value} className="flex items-center gap-2 text-sm">
+                <input type="checkbox" name="systems" value={option.value} />
+                <span>{option.label}</span>
+              </label>
+            ))}
+          </div>
         </div>
         <div className="flex gap-3">
           <button type="submit" className="rounded bg-black px-4 py-2 text-white">

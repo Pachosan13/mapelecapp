@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 
+const CATEGORY_LABELS: Record<string, string> = {
+  pump: "Bombas",
+  fire: "Incendio",
+};
+
 export default async function OpsTemplatesPage() {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -53,7 +58,7 @@ export default async function OpsTemplatesPage() {
                 <tr key={template.id} className="border-t">
                   <td className="px-4 py-3 font-medium">{template.name}</td>
                   <td className="px-4 py-3 text-gray-600">
-                    {template.category}
+                    {CATEGORY_LABELS[template.category] ?? template.category}
                   </td>
                   <td className="px-4 py-3 text-gray-600">
                     {template.is_active ? "Yes" : "No"}

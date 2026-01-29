@@ -16,6 +16,8 @@ Sistema de gestión de mantenimiento preventivo para cuadrillas de bombas e ince
 - Profiles policies do not query `profiles` directly; they rely on the role function.
 - See migration `db/migrations/007_rls_use_get_user_role.sql`.
 - Profiles are auto-created on successful login via server action (no middleware side-effects).
+- Techs can update their own visits to `in_progress`/`completed` when assigned (`supabase/migrations/011_visits_tech_update_policy.sql`).
+- Tech/ops/director can read visit templates and template items (`supabase/migrations/012_templates_rls_read.sql`).
 
 ## Crews
 
@@ -24,7 +26,7 @@ Sistema de gestión de mantenimiento preventivo para cuadrillas de bombas e ince
 
 ## Core Entities
 
-- **buildings**: Root entity (PH). Contains name, address, lat/lng, service_flags, notes, created_by, created_at, updated_at.
+- **buildings**: Root entity (PH). Contains name, address, lat/lng, systems (pump/fire array), service_flags, notes, created_by, created_at, updated_at.
 - **visits**: Scheduled maintenance visits to buildings. Linked to crew, building, date, status.
 - **visit_templates**: Templates for visit checklists (category-based).
 - **template_items**: Items within a visit template (checkbox/number/text).
@@ -68,3 +70,24 @@ Sistema de gestión de mantenimiento preventivo para cuadrillas de bombas e ince
 - **Excel import first**: Initial building data comes from Excel import (bulk upload)
 - **Intake creates new PH**: After import, new buildings are created via intake form
 - **lat/lng mandatory**: All new buildings must have lat/lng coordinates (from map pin or import)
+
+## Equipment / Assets (Roadmap + v0)
+
+- **Decisión**: Building sigue siendo la entidad raíz; equipment es inventario por building.
+- **Tabla `public.equipment` (v0)**:
+  - `id` uuid primary key default `gen_random_uuid()`
+  - `building_id` uuid not null references `public.buildings(id)` on delete cascade
+  - `name` text not null
+  - `equipment_type` text not null (valores esperados: `pump` | `fire`)
+  - `is_active` boolean not null default true
+  - `notes` text null
+  - `created_at` timestamptz not null default now()
+  - `updated_at` timestamptz not null default now()
+  - Índices: index on (`building_id`), unique (`building_id`, `name`)
+- **`visit_responses.equipment_id` (nullable)**: permite enlazar respuestas a equipo sin romper visitas legacy.
+- **Regla**: evidencias técnicas deben poder asociarse a equipment para historial real.
+- **Regla**: nombres y metadata de equipment se definen por Ops/Director; Tech solo reporta inconsistencias.
+- **Fase actual (v0)**: CRUD de equipment en ops + columna nullable en respuestas; visitas siguen a nivel building.
+- **Próxima fase**: persistir relación visit↔equipment (join table) y UI para seleccionar equipment por visita y render por equipment.
+
+- **Template**: "Mantenimiento – Bombas" usa `template_items` (text/textarea/number/checkbox), se ordena por `sort_order` y valida `required` en tech.
