@@ -18,6 +18,7 @@ Sistema de gestión de mantenimiento preventivo para cuadrillas de bombas e ince
 - Profiles are auto-created on successful login via server action (no middleware side-effects).
 - Techs can update their own visits to `in_progress`/`completed` when assigned (`supabase/migrations/011_visits_tech_update_policy.sql`).
 - Tech/ops/director can read visit templates and template items (`supabase/migrations/012_templates_rls_read.sql`).
+- Service reports are restricted to `ops_manager` and `director` roles only.
 
 ## Crews
 
@@ -31,6 +32,7 @@ Sistema de gestión de mantenimiento preventivo para cuadrillas de bombas e ince
 - **visit_templates**: Templates for visit checklists (category-based).
 - **template_items**: Items within a visit template (checkbox/number/text).
 - **visit_responses**: Tech responses to template items per visit; append-only history with latest snapshot via `visit_latest_responses`.
+- **service_reports**: Daily report per building/date with editorial status (draft/ready/sent) and client/internal notes.
 - **observations**: Issues found during visits. Linked to visit/building, status, quotes, work orders.
 - **emergencies**: Emergency calls/dispatches. Linked to building, crew, status, timestamps.
 - **media**: Photos/documents attached to visits, observations, or emergencies. Stored in Supabase Storage.

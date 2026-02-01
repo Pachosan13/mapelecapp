@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import { formatPanamaDateLabel } from "@/lib/dates/panama";
 
 type SearchParams = {
@@ -21,6 +21,9 @@ export default async function BuildingHistoryPage({
   searchParams?: SearchParams;
 }) {
   const supabase = await createClient();
+  const currentUser = await getCurrentUser();
+  const canAccessServiceReport =
+    currentUser?.role === "ops_manager" || currentUser?.role === "director";
   const selectedStatus = searchParams?.status?.trim() ?? "";
   const selectedTech = searchParams?.tech?.trim() ?? "";
 
@@ -134,8 +137,20 @@ export default async function BuildingHistoryPage({
         <Link href="/ops/buildings" className="text-sm text-gray-500">
           ← Volver a buildings
         </Link>
-        <h1 className="mt-2 text-2xl font-bold">{building.name}</h1>
-        <p className="text-gray-600">Historial del building</p>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold">{building.name}</h1>
+            <p className="text-gray-600">Historial del building</p>
+          </div>
+          {canAccessServiceReport ? (
+            <Link
+              href={`/ops/buildings/${params.id}/service-report`}
+              className="rounded border px-4 py-2 text-sm"
+            >
+              Reporte del día
+            </Link>
+          ) : null}
+        </div>
       </div>
 
       <form className="mb-6 flex flex-wrap items-end gap-4" method="get">

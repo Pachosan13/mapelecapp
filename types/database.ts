@@ -157,6 +157,50 @@ export interface Database {
           updated_at?: string;
         };
       };
+      service_reports: {
+        Row: {
+          id: string;
+          building_id: string;
+          report_date: string;
+          status: string;
+          client_summary: string | null;
+          internal_notes: string | null;
+          sent_at: string | null;
+          sent_by: string | null;
+          created_at: string;
+          updated_at: string;
+          created_by: string | null;
+          updated_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          building_id: string;
+          report_date: string;
+          status?: string;
+          client_summary?: string | null;
+          internal_notes?: string | null;
+          sent_at?: string | null;
+          sent_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          created_by?: string | null;
+          updated_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          building_id?: string;
+          report_date?: string;
+          status?: string;
+          client_summary?: string | null;
+          internal_notes?: string | null;
+          sent_at?: string | null;
+          sent_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          created_by?: string | null;
+          updated_by?: string | null;
+        };
+      };
       visit_templates: {
         Row: {
           id: string;
