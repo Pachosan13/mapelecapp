@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import StartVisitButton from "./StartVisitButton";
 import VisitToast from "./VisitToast";
+import RecorridoTable from "./RecorridoTable";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -11,6 +12,9 @@ type SearchParams = {
   error?: string;
   saved?: string;
 };
+
+const isRecorridoPorPisosLabel = (label?: string | null) =>
+  (label ?? "").trim().toLowerCase().startsWith("recorrido por pisos");
 
 async function handleResponses(formData: FormData) {
   "use server";
@@ -270,12 +274,17 @@ export default async function TechVisitPage({
                   {item.required ? " *" : ""}
                 </label>
               {String(item.item_type ?? "") === "checkbox" ? (
-                  <input
-                    type="checkbox"
-                    name={`item-${item.id}`}
-                    defaultChecked={response?.value_bool ?? false}
-                    disabled={isCompleted}
-                  />
+                  <div className="space-y-2">
+                    <p className="text-xs text-gray-500">
+                      ✅ Sí = OK · ❌ No = Falla · N/A: escríbelo en Observaciones
+                    </p>
+                    <input
+                      type="checkbox"
+                      name={`item-${item.id}`}
+                      defaultChecked={response?.value_bool ?? false}
+                      disabled={isCompleted}
+                    />
+                  </div>
                 ) : null}
               {String(item.item_type ?? "") === "number" ? (
                   <div className="flex items-center gap-2">
@@ -302,13 +311,21 @@ export default async function TechVisitPage({
                   />
                 ) : null}
               {String(item.item_type ?? "") === "textarea" ? (
-                  <textarea
-                    name={`item-${item.id}`}
-                    rows={3}
-                    defaultValue={response?.value_text ?? ""}
-                    disabled={isCompleted}
-                    className="w-full rounded border px-3 py-2"
-                  />
+                  isRecorridoPorPisosLabel(item.label) ? (
+                    <RecorridoTable
+                      itemId={item.id}
+                      defaultValue={response?.value_text ?? ""}
+                      disabled={isCompleted}
+                    />
+                  ) : (
+                    <textarea
+                      name={`item-${item.id}`}
+                      rows={3}
+                      defaultValue={response?.value_text ?? ""}
+                      disabled={isCompleted}
+                      className="w-full rounded border px-3 py-2"
+                    />
+                  )
                 ) : null}
               </div>
             );

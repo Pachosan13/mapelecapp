@@ -66,6 +66,15 @@ export async function middleware(request: NextRequest) {
   console.log("[middleware] isAuthenticated:", isAuthenticated ? "yes" : "no");
   console.log("[middleware] user id:", userId);
 
+  // API routes should never be redirected to HTML pages.
+  if (pathname.startsWith("/api/reports/")) {
+    return response;
+  }
+
+  if (pathname.startsWith("/api/")) {
+    return response;
+  }
+
   // Public route: /login - always allow
   if (pathname === "/login") {
     return response;

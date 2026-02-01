@@ -20,6 +20,63 @@ type VisitResponse = {
   created_at: string;
 };
 
+export type RecorridoPorPisosRow = {
+  piso: string;
+  presion_entrada: number | null;
+  presion_salida: number | null;
+  estacion_control_abierta: boolean;
+  estacion_control_cerrada: boolean;
+  valvula_reguladora: boolean;
+  estado_manometro: boolean;
+  gabinetes_manguera: boolean;
+  extintores: boolean;
+  observacion: string;
+};
+
+const RECORRIDO_POR_PISOS_PREFIX = "recorrido por pisos";
+
+export const isRecorridoPorPisosItem = (label?: string | null) =>
+  (label ?? "").trim().toLowerCase().startsWith(RECORRIDO_POR_PISOS_PREFIX);
+
+const normalizeRecorridoRow = (value: any): RecorridoPorPisosRow | null => {
+  if (!value || typeof value !== "object") return null;
+  return {
+    piso: typeof value.piso === "string" ? value.piso : "",
+    presion_entrada:
+      typeof value.presion_entrada === "number" &&
+      Number.isFinite(value.presion_entrada)
+        ? value.presion_entrada
+        : null,
+    presion_salida:
+      typeof value.presion_salida === "number" &&
+      Number.isFinite(value.presion_salida)
+        ? value.presion_salida
+        : null,
+    estacion_control_abierta: Boolean(value.estacion_control_abierta),
+    estacion_control_cerrada: Boolean(value.estacion_control_cerrada),
+    valvula_reguladora: Boolean(value.valvula_reguladora),
+    estado_manometro: Boolean(value.estado_manometro),
+    gabinetes_manguera: Boolean(value.gabinetes_manguera),
+    extintores: Boolean(value.extintores),
+    observacion: typeof value.observacion === "string" ? value.observacion : "",
+  };
+};
+
+export const parseRecorridoPorPisosValue = (
+  value?: string | null
+): RecorridoPorPisosRow[] | null => {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return null;
+    return parsed
+      .map((row) => normalizeRecorridoRow(row))
+      .filter(Boolean) as RecorridoPorPisosRow[];
+  } catch {
+    return null;
+  }
+};
+
 type ServiceReportRow = {
   id: string;
   building_id: string;
@@ -95,6 +152,8 @@ export async function getServiceReportData(params: {
   }
 
   const supabase = await createClient();
+  const reportSelect =
+    "id,building_id,report_date,status,client_summary,internal_notes,sent_at,sent_by,created_at,updated_at,created_by,updated_by";
 
   const { data: building, error: buildingError } = await supabase
     .from("buildings")
@@ -111,9 +170,7 @@ export async function getServiceReportData(params: {
 
   const { data: existingReport, error: reportError } = await supabase
     .from("service_reports")
-    .select(
-      "id,building_id,report_date,status,client_summary,internal_notes,sent_at,sent_by,created_at,updated_at,created_by,updated_by"
-    )
+    .select(reportSelect)
     .eq("building_id", buildingId)
     .eq("report_date", reportDate)
     .maybeSingle();
@@ -133,11 +190,19 @@ export async function getServiceReportData(params: {
         created_by: userId ?? null,
         updated_by: userId ?? null,
       })
-      .select(
-        "id,building_id,report_date,status,client_summary,internal_notes,sent_at,sent_by,created_at,updated_at,created_by,updated_by"
-      )
+      .select(reportSelect)
       .maybeSingle();
     report = (insertedReport ?? null) as ServiceReportRow | null;
+  }
+
+  if (!report) {
+    const { data: fallbackReport } = await supabase
+      .from("service_reports")
+      .select(reportSelect)
+      .eq("building_id", buildingId)
+      .eq("report_date", reportDate)
+      .maybeSingle();
+    report = (fallbackReport ?? null) as ServiceReportRow | null;
   }
 
   const { data: visitsData, error: visitsError } = await supabase

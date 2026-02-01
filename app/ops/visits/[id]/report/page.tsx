@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { isRecorridoPorPisosItem } from "@/lib/reports/serviceReport";
 
 type TemplateItem = {
   id: string;
@@ -52,6 +53,63 @@ const formatResponseValue = (
 
   const trimmed = (response.value_text ?? "").trim();
   return trimmed || "—";
+};
+
+const formatBool = (value: boolean) => (value ? "Sí" : "No");
+
+type RecorridoRow = {
+  piso: string;
+  presion_entrada: number | null;
+  presion_salida: number | null;
+  estacion_control_abierta: boolean;
+  estacion_control_cerrada: boolean;
+  valvula_reguladora: boolean;
+  estado_manometro: boolean;
+  gabinetes_manguera: boolean;
+  extintores: boolean;
+  observacion: string;
+};
+
+const looksLikeJson = (value: string) => {
+  const trimmed = value.trim();
+  return trimmed.startsWith("[") || trimmed.startsWith("{");
+};
+
+const normalizeRecorridoRow = (value: any): RecorridoRow | null => {
+  if (!value || typeof value !== "object") return null;
+  return {
+    piso: typeof value.piso === "string" ? value.piso : "",
+    presion_entrada:
+      typeof value.presion_entrada === "number" &&
+      Number.isFinite(value.presion_entrada)
+        ? value.presion_entrada
+        : null,
+    presion_salida:
+      typeof value.presion_salida === "number" &&
+      Number.isFinite(value.presion_salida)
+        ? value.presion_salida
+        : null,
+    estacion_control_abierta: Boolean(value.estacion_control_abierta),
+    estacion_control_cerrada: Boolean(value.estacion_control_cerrada),
+    valvula_reguladora: Boolean(value.valvula_reguladora),
+    estado_manometro: Boolean(value.estado_manometro),
+    gabinetes_manguera: Boolean(value.gabinetes_manguera),
+    extintores: Boolean(value.extintores),
+    observacion: typeof value.observacion === "string" ? value.observacion : "",
+  };
+};
+
+const parseRecorridoRows = (value?: string | null): RecorridoRow[] | null => {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return null;
+    return parsed
+      .map((row) => normalizeRecorridoRow(row))
+      .filter(Boolean) as RecorridoRow[];
+  } catch {
+    return null;
+  }
 };
 
 export default async function OpsVisitReportPage({
@@ -178,12 +236,107 @@ export default async function OpsVisitReportPage({
             ) : (
               (templateItems ?? []).map((item: TemplateItem) => {
                 const response = latestResponseByItemId.get(item.id);
+                const isRecorridoItem = isRecorridoPorPisosItem(item.label);
+                const rawText = (response?.value_text ?? "").trim();
+                const recorridoRows = isRecorridoItem
+                  ? parseRecorridoRows(rawText)
+                  : null;
+                const fallbackText = rawText
+                  ? looksLikeJson(rawText)
+                    ? "—"
+                    : rawText
+                  : "—";
                 return (
-                  <tr key={item.id} className="border-t">
+                  <tr key={item.id} className="border-t align-top">
                     <td className="px-4 py-3 font-medium">{item.label}</td>
                     <td className="px-4 py-3 text-gray-600">{item.item_type}</td>
                     <td className="px-4 py-3 text-gray-700">
-                      {formatResponseValue(item.item_type, response)}
+                      {recorridoRows ? (
+                        <div className="overflow-x-auto rounded border">
+                          <table className="min-w-full text-left text-xs">
+                            <thead className="bg-gray-50 text-gray-600">
+                              <tr>
+                                <th className="px-3 py-2 font-medium">Piso</th>
+                                <th className="px-3 py-2 font-medium">
+                                  Presión entrada
+                                </th>
+                                <th className="px-3 py-2 font-medium">
+                                  Presión salida
+                                </th>
+                                <th className="px-3 py-2 font-medium">
+                                  Estación control abierta
+                                </th>
+                                <th className="px-3 py-2 font-medium">
+                                  Estación control cerrada
+                                </th>
+                                <th className="px-3 py-2 font-medium">
+                                  Válvula reguladora
+                                </th>
+                                <th className="px-3 py-2 font-medium">
+                                  Estado manómetro
+                                </th>
+                                <th className="px-3 py-2 font-medium">
+                                  Gabinetes/manguera
+                                </th>
+                                <th className="px-3 py-2 font-medium">
+                                  Extintores
+                                </th>
+                                <th className="px-3 py-2 font-medium">
+                                  Observación
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {recorridoRows.length === 0 ? (
+                                <tr className="border-t">
+                                  <td
+                                    className="px-3 py-3 text-gray-500"
+                                    colSpan={10}
+                                  >
+                                    Sin filas.
+                                  </td>
+                                </tr>
+                              ) : null}
+                              {recorridoRows.map((row, index) => (
+                                <tr key={`${item.id}-${index}`} className="border-t">
+                                  <td className="px-3 py-2">{row.piso || "—"}</td>
+                                  <td className="px-3 py-2">
+                                    {row.presion_entrada ?? "—"}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    {row.presion_salida ?? "—"}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    {formatBool(row.estacion_control_abierta)}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    {formatBool(row.estacion_control_cerrada)}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    {formatBool(row.valvula_reguladora)}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    {formatBool(row.estado_manometro)}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    {formatBool(row.gabinetes_manguera)}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    {formatBool(row.extintores)}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    {row.observacion || "—"}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        isRecorridoItem
+                          ? fallbackText
+                          : formatResponseValue(item.item_type, response)
+                      )}
                     </td>
                   </tr>
                 );
