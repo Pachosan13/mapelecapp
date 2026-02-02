@@ -5,38 +5,25 @@ export default async function OpsDashboardPage() {
   await requireRole(["ops_manager"]);
 
   return (
-    <div className="min-h-screen p-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Ops Manager</h1>
-        <p className="text-gray-600">Accesos rápidos de operaciones</p>
+    <div className="min-h-screen bg-gray-50/40 p-8">
+      <div className="mb-8">
+        <h1 className="text-2xl font-semibold text-gray-900">Hoy</h1>
+        <p className="text-sm text-gray-500">Panel operativo</p>
       </div>
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Link
+          href="/ops/visits"
+          className="rounded-xl border border-transparent bg-white p-4 transition hover:border-gray-200 hover:shadow-sm"
+        >
+          <h2 className="text-base font-semibold text-gray-900">Hoy</h2>
+          <p className="text-sm text-gray-500">Visitas de hoy</p>
+        </Link>
         <Link
           href="/ops/buildings"
-          className="rounded border bg-white p-4 transition hover:border-gray-500 hover:shadow-sm"
+          className="rounded-xl border border-transparent bg-white p-4 transition hover:border-gray-200 hover:shadow-sm"
         >
-          <h2 className="text-lg font-semibold">Buildings</h2>
-          <p className="text-sm text-gray-600">
-            Ver y gestionar el listado de PH/buildings.
-          </p>
-        </Link>
-        <Link
-          href="/ops/templates"
-          className="rounded border bg-white p-4 transition hover:border-gray-500 hover:shadow-sm"
-        >
-          <h2 className="text-lg font-semibold">Templates</h2>
-          <p className="text-sm text-gray-600">
-            Administrar templates de formularios.
-          </p>
-        </Link>
-        <Link
-          href="/ops/visits/new"
-          className="rounded border bg-white p-4 transition hover:border-gray-500 hover:shadow-sm"
-        >
-          <h2 className="text-lg font-semibold">New Visit</h2>
-          <p className="text-sm text-gray-600">
-            Crear una nueva visita programada.
-          </p>
+          <h2 className="text-base font-semibold text-gray-900">Edificios</h2>
+          <p className="text-sm text-gray-500">Gestionar PH/buildings</p>
         </Link>
       </div>
     </div>

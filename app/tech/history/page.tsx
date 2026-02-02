@@ -216,7 +216,7 @@ export default async function TechHistoryPage({
               Building: {visit.building_id ? buildingNameById.get(visit.building_id) ?? "—" : "—"}
             </div>
             <div className="text-gray-600">
-              Template: {visit.template_id ? templateNameById.get(visit.template_id) ?? "—" : "—"}
+              Formulario: {visit.template_id ? templateNameById.get(visit.template_id) ?? "—" : "—"}
             </div>
             <div className="text-gray-600">Completado: {safeFormatDate(visit.completed_at)}</div>
             <div className="mt-2">

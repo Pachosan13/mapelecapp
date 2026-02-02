@@ -19,20 +19,20 @@ export default async function OpsTemplatesPage() {
     <div className="min-h-screen p-8">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Templates</h1>
-          <p className="text-gray-600">Plantillas de visita</p>
+          <h1 className="text-2xl font-bold">Formularios</h1>
+          <p className="text-gray-600">Formularios de visita</p>
         </div>
         <Link
           href="/ops/templates/new"
           className="rounded bg-black px-4 py-2 text-white"
         >
-          New
+          Nuevo
         </Link>
       </div>
 
       {error ? (
         <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          Error cargando templates: {error.message}
+          Error cargando formularios: {error.message}
         </div>
       ) : null}
 
@@ -40,17 +40,17 @@ export default async function OpsTemplatesPage() {
         <table className="min-w-full text-left text-sm">
           <thead className="bg-gray-50 text-gray-600">
             <tr>
-              <th className="px-4 py-3 font-medium">Name</th>
-              <th className="px-4 py-3 font-medium">Category</th>
-              <th className="px-4 py-3 font-medium">Active</th>
-              <th className="px-4 py-3 font-medium">Items</th>
+              <th className="px-4 py-3 font-medium">Nombre</th>
+              <th className="px-4 py-3 font-medium">Categoría</th>
+              <th className="px-4 py-3 font-medium">Activo</th>
+              <th className="px-4 py-3 font-medium">Campos</th>
             </tr>
           </thead>
           <tbody>
             {templates.length === 0 ? (
               <tr>
                 <td className="px-4 py-6 text-gray-500" colSpan={4}>
-                  No hay templates aún.
+                  No hay formularios aún.
                 </td>
               </tr>
             ) : (
@@ -61,14 +61,14 @@ export default async function OpsTemplatesPage() {
                     {CATEGORY_LABELS[template.category] ?? template.category}
                   </td>
                   <td className="px-4 py-3 text-gray-600">
-                    {template.is_active ? "Yes" : "No"}
+                    {template.is_active ? "Sí" : "No"}
                   </td>
                   <td className="px-4 py-3">
                     <Link
                       href={`/ops/templates/${template.id}/items`}
                       className="text-blue-600 hover:underline"
                     >
-                      Manage items →
+                      Ver campos →
                     </Link>
                   </td>
                 </tr>

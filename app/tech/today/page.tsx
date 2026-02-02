@@ -91,76 +91,83 @@ export default async function TechTodayPage({
   const error = legacyError ?? crewError ?? crewMineError;
 
   return (
-    <div className="min-h-screen p-8">
-      <div className="mb-4 flex items-center justify-between">
+    <div className="min-h-screen bg-gray-50/40 p-8">
+      <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Tech - Hoy</h1>
-          <p className="text-gray-600">
+          <h1 className="text-2xl font-semibold text-gray-900">Hoy</h1>
+          <p className="text-sm text-gray-500">
             {displayName} · Visitas programadas para hoy
           </p>
         </div>
-        <div className="flex items-center gap-4 text-sm">
-          <Link href="/tech/history" className="text-blue-600 hover:underline">
+        <div className="flex items-center gap-4 text-sm text-gray-600">
+          <Link href="/tech/history" className="hover:text-gray-900">
             Ver historial
           </Link>
-          <Link href="/tech/today" className="text-blue-600 hover:underline">
+          <Link href="/tech/today" className="hover:text-gray-900">
             Refresh
           </Link>
         </div>
       </div>
 
       {showCompletedBanner ? (
-        <div className="mb-4 rounded border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800">
+        <div className="mb-6 rounded-lg border border-green-100 bg-green-50/70 px-4 py-3 text-sm font-medium text-green-800">
           Visita completada ✅
         </div>
       ) : null}
 
       {error ? (
-        <div className="mt-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="mt-4 rounded-lg border border-red-100 bg-red-50/70 p-3 text-sm text-red-700">
           Error cargando visitas: {error.message}
         </div>
       ) : null}
 
-      <div className="mt-6 overflow-x-auto rounded border">
-        <table className="min-w-full text-left text-sm">
-          <thead className="bg-gray-50 text-gray-600">
-            <tr>
-              <th className="px-4 py-3 font-medium">Building</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 font-medium">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visits.length === 0 ? (
-              <tr>
-                <td className="px-4 py-6 text-gray-500" colSpan={3}>
-                  No tienes visitas asignadas hoy.
-                </td>
-              </tr>
-            ) : (
-              visits.map((visit) => (
-                <tr key={visit.id} className="border-t">
-                  <td className="px-4 py-3 font-medium">
+      <div className="mt-6">
+        {visits.length === 0 ? (
+          <div className="rounded-2xl border border-gray-100 bg-white px-6 py-10 text-sm text-gray-500">
+            No tienes visitas asignadas hoy.
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-gray-100 bg-white">
+            {visits.map((visit, index) => (
+              <div
+                key={visit.id}
+                className={`flex items-center justify-between gap-6 px-6 py-5 ${
+                  index === 0 ? "" : "border-t border-gray-100"
+                }`}
+              >
+                <div>
+                  <div
+                    className={`font-semibold text-gray-900 ${
+                      visits.length === 1 ? "text-xl" : "text-base"
+                    }`}
+                  >
                     {visit.building?.name ?? "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700">
-                      {formatStatus(visit.status)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/tech/visits/${visit.id}`}
-                      className="text-blue-600 hover:underline"
-                    >
-                      Open →
-                    </Link>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+                  </div>
+                  <div className="mt-1 inline-flex items-center gap-2 text-sm text-gray-500">
+                    <span
+                      className={`h-2 w-2 rounded-full ${
+                        visit.status === "planned"
+                          ? "bg-gray-300"
+                          : visit.status === "in_progress"
+                            ? "bg-blue-400"
+                            : visit.status === "completed"
+                              ? "bg-emerald-400"
+                              : "bg-gray-300"
+                      }`}
+                    />
+                    {formatStatus(visit.status)}
+                  </div>
+                </div>
+                <Link
+                  href={`/tech/visits/${visit.id}`}
+                  className="text-sm font-medium text-gray-700 hover:text-gray-900"
+                >
+                  Abrir →
+                </Link>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

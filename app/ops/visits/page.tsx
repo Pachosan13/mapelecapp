@@ -135,14 +135,17 @@ export default async function OpsVisitsPage({
   const nextDate = shiftDate(selectedDate, 1);
 
   return (
-    <div className="min-h-screen p-8">
+    <div className="min-h-screen bg-gray-50/40 p-8">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Ops Agenda</h1>
-          <p className="text-gray-600">Visitas programadas por dia</p>
+          <h1 className="text-2xl font-semibold text-gray-900">Hoy</h1>
+          <p className="text-sm text-gray-500">Visitas programadas</p>
         </div>
-        <Link href="/ops/visits/new" className="rounded bg-black px-4 py-2 text-white">
-          New visit
+        <Link
+          href="/ops/visits/new"
+          className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white"
+        >
+          Nueva visita
         </Link>
       </div>
 
@@ -151,29 +154,43 @@ export default async function OpsVisitsPage({
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <Link
           href={buildAgendaUrl(prevDate, selectedTech, selectedBuilding)}
-          className="rounded border px-3 py-2 text-sm"
+          className="rounded-full border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700"
         >
           ← Prev
         </Link>
-        <div className="rounded border px-3 py-2 text-sm font-medium">
+        <div className="rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-800">
           {formatPanamaDateLabel(selectedDate)}
         </div>
         <Link
           href={buildAgendaUrl(nextDate, selectedTech, selectedBuilding)}
-          className="rounded border px-3 py-2 text-sm"
+          className="rounded-full border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700"
         >
           Next →
         </Link>
+        <div className="ml-auto inline-flex rounded-full border border-gray-200 bg-white p-1 text-xs text-gray-600">
+          <Link
+            href="/ops/visits"
+            className="rounded-full bg-gray-900 px-3 py-1 font-semibold text-white"
+          >
+            Lista
+          </Link>
+          <Link
+            href="/ops/daily-board"
+            className="rounded-full px-3 py-1 font-medium text-gray-600 hover:text-gray-900"
+          >
+            Cuadrillas
+          </Link>
+        </div>
       </div>
 
-      <form className="mb-6 flex flex-wrap items-end gap-4" method="get">
+      <form className="mb-8 flex flex-wrap items-end gap-4" method="get">
         <input type="hidden" name="date" value={selectedDate} />
         <div>
           <label className="mb-1 block text-sm font-medium">Tech</label>
           <select
             name="tech"
             defaultValue={selectedTech}
-            className="w-full rounded border px-3 py-2"
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
           >
             <option value="">Todos</option>
             {techOptions.map((tech) => (
@@ -188,7 +205,7 @@ export default async function OpsVisitsPage({
           <select
             name="building"
             defaultValue={selectedBuilding}
-            className="w-full rounded border px-3 py-2"
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
           >
             <option value="">Todos</option>
             {buildingOptions.map((building) => (
@@ -198,12 +215,15 @@ export default async function OpsVisitsPage({
             ))}
           </select>
         </div>
-        <button type="submit" className="rounded border px-4 py-2">
+        <button
+          type="submit"
+          className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm"
+        >
           Filtrar
         </button>
         <Link
           href={buildAgendaUrl(selectedDate)}
-          className="rounded border px-4 py-2 text-gray-700"
+          className="rounded-full px-4 py-2 text-sm text-gray-600 hover:bg-white"
         >
           Limpiar
         </Link>
@@ -215,14 +235,14 @@ export default async function OpsVisitsPage({
         </div>
       ) : null}
 
-      <div className="overflow-x-auto rounded border">
+      <div className="overflow-x-auto rounded-2xl border border-gray-100 bg-white">
         <table className="min-w-full text-left text-sm">
-          <thead className="bg-gray-50 text-gray-600">
+          <thead className="bg-gray-50/70 text-gray-500">
             <tr>
               <th className="px-4 py-3 font-medium">Fecha</th>
               <th className="px-4 py-3 font-medium">Building</th>
               <th className="px-4 py-3 font-medium">Tech</th>
-              <th className="px-4 py-3 font-medium">Template</th>
+              <th className="px-4 py-3 font-medium">Formulario</th>
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium">Actions</th>
             </tr>
@@ -244,7 +264,7 @@ export default async function OpsVisitsPage({
                     : "—");
 
                 return (
-                  <tr key={visit.id} className="border-t">
+                  <tr key={visit.id} className="border-t border-gray-100">
                     <td className="px-4 py-3">
                       {formatPanamaDateLabel(visit.scheduled_for)}
                     </td>
@@ -260,18 +280,25 @@ export default async function OpsVisitsPage({
                         "—"
                       )}
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{techName}</td>
-                    <td className="px-4 py-3 text-gray-600">
+                    <td className="px-4 py-3 text-gray-500">{techName}</td>
+                    <td className="px-4 py-3 text-gray-500">
                       {visit.template?.name ?? "—"}
                     </td>
                     <td className="px-4 py-3">
-                      {visit.status ? (
-                        <span className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700">
-                          {formatStatus(visit.status)}
-                        </span>
-                      ) : (
-                        <span className="text-gray-500">{formatStatus()}</span>
-                      )}
+                      <span className="inline-flex items-center gap-2 text-xs text-gray-500">
+                        <span
+                          className={`h-2 w-2 rounded-full ${
+                            visit.status === "planned"
+                              ? "bg-gray-300"
+                              : visit.status === "in_progress"
+                                ? "bg-blue-400"
+                                : visit.status === "completed"
+                                  ? "bg-emerald-400"
+                                  : "bg-gray-300"
+                          }`}
+                        />
+                        {formatStatus(visit.status)}
+                      </span>
                     </td>
                     <td className="px-4 py-3">
                       {visit.building ? (

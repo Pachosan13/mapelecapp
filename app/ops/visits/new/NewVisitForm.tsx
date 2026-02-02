@@ -73,112 +73,144 @@ export default function NewVisitForm({
   );
 
   return (
-    <form action={action} className="max-w-xl space-y-4">
+    <form action={action} className="max-w-xl space-y-8">
       {selectedBuilding && !hasSystems ? (
-        <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-          Este building no tiene sistemas configurados (pump/fire). Edita el
-          building.
+        <div className="rounded-lg border border-amber-100 bg-amber-50/70 p-3 text-sm text-amber-800">
+          Este building no tiene sistemas configurados (pump/fire).
         </div>
       ) : null}
-      <div>
-        <label className="mb-1 block text-sm font-medium">Building</label>
-        <select
-          name="building_id"
-          required
-          value={buildingId}
-          onChange={(event) => onValueChange(event.target.value)}
-          className="w-full rounded border px-3 py-2"
-        >
-          <option value="">Selecciona un building</option>
-          {buildings.map((building) => (
-            <option key={building.id} value={building.id}>
-              {building.name}
-            </option>
-          ))}
-        </select>
-      </div>
-      {buildingId ? (
+      <section className="space-y-4">
+        <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+          Building
+        </div>
         <div>
-          <label className="mb-1 block text-sm font-medium">
-            Equipos a revisar (opcional)
-          </label>
-          {equipmentForBuilding.length > 0 ? (
+          <label className="mb-1 block text-sm font-medium">Building</label>
+          <select
+            name="building_id"
+            required
+            value={buildingId}
+            onChange={(event) => onValueChange(event.target.value)}
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-gray-300 focus:outline-none"
+          >
+            <option value="">Selecciona un building</option>
+            {buildings.map((building) => (
+              <option key={building.id} value={building.id}>
+                {building.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        {buildingId ? (
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              Equipos (opcional)
+            </label>
+            {equipmentForBuilding.length > 0 ? (
+              <div className="space-y-2">
+                {equipmentForBuilding.map((item) => (
+                  <label key={item.id} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      name="equipment_ids"
+                      value={item.id}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                    <span>{item.name}</span>
+                    <span className="text-xs text-gray-400">
+                      ({CATEGORY_LABELS[item.equipment_type] ?? item.equipment_type})
+                    </span>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">
+                No hay equipos activos para este building.
+              </p>
+            )}
+            <p className="mt-2 text-xs text-gray-400">
+              Si no seleccionas equipos, la visita queda a nivel building.
+            </p>
+          </div>
+        ) : null}
+      </section>
+
+      <section className="space-y-4">
+        <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+          Formularios
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Formularios</label>
+          {!buildingId ? (
+            <p className="text-sm text-gray-500">
+              Selecciona un building primero.
+            </p>
+          ) : filteredTemplates.length > 0 ? (
             <div className="space-y-2">
-              {equipmentForBuilding.map((item) => (
-                <label key={item.id} className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" name="equipment_ids" value={item.id} />
-                  <span>{item.name}</span>
-                  <span className="text-xs text-gray-500">
-                    ({CATEGORY_LABELS[item.equipment_type] ?? item.equipment_type})
+              {filteredTemplates.map((template) => (
+                <label key={template.id} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    name="template_ids"
+                    value={template.id}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <span>{template.name}</span>
+                  <span className="text-xs text-gray-400">
+                    ({CATEGORY_LABELS[template.category] ?? template.category})
                   </span>
                 </label>
               ))}
             </div>
           ) : (
             <p className="text-sm text-gray-500">
-              No hay equipos activos para este building.
+              No hay formularios activos para este building.
             </p>
           )}
-          <p className="mt-2 text-xs text-gray-500">
-            Si no seleccionas equipos, la visita queda a nivel building (legacy).
-          </p>
         </div>
-      ) : null}
-      <div>
-        <label className="mb-1 block text-sm font-medium">Templates</label>
-        {!buildingId ? (
-          <p className="text-sm text-gray-500">Selecciona un building primero.</p>
-        ) : filteredTemplates.length > 0 ? (
-          <div className="space-y-2">
-            {filteredTemplates.map((template) => (
-              <label key={template.id} className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name="template_ids" value={template.id} />
-                <span>{template.name}</span>
-                <span className="text-xs text-gray-500">
-                  ({CATEGORY_LABELS[template.category] ?? template.category})
-                </span>
-              </label>
+      </section>
+
+      <section className="space-y-4">
+        <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+          Programación
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Fecha</label>
+          <input
+            type="date"
+            name="scheduled_for"
+            required
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-gray-300 focus:outline-none"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Cuadrilla</label>
+          <select
+            name="assigned_crew_id"
+            required
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-gray-300 focus:outline-none"
+          >
+            <option value="">Selecciona una cuadrilla</option>
+            {crews.map((crew) => (
+              <option key={crew.id} value={crew.id}>
+                {crew.name}
+              </option>
             ))}
-          </div>
-        ) : (
-          <p className="text-sm text-gray-500">
-            No hay templates activos para este building.
-          </p>
-        )}
-      </div>
-      <div>
-        <label className="mb-1 block text-sm font-medium">Scheduled for</label>
-        <input
-          type="date"
-          name="scheduled_for"
-          required
-          className="w-full rounded border px-3 py-2"
-        />
-      </div>
-      <div>
-        <label className="mb-1 block text-sm font-medium">Assign crew</label>
-        <select
-          name="assigned_crew_id"
-          required
-          className="w-full rounded border px-3 py-2"
+          </select>
+        </div>
+      </section>
+
+      <div className="flex items-center gap-3 pt-2">
+        <button
+          type="submit"
+          className="rounded-full bg-gray-900 px-5 py-2 text-sm font-medium text-white hover:bg-black"
         >
-          <option value="">Selecciona una cuadrilla</option>
-          {crews.map((crew) => (
-            <option key={crew.id} value={crew.id}>
-              {crew.name}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="flex gap-3">
-        <button type="submit" className="rounded bg-black px-4 py-2 text-white">
-          Create visit
+          Crear visita
         </button>
         <Link
           href="/ops/dashboard"
-          className="rounded border px-4 py-2 text-gray-700"
+          className="rounded-full px-4 py-2 text-sm text-gray-600 transition hover:bg-gray-100 hover:text-gray-900"
         >
-          Cancel
+          Cancelar
         </Link>
       </div>
     </form>

@@ -35,7 +35,7 @@ async function createTemplate(formData: FormData) {
   if (error) {
     redirect(
       `/ops/templates/new?error=${encodeURIComponent(
-        "No se pudo crear el template."
+        "No se pudo crear el formulario."
       )}`
     );
   }
@@ -52,9 +52,9 @@ export default function NewTemplatePage({
     <div className="min-h-screen p-8">
       <div className="mb-6">
         <Link href="/ops/templates" className="text-sm text-gray-500">
-          ← Volver a templates
+          ← Volver a formularios
         </Link>
-        <h1 className="mt-2 text-2xl font-bold">New template</h1>
+        <h1 className="mt-2 text-2xl font-bold">Nuevo formulario</h1>
       </div>
 
       {searchParams?.error ? (
@@ -65,7 +65,7 @@ export default function NewTemplatePage({
 
       <form action={createTemplate} className="max-w-xl space-y-4">
         <div>
-          <label className="mb-1 block text-sm font-medium">Name</label>
+          <label className="mb-1 block text-sm font-medium">Nombre</label>
           <input
             type="text"
             name="name"
@@ -74,22 +74,22 @@ export default function NewTemplatePage({
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium">Category</label>
+          <label className="mb-1 block text-sm font-medium">Categoría</label>
           <select name="category" required className="w-full rounded border px-3 py-2">
             <option value="">Selecciona</option>
-            <option value="pump">Pump</option>
-            <option value="fire">Fire</option>
+            <option value="pump">Bombas</option>
+            <option value="fire">Incendio</option>
           </select>
         </div>
         <div className="flex gap-3">
           <button type="submit" className="rounded bg-black px-4 py-2 text-white">
-            Create
+            Crear
           </button>
           <Link
             href="/ops/templates"
             className="rounded border px-4 py-2 text-gray-700"
           >
-            Cancel
+            Cancelar
           </Link>
         </div>
       </form>

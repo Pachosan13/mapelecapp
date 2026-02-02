@@ -35,17 +35,21 @@ export default async function OpsDailyBoardPage({
   const hasError = Boolean(crewsResult.error || visitsResult.error);
 
   return (
-    <div className="min-h-screen p-8">
+    <div className="min-h-screen bg-gray-50/40 p-8">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <Link href="/ops/dashboard" className="text-sm text-gray-500">
-            ← Volver a dashboard
+          <Link href="/ops/visits" className="text-sm text-gray-500">
+            ← Lista
           </Link>
-          <h1 className="mt-2 text-2xl font-bold">Daily Crew Board</h1>
-          <p className="text-gray-600">Reasigna visitas planeadas por crew.</p>
+          <h1 className="mt-2 text-2xl font-semibold text-gray-900">
+            Hoy por cuadrillas
+          </h1>
+          <p className="text-sm text-gray-500">
+            Reasigna visitas planeadas por crew.
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <div className="rounded border px-3 py-2 text-sm font-medium">
+          <div className="rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-medium">
             {formatPanamaDateLabel(selectedDate)}
           </div>
           <form method="get" className="flex items-center gap-2">
@@ -53,9 +57,12 @@ export default async function OpsDailyBoardPage({
               type="date"
               name="date"
               defaultValue={selectedDate}
-              className="rounded border px-3 py-2 text-sm"
+              className="rounded-full border border-gray-200 bg-white px-3 py-2 text-sm"
             />
-            <button type="submit" className="rounded border px-3 py-2 text-sm">
+            <button
+              type="submit"
+              className="rounded-full border border-gray-200 bg-white px-3 py-2 text-sm"
+            >
               Ir
             </button>
           </form>

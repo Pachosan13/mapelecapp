@@ -2,6 +2,7 @@ import Link from "next/link";
 import { logout } from "@/app/actions/auth";
 import { getCurrentUser } from "@/lib/supabase/server";
 import AppNavLinks from "@/components/AppNavLinks";
+import UserMenu from "@/components/UserMenu";
 
 const roleLabelMap: Record<string, string> = {
   tech: "Tech",
@@ -23,20 +24,11 @@ export default async function AppHeader() {
 
   const links =
     role === "tech"
-      ? [{ href: "/tech/today", label: "Today", activeMatch: "exact" }]
+      ? [{ href: "/tech/today", label: "Hoy", activeMatch: "exact" }]
       : role === "ops_manager"
         ? [
-            { href: "/ops/dashboard", label: "Dashboard", activeMatch: "exact" },
-            { href: "/ops/buildings", label: "Buildings", activeMatch: "exact" },
-            {
-              href: "/ops/visits",
-              label: "Agenda",
-              activeMatch: "startsWith",
-              activeExclude: ["/ops/visits/new"],
-            },
-            { href: "/ops/templates", label: "Templates", activeMatch: "exact" },
-            { href: "/ops/visits/new", label: "New Visit", activeMatch: "exact" },
-            { href: "/ops/staff", label: "Personal", activeMatch: "exact" },
+            { href: "/ops/dashboard", label: "Hoy", activeMatch: "exact" },
+            { href: "/ops/buildings", label: "Edificios", activeMatch: "exact" },
           ]
         : role === "director"
           ? [
@@ -54,16 +46,12 @@ export default async function AppHeader() {
           </Link>
           <AppNavLinks links={links} />
         </div>
-        <div className="flex items-center gap-4 text-sm text-gray-600">
-          <span>{displayName} · {roleLabel}</span>
-          <form action={logout}>
-            <button
-              type="submit"
-              className="rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50"
-            >
-              Logout
-            </button>
-          </form>
+        <div className="flex items-center text-sm text-gray-600">
+          <UserMenu
+            displayName={displayName}
+            roleLabel={roleLabel}
+            logoutAction={logout}
+          />
         </div>
       </div>
     </header>

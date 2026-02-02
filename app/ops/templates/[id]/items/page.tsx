@@ -164,7 +164,7 @@ export default async function TemplateItemsPage({
     return (
       <div className="min-h-screen p-8">
         <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          Error cargando template: {templateError.message}
+          Error cargando formulario: {templateError.message}
         </div>
       </div>
     );
@@ -184,11 +184,11 @@ export default async function TemplateItemsPage({
     <div className="min-h-screen p-8">
       <div className="mb-6">
         <Link href="/ops/templates" className="text-sm text-gray-500">
-          ← Volver a templates
+          ← Volver a formularios
         </Link>
-        <h1 className="mt-2 text-2xl font-bold">Items - {template.name}</h1>
+        <h1 className="mt-2 text-2xl font-bold">Campos — {template.name}</h1>
         <p className="text-gray-600">
-          Category: {template.category} · Active: {template.is_active ? "Yes" : "No"}
+          Categoría: {template.category} · Activo: {template.is_active ? "Sí" : "No"}
         </p>
       </div>
 
@@ -200,7 +200,7 @@ export default async function TemplateItemsPage({
 
       {itemsError ? (
         <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          Error cargando items: {itemsError.message}
+          Error cargando campos: {itemsError.message}
         </div>
       ) : null}
 
@@ -215,7 +215,7 @@ export default async function TemplateItemsPage({
             <input type="hidden" name="item_id" value={item.id} />
             <div className="grid gap-3 md:grid-cols-5">
               <div className="md:col-span-2">
-                <label className="mb-1 block text-sm font-medium">Label</label>
+                <label className="mb-1 block text-sm font-medium">Etiqueta</label>
                 <input
                   type="text"
                   name="label"
@@ -225,19 +225,19 @@ export default async function TemplateItemsPage({
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium">Type</label>
+                <label className="mb-1 block text-sm font-medium">Tipo</label>
                 <select
                   name="item_type"
                   defaultValue={item.item_type}
                   className="w-full rounded border px-3 py-2"
                 >
                   <option value="checkbox">Checkbox</option>
-                  <option value="number">Number</option>
-                  <option value="text">Text</option>
+                  <option value="number">Número</option>
+                  <option value="text">Texto</option>
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium">Sort</label>
+                <label className="mb-1 block text-sm font-medium">Orden</label>
                 <input
                   type="number"
                   name="sort_order"
@@ -251,19 +251,19 @@ export default async function TemplateItemsPage({
                   name="required"
                   defaultChecked={item.required ?? false}
                 />
-                <span className="text-sm">Required</span>
+                <span className="text-sm">Requerido</span>
               </div>
             </div>
             <div className="mt-3 flex gap-2">
               <button type="submit" className="rounded bg-black px-4 py-2 text-white">
-                Save
+                Guardar
               </button>
               <button
                 type="submit"
                 formAction={deleteItem}
                 className="rounded border border-red-500 px-4 py-2 text-red-600"
               >
-                Delete
+                Eliminar
               </button>
             </div>
           </form>
@@ -271,12 +271,12 @@ export default async function TemplateItemsPage({
       </div>
 
       <div className="mt-8">
-        <h2 className="text-lg font-semibold mb-3">New item</h2>
+        <h2 className="mb-3 text-lg font-semibold">Nuevo campo</h2>
         <form action={createItem} className="rounded border p-4">
           <input type="hidden" name="template_id" value={template.id} />
           <div className="grid gap-3 md:grid-cols-5">
             <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-medium">Label</label>
+              <label className="mb-1 block text-sm font-medium">Etiqueta</label>
               <input
                 type="text"
                 name="label"
@@ -285,15 +285,15 @@ export default async function TemplateItemsPage({
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">Type</label>
+              <label className="mb-1 block text-sm font-medium">Tipo</label>
               <select name="item_type" className="w-full rounded border px-3 py-2">
                 <option value="checkbox">Checkbox</option>
-                <option value="number">Number</option>
-                <option value="text">Text</option>
+                <option value="number">Número</option>
+                <option value="text">Texto</option>
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">Sort</label>
+              <label className="mb-1 block text-sm font-medium">Orden</label>
               <input
                 type="number"
                 name="sort_order"
@@ -303,12 +303,12 @@ export default async function TemplateItemsPage({
             </div>
             <div className="flex items-center gap-2 md:mt-6">
               <input type="checkbox" name="required" />
-              <span className="text-sm">Required</span>
+              <span className="text-sm">Requerido</span>
             </div>
           </div>
           <div className="mt-3 flex gap-2">
             <button type="submit" className="rounded bg-black px-4 py-2 text-white">
-              Add item
+              Agregar campo
             </button>
           </div>
         </form>

@@ -100,16 +100,21 @@ export default async function NewVisitPage({
   const equipment = equipmentResult.data ?? [];
 
   return (
-    <div className="min-h-screen p-8">
-      <div className="mb-6">
+    <div className="min-h-screen bg-gray-50/40 p-8">
+      <div className="mb-8">
         <Link href="/ops/dashboard" className="text-sm text-gray-500">
-          ← Volver a dashboard
+          ← Volver
         </Link>
-        <h1 className="mt-2 text-2xl font-bold">New visit</h1>
+        <h1 className="mt-2 text-2xl font-semibold text-gray-900">
+          Nueva visita
+        </h1>
+        <p className="text-sm text-gray-500">
+          Completa la información esencial.
+        </p>
       </div>
 
       {searchParams?.error ? (
-        <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="mb-6 rounded-lg border border-red-100 bg-red-50/70 p-3 text-sm text-red-700">
           {decodeURIComponent(searchParams.error)}
         </div>
       ) : null}

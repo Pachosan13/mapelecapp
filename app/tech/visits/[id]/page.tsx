@@ -234,7 +234,7 @@ export default async function TechVisitPage({
         </Link>
         <h1 className="mt-2 text-2xl font-bold">Visita</h1>
         <p className="text-gray-600">
-          {visit.building?.name ?? "Building"} · {visit.template?.name ?? "Template"}
+          {visit.building?.name ?? "Building"} · {visit.template?.name ?? "Formulario"}
         </p>
       </div>
 
@@ -265,7 +265,7 @@ export default async function TechVisitPage({
           <input type="hidden" name="saved_once" value={isSaved ? "1" : "0"} />
         {(items ?? []).length === 0 ? (
           <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-            No se pudieron cargar items del template (RLS o template vacío).
+            No se pudieron cargar items del formulario (RLS o formulario vacío).
             <div className="mt-1 text-xs text-amber-700">
               template_id: {visit.template_id} · visit_id: {visit.id}
             </div>

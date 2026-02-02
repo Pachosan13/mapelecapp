@@ -25,22 +25,22 @@ type DailyCrewBoardProps = {
   visits: Visit[];
 };
 
-const statusBadgeClass = (status?: string | null) => {
-  switch (status) {
-    case "planned":
-      return "bg-amber-100 text-amber-800";
-    case "in_progress":
-      return "bg-blue-100 text-blue-800";
-    case "completed":
-      return "bg-emerald-100 text-emerald-800";
-    default:
-      return "bg-gray-100 text-gray-700";
-  }
-};
-
 const formatStatus = (status?: string | null) => {
   if (!status) return "Scheduled";
   return status.replace(/_/g, " ").replace(/\b\w/g, (match) => match.toUpperCase());
+};
+
+const statusDotClass = (status?: string | null) => {
+  switch (status) {
+    case "planned":
+      return "bg-gray-300";
+    case "in_progress":
+      return "bg-blue-400";
+    case "completed":
+      return "bg-emerald-400";
+    default:
+      return "bg-gray-300";
+  }
 };
 
 export default function DailyCrewBoard({ crews, visits: initialVisits }: DailyCrewBoardProps) {
@@ -144,26 +144,29 @@ export default function DailyCrewBoard({ crews, visits: initialVisits }: DailyCr
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <OpsVisitsToast message={toastMessage ?? undefined} />
-      <div className="grid gap-4 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="grid gap-5 lg:grid-cols-3 xl:grid-cols-5">
         {crews.map((crew) => {
           const crewVisits = visitsByCrewId.get(crew.id) ?? [];
           return (
-            <div key={crew.id} className="rounded border bg-white">
-              <div className="flex items-center justify-between border-b px-4 py-3">
-                <div className="text-sm font-semibold">{crew.name}</div>
-                <span className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700">
-                  {crewVisits.length}
-                </span>
+            <div
+              key={crew.id}
+              className="rounded-2xl border border-gray-100 bg-white"
+            >
+              <div className="flex items-center justify-between px-4 py-3">
+                <div className="text-sm font-semibold text-gray-900">
+                  {crew.name}
+                </div>
+                <span className="text-xs text-gray-400">{crewVisits.length}</span>
               </div>
               <div
-                className="space-y-3 p-3"
+                className="space-y-4 px-4 pb-4"
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={(event) => handleDrop(event, crew.id)}
               >
                 {crewVisits.length === 0 ? (
-                  <div className="rounded border border-dashed px-3 py-6 text-center text-sm text-gray-400">
+                  <div className="rounded-lg border border-dashed border-gray-200 px-3 py-6 text-center text-sm text-gray-400">
                     Sin visitas
                   </div>
                 ) : (
@@ -173,7 +176,7 @@ export default function DailyCrewBoard({ crews, visits: initialVisits }: DailyCr
                       draggable
                       onDragStart={(event) => handleDragStart(event, visit)}
                       onDragEnd={handleDragEnd}
-                      className={`rounded border bg-white p-3 text-sm shadow-sm ${
+                      className={`rounded-xl border border-gray-100 bg-white p-3 text-sm ${
                         draggingVisitId === visit.id ? "opacity-60" : ""
                       } ${visit.status === "planned" ? "cursor-grab" : "cursor-not-allowed"}`}
                     >
@@ -181,16 +184,15 @@ export default function DailyCrewBoard({ crews, visits: initialVisits }: DailyCr
                         {visit.building?.name ?? "Building sin nombre"}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {visit.template?.name ?? "Template sin asignar"}
+                        {visit.template?.name ?? "Formulario sin asignar"}
                       </div>
-                      <div className="mt-2">
+                      <div className="mt-2 inline-flex items-center gap-2 text-xs text-gray-500">
                         <span
-                          className={`rounded-full px-2 py-1 text-xs ${statusBadgeClass(
+                          className={`h-2 w-2 rounded-full ${statusDotClass(
                             visit.status
                           )}`}
-                        >
-                          {formatStatus(visit.status)}
-                        </span>
+                        />
+                        {formatStatus(visit.status)}
                       </div>
                     </div>
                   ))
@@ -199,16 +201,16 @@ export default function DailyCrewBoard({ crews, visits: initialVisits }: DailyCr
             </div>
           );
         })}
-        <div className="rounded border bg-gray-50">
-          <div className="flex items-center justify-between border-b px-4 py-3">
-            <div className="text-sm font-semibold text-gray-700">Unassigned/Legacy</div>
-            <span className="rounded-full bg-gray-200 px-2 py-1 text-xs text-gray-700">
-              {unassignedVisits.length}
-            </span>
+        <div className="rounded-2xl border border-gray-100 bg-white">
+          <div className="flex items-center justify-between px-4 py-3">
+            <div className="text-sm font-semibold text-gray-700">
+              Unassigned/Legacy
+            </div>
+            <span className="text-xs text-gray-400">{unassignedVisits.length}</span>
           </div>
-          <div className="space-y-3 p-3">
+          <div className="space-y-4 px-4 pb-4">
             {unassignedVisits.length === 0 ? (
-              <div className="rounded border border-dashed px-3 py-6 text-center text-sm text-gray-400">
+              <div className="rounded-lg border border-dashed border-gray-200 px-3 py-6 text-center text-sm text-gray-400">
                 Sin visitas
               </div>
             ) : (
@@ -218,7 +220,7 @@ export default function DailyCrewBoard({ crews, visits: initialVisits }: DailyCr
                   draggable
                   onDragStart={(event) => handleDragStart(event, visit)}
                   onDragEnd={handleDragEnd}
-                  className={`rounded border bg-white p-3 text-sm shadow-sm ${
+                  className={`rounded-xl border border-gray-100 bg-white p-3 text-sm ${
                     draggingVisitId === visit.id ? "opacity-60" : ""
                   } ${visit.status === "planned" ? "cursor-grab" : "cursor-not-allowed"}`}
                 >
@@ -226,16 +228,15 @@ export default function DailyCrewBoard({ crews, visits: initialVisits }: DailyCr
                     {visit.building?.name ?? "Building sin nombre"}
                   </div>
                   <div className="text-xs text-gray-500">
-                    {visit.template?.name ?? "Template sin asignar"}
+                    {visit.template?.name ?? "Formulario sin asignar"}
                   </div>
-                  <div className="mt-2">
+                  <div className="mt-2 inline-flex items-center gap-2 text-xs text-gray-500">
                     <span
-                      className={`rounded-full px-2 py-1 text-xs ${statusBadgeClass(
+                      className={`h-2 w-2 rounded-full ${statusDotClass(
                         visit.status
                       )}`}
-                    >
-                      {formatStatus(visit.status)}
-                    </span>
+                    />
+                    {formatStatus(visit.status)}
                   </div>
                 </div>
               ))

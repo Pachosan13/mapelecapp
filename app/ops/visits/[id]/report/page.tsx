@@ -179,7 +179,7 @@ export default async function OpsVisitReportPage({
   });
 
   const buildingName = visit.building?.name ?? "Building";
-  const templateName = visit.template?.name ?? "Template";
+  const templateName = visit.template?.name ?? "Formulario";
   const buildingHref = visit.building?.id
     ? `/ops/buildings/${visit.building.id}/history`
     : "/ops/buildings";
@@ -202,7 +202,7 @@ export default async function OpsVisitReportPage({
           <p className="text-sm font-medium">{buildingName}</p>
         </div>
         <div>
-          <p className="text-xs uppercase text-gray-500">Template</p>
+          <p className="text-xs uppercase text-gray-500">Formulario</p>
           <p className="text-sm font-medium">{templateName}</p>
         </div>
         <div>

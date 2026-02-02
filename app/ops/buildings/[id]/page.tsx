@@ -127,7 +127,7 @@ export default async function BuildingHistoryPage({
     <div className="min-h-screen p-8">
       <div className="mb-6">
         <Link href="/ops/buildings" className="text-sm text-gray-500">
-          ← Volver a buildings
+          ← Volver a edificios
         </Link>
         <h1 className="mt-2 text-2xl font-bold">{building.name}</h1>
         <p className="text-gray-600">Historial del building</p>
@@ -160,7 +160,7 @@ export default async function BuildingHistoryPage({
             <tr>
               <th className="px-4 py-3 font-medium">Date</th>
               <th className="px-4 py-3 font-medium">Tech</th>
-              <th className="px-4 py-3 font-medium">Template</th>
+              <th className="px-4 py-3 font-medium">Formulario</th>
               <th className="px-4 py-3 font-medium">Último estado</th>
             </tr>
           </thead>

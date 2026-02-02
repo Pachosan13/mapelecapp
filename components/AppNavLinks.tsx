@@ -32,7 +32,7 @@ export default function AppNavLinks({ links }: AppNavLinksProps) {
   const pathname = usePathname() ?? "";
 
   return (
-    <nav className="flex items-center gap-4 text-sm text-gray-700">
+    <nav className="flex items-center gap-5 text-sm text-gray-600">
       {links.map((link) => {
         const active = isActive(pathname, link);
         return (
@@ -42,7 +42,7 @@ export default function AppNavLinks({ links }: AppNavLinksProps) {
             className={
               active
                 ? "font-semibold text-gray-900"
-                : "text-gray-700 hover:text-gray-900"
+                : "text-gray-600 transition hover:text-gray-900"
             }
           >
             {link.label}
