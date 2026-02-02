@@ -16,19 +16,67 @@ export default async function TechTodayPage({
   const displayName =
     user.full_name?.trim() || `Usuario ${user.id.slice(0, 6)}`;
   const supabase = await createClient();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "America/Panama",
+  }).format(new Date());
+  const uid = user.user_id ?? user.id;
 
-  const { data, error } = await supabase
+  const selectFields =
+    "id,status,scheduled_for,assigned_crew_id,assigned_tech_user_id,building:buildings(id,name)";
+
+  const { data: legacyData, error: legacyError } = await supabase
     .from("visits")
-    .select("id,status,scheduled_for,building:buildings(id,name)")
-    .eq("assigned_tech_user_id", user.id)
+    .select(selectFields)
     .eq("scheduled_for", today)
-    .order("scheduled_for", { ascending: true });
+    .in("status", ["planned", "in_progress"])
+    .eq("assigned_tech_user_id", uid);
 
-  const visits = (data ?? []) as Array<{
+  const { data: crewData, error: crewError } = user.home_crew_id
+    ? await supabase
+        .from("visits")
+        .select(selectFields)
+        .eq("scheduled_for", today)
+        .in("status", ["planned", "in_progress"])
+        .eq("assigned_crew_id", user.home_crew_id)
+        .is("assigned_tech_user_id", null)
+    : { data: [], error: null };
+
+  const { data: crewMineData, error: crewMineError } = user.home_crew_id
+    ? await supabase
+        .from("visits")
+        .select(selectFields)
+        .eq("scheduled_for", today)
+        .in("status", ["planned", "in_progress"])
+        .eq("assigned_crew_id", user.home_crew_id)
+        .eq("assigned_tech_user_id", uid)
+    : { data: [], error: null };
+
+  const merged = [
+    ...(legacyData ?? []),
+    ...(crewData ?? []),
+    ...(crewMineData ?? []),
+  ];
+  const visitsById = new Map<string, (typeof merged)[number]>();
+  merged.forEach((visit) => {
+    visitsById.set(visit.id, visit);
+  });
+
+  const visits = Array.from(visitsById.values())
+    .sort((a, b) => {
+      const nameA = a.building?.name ?? "";
+      const nameB = b.building?.name ?? "";
+      const nameCompare = nameA.localeCompare(nameB);
+      if (nameCompare !== 0) return nameCompare;
+      return a.id.localeCompare(b.id);
+    }) as Array<{
     id: string;
     status: string;
     scheduled_for: string;
+    assigned_crew_id: string | null;
+    assigned_tech_user_id: string | null;
     building: { id: string; name: string } | null;
   }>;
 
@@ -40,6 +88,7 @@ export default async function TechTodayPage({
   };
 
   const showCompletedBanner = searchParams?.completed === "1";
+  const error = legacyError ?? crewError ?? crewMineError;
 
   return (
     <div className="min-h-screen p-8">

@@ -21,21 +21,33 @@ async function createVisit(formData: FormData) {
   }
 
   const buildingId = String(formData.get("building_id") ?? "");
-  const templateId = String(formData.get("template_id") ?? "");
+  const templateIds = formData
+    .getAll("template_ids")
+    .map((value) => String(value))
+    .filter(Boolean);
   const scheduledFor = String(formData.get("scheduled_for") ?? "");
-  const techUserId = String(formData.get("assigned_tech_user_id") ?? "");
+  const assignedCrewId = String(formData.get("assigned_crew_id") ?? "");
 
-  if (!buildingId || !templateId || !scheduledFor || !techUserId) {
+  if (!buildingId || !scheduledFor || !assignedCrewId) {
     redirect("/ops/visits/new?error=Todos%20los%20campos%20son%20requeridos");
   }
 
-  const { error } = await supabase.from("visits").insert({
-    building_id: buildingId,
-    template_id: templateId,
-    scheduled_for: scheduledFor,
-    assigned_tech_user_id: techUserId,
-    status: "planned",
-  });
+  if (templateIds.length === 0) {
+    redirect(
+      "/ops/visits/new?error=Selecciona%20al%20menos%20un%20template"
+    );
+  }
+
+  const { error } = await supabase.from("visits").insert(
+    templateIds.map((templateId) => ({
+      building_id: buildingId,
+      template_id: templateId,
+      scheduled_for: scheduledFor,
+      assigned_tech_user_id: null,
+      assigned_crew_id: assignedCrewId,
+      status: "planned",
+    }))
+  );
 
   if (error) {
     redirect(
@@ -45,7 +57,15 @@ async function createVisit(formData: FormData) {
     );
   }
 
-  redirect("/ops/dashboard");
+  redirect(
+    `/ops/visits?date=${encodeURIComponent(
+      scheduledFor
+    )}&building=${encodeURIComponent(
+      buildingId
+    )}&success=${encodeURIComponent(
+      `Se crearon ${templateIds.length} visitas`
+    )}`
+  );
 }
 
 export default async function NewVisitPage({
@@ -55,7 +75,7 @@ export default async function NewVisitPage({
 }) {
   const supabase = await createClient();
 
-  const [buildingsResult, templatesResult, techsResult, equipmentResult] =
+  const [buildingsResult, templatesResult, crewsResult, equipmentResult] =
     await Promise.all([
     supabase
       .from("buildings")
@@ -66,11 +86,7 @@ export default async function NewVisitPage({
       .select("id,name,category")
       .eq("is_active", true)
       .order("name", { ascending: true }),
-    supabase
-      .from("profiles")
-      .select("user_id,full_name")
-      .eq("role", "tech")
-      .order("full_name", { ascending: true }),
+    supabase.from("crews").select("id,name").order("name", { ascending: true }),
     supabase
       .from("equipment")
       .select("id,building_id,name,equipment_type,is_active")
@@ -80,7 +96,7 @@ export default async function NewVisitPage({
 
   const buildings = buildingsResult.data ?? [];
   const templates = templatesResult.data ?? [];
-  const techs = techsResult.data ?? [];
+  const crews = crewsResult.data ?? [];
   const equipment = equipmentResult.data ?? [];
 
   return (
@@ -101,7 +117,7 @@ export default async function NewVisitPage({
         action={createVisit}
         buildings={buildings}
         templates={templates}
-        techs={techs}
+        crews={crews}
         equipment={equipment}
       />
     </div>

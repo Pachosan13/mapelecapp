@@ -16,7 +16,7 @@ Sistema de gestión de mantenimiento preventivo para cuadrillas de bombas e ince
 - Profiles policies do not query `profiles` directly; they rely on the role function.
 - See migration `db/migrations/007_rls_use_get_user_role.sql`.
 - Profiles are auto-created on successful login via server action (no middleware side-effects).
-- Techs can update their own visits to `in_progress`/`completed` when assigned (`supabase/migrations/011_visits_tech_update_policy.sql`).
+- Techs can read visits assigned to them or their crew, and claim crew visits on start (`supabase/migrations/025_visits_crew_assignment_rls.sql`).
 - Tech/ops/director can read visit templates and template items (`supabase/migrations/012_templates_rls_read.sql`).
 - Service reports are restricted to `ops_manager` and `director` roles only.
 
@@ -28,7 +28,7 @@ Sistema de gestión de mantenimiento preventivo para cuadrillas de bombas e ince
 ## Core Entities
 
 - **buildings**: Root entity (PH). Contains name, address, lat/lng, systems (pump/fire array), service_flags, notes, created_by, created_at, updated_at.
-- **visits**: Scheduled maintenance visits to buildings. Linked to crew, building, date, status.
+- **visits**: Scheduled maintenance visits to buildings. Linked to crew, building, date, status, and optional tech attribution (set on start).
 - **visit_templates**: Templates for visit checklists (category-based).
 - **template_items**: Items within a visit template (checkbox/number/text).
 - **visit_responses**: Tech responses to template items per visit; append-only history with latest snapshot via `visit_latest_responses`.

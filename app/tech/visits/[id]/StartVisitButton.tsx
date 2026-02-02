@@ -43,7 +43,7 @@ export default function StartVisitButton({ visitId }: StartVisitButtonProps) {
 
       const { data: existingVisit, error: readError } = await supabase
         .from("visits")
-        .select("id,status,assigned_tech_user_id")
+        .select("id,status,assigned_tech_user_id,assigned_crew_id")
         .eq("id", visitId)
         .maybeSingle();
 
@@ -58,13 +58,50 @@ export default function StartVisitButton({ visitId }: StartVisitButtonProps) {
         return;
       }
 
-      if (existingVisit.assigned_tech_user_id !== user.id) {
-        toast("Visit not assigned to current tech");
+      if (existingVisit.status !== "planned") {
+        toast(`Estado actual: ${existingVisit.status}`);
         return;
       }
 
-      if (existingVisit.status !== "planned") {
-        toast(`Estado actual: ${existingVisit.status}`);
+      if (
+        existingVisit.assigned_tech_user_id &&
+        existingVisit.assigned_tech_user_id !== user.id
+      ) {
+        toast("Visita ya fue tomada por otro técnico.");
+        return;
+      }
+
+      if (!existingVisit.assigned_tech_user_id && !existingVisit.assigned_crew_id) {
+        toast("Visita sin asignación de crew.");
+        return;
+      }
+
+      if (!existingVisit.assigned_tech_user_id) {
+        const { data: claimData, error: claimError } = await supabase
+          .from("visits")
+          .update({
+            assigned_tech_user_id: user.id,
+            status: "in_progress",
+            started_at: new Date().toISOString(),
+          })
+          .eq("id", visitId)
+          .is("assigned_tech_user_id", null)
+          .eq("status", "planned")
+          .select("id,status,started_at,assigned_tech_user_id");
+
+        if (claimError) {
+          console.error(claimError);
+          toast(claimError.message);
+          return;
+        }
+
+        if (!claimData || claimData.length === 0) {
+          toast("Visita ya fue tomada por otro técnico.");
+          return;
+        }
+
+        toast("Visita iniciada");
+        router.replace(`/tech/visits/${visitId}?started=1`);
         return;
       }
 

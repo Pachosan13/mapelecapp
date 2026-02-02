@@ -175,7 +175,7 @@ export default async function TechVisitPage({
   const { data: visit, error: visitError } = await supabase
     .from("visits")
     .select(
-      "id,status,scheduled_for,started_at,completed_at,assigned_tech_user_id,template_id,building:buildings(id,name),template:visit_templates(id,name)"
+      "id,status,scheduled_for,started_at,completed_at,assigned_tech_user_id,assigned_crew_id,template_id,building:buildings(id,name),template:visit_templates(id,name)"
     )
     .eq("id", params.id)
     .maybeSingle();
@@ -190,7 +190,13 @@ export default async function TechVisitPage({
     );
   }
 
-  if (!visit || visit.assigned_tech_user_id !== user.id) {
+  const canAccessVisit =
+    visit?.assigned_tech_user_id === user.id ||
+    (visit?.assigned_tech_user_id === null &&
+      visit?.assigned_crew_id &&
+      visit?.assigned_crew_id === user.home_crew_id);
+
+  if (!visit || !canAccessVisit) {
     redirect("/unauthorized");
   }
 

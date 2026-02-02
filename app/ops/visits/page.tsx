@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import OpsVisitsToast from "./OpsVisitsToast";
 import {
   formatPanamaDateLabel,
   getPanamaDayRange,
@@ -10,6 +11,7 @@ type SearchParams = {
   date?: string;
   tech?: string;
   building?: string;
+  success?: string;
 };
 
 const shiftDate = (dateString: string, days: number) => {
@@ -143,6 +145,8 @@ export default async function OpsVisitsPage({
           New visit
         </Link>
       </div>
+
+      <OpsVisitsToast message={searchParams?.success} />
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <Link

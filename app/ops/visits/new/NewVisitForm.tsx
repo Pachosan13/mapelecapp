@@ -20,9 +20,9 @@ type TemplateOption = {
   category: string;
 };
 
-type TechOption = {
-  user_id: string;
-  full_name: string | null;
+type CrewOption = {
+  id: string;
+  name: string;
 };
 
 type EquipmentOption = {
@@ -37,7 +37,7 @@ type NewVisitFormProps = {
   action: (formData: FormData) => void;
   buildings: BuildingOption[];
   templates: TemplateOption[];
-  techs: TechOption[];
+  crews: CrewOption[];
   equipment: EquipmentOption[];
 };
 
@@ -45,7 +45,7 @@ export default function NewVisitForm({
   action,
   buildings,
   templates,
-  techs,
+  crews,
   equipment,
 }: NewVisitFormProps) {
   const [buildingId, setBuildingId] = useState("");
@@ -125,25 +125,26 @@ export default function NewVisitForm({
         </div>
       ) : null}
       <div>
-        <label className="mb-1 block text-sm font-medium">Template</label>
-        <select
-          name="template_id"
-          required
-          disabled={!buildingId}
-          className="w-full rounded border px-3 py-2"
-        >
-          <option value="">
-            {buildingId
-              ? "Selecciona un template"
-              : "Selecciona un building primero"}
-          </option>
-          {filteredTemplates.map((template) => (
-            <option key={template.id} value={template.id}>
-              {template.name} (
-              {CATEGORY_LABELS[template.category] ?? template.category})
-            </option>
-          ))}
-        </select>
+        <label className="mb-1 block text-sm font-medium">Templates</label>
+        {!buildingId ? (
+          <p className="text-sm text-gray-500">Selecciona un building primero.</p>
+        ) : filteredTemplates.length > 0 ? (
+          <div className="space-y-2">
+            {filteredTemplates.map((template) => (
+              <label key={template.id} className="flex items-center gap-2 text-sm">
+                <input type="checkbox" name="template_ids" value={template.id} />
+                <span>{template.name}</span>
+                <span className="text-xs text-gray-500">
+                  ({CATEGORY_LABELS[template.category] ?? template.category})
+                </span>
+              </label>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500">
+            No hay templates activos para este building.
+          </p>
+        )}
       </div>
       <div>
         <label className="mb-1 block text-sm font-medium">Scheduled for</label>
@@ -155,16 +156,16 @@ export default function NewVisitForm({
         />
       </div>
       <div>
-        <label className="mb-1 block text-sm font-medium">Assign tech</label>
+        <label className="mb-1 block text-sm font-medium">Assign crew</label>
         <select
-          name="assigned_tech_user_id"
+          name="assigned_crew_id"
           required
           className="w-full rounded border px-3 py-2"
         >
-          <option value="">Selecciona un tech</option>
-          {techs.map((tech) => (
-            <option key={tech.user_id} value={tech.user_id}>
-              {tech.full_name?.trim() || `Usuario ${tech.user_id.slice(0, 6)}`}
+          <option value="">Selecciona una cuadrilla</option>
+          {crews.map((crew) => (
+            <option key={crew.id} value={crew.id}>
+              {crew.name}
             </option>
           ))}
         </select>
