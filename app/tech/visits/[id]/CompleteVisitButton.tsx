@@ -39,13 +39,11 @@ export default function CompleteVisitButton({
 
     if (firstMissingId != null) {
       setUiError(CORE_CHECKLIST_ERROR);
-      const firstInput = form.querySelector<HTMLInputElement>(
-        `input[name="item-${firstMissingId}"]`
-      );
+      const firstInput = document.getElementById(`item-${firstMissingId}`);
       if (firstInput) {
         try {
           firstInput.scrollIntoView({ behavior: "smooth", block: "center" });
-          firstInput.focus();
+          (firstInput as HTMLInputElement).focus();
         } catch {
           // ignore
         }

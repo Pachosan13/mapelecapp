@@ -347,12 +347,12 @@ export default async function TechVisitPage({
                       <div className="flex flex-wrap gap-4">
                         <label className="inline-flex items-center gap-2 text-sm">
                           <input
+                            id={fieldName}
                             type="radio"
                             name={fieldName}
                             value="approved"
                             defaultChecked={response?.value_bool === true}
                             disabled={isCompleted}
-                            data-checklist-item="1"
                           />
                           <span>Aprobado</span>
                         </label>
@@ -363,7 +363,6 @@ export default async function TechVisitPage({
                             value="failed"
                             defaultChecked={response?.value_bool === false}
                             disabled={isCompleted}
-                            data-checklist-item="1"
                           />
                           <span>Falla</span>
                         </label>
