@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getAllProfiles } from "@/lib/profiles/queries";
+import { getCrewsWithDisplay } from "@/lib/crews/withMembers";
 import CrewAssignments from "./CrewAssignments";
 
 export default async function StaffPage() {
@@ -12,9 +13,10 @@ export default async function StaffPage() {
   ]);
 
   const profiles = profilesResult.data ?? [];
-  const crews = crewsResult.data ?? [];
+  const crewsRaw = crewsResult.data ?? [];
   const hasError = Boolean(profilesResult.error || crewsResult.error);
   const techProfiles = profiles.filter((profile) => profile.role === "tech");
+  const crews = getCrewsWithDisplay(crewsRaw, techProfiles);
 
   return (
     <div className="min-h-screen bg-gray-50/40 p-8">
@@ -24,9 +26,9 @@ export default async function StaffPage() {
         </Link>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900">Cuadrillas</h1>
+            <h1 className="text-2xl font-semibold text-gray-900">Equipos</h1>
             <p className="mt-1 text-sm text-gray-500">
-              Asigna técnicos a su cuadrilla principal.
+              Asigna técnicos a su equipo principal.
             </p>
           </div>
           <Link
@@ -40,7 +42,7 @@ export default async function StaffPage() {
 
       {hasError ? (
         <div className="mb-6 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          Error cargando cuadrillas. Intenta de nuevo.
+          Error cargando equipos. Intenta de nuevo.
         </div>
       ) : null}
 

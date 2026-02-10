@@ -2,10 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { formatCrewLabel } from "@/lib/formatters/crewLabel";
 
 type Crew = {
   id: string;
   name: string;
+  leader?: { full_name: string | null };
+  helper?: { full_name: string | null };
 };
 
 type TechProfile = {
@@ -71,7 +74,7 @@ export default function CrewAssignments({ crews, techs }: CrewAssignmentsProps) 
     }
 
     setStatusByTech((prev) => ({ ...prev, [techId]: "saved" }));
-    showToast("Cuadrilla actualizada.", "success");
+    showToast("Equipo actualizado.", "success");
   };
 
   if (techs.length === 0) {
@@ -111,7 +114,7 @@ export default function CrewAssignments({ crews, techs }: CrewAssignmentsProps) 
                     {displayName}
                   </p>
                   <p className="mt-1 text-xs uppercase tracking-wide text-gray-400">
-                    Cuadrilla
+                    Equipo
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-6">
@@ -126,7 +129,7 @@ export default function CrewAssignments({ crews, techs }: CrewAssignmentsProps) 
                       <option value="none">Sin asignar</option>
                       {crews.map((crew) => (
                         <option key={crew.id} value={crew.id}>
-                          {crew.name}
+                          {formatCrewLabel(crew)}
                         </option>
                       ))}
                     </select>

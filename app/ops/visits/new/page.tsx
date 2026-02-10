@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getCrewsWithDisplay } from "@/lib/crews/withMembers";
 import NewVisitForm from "./NewVisitForm";
 
 type SearchParams = {
@@ -75,7 +76,7 @@ export default async function NewVisitPage({
 }) {
   const supabase = await createClient();
 
-  const [buildingsResult, templatesResult, crewsResult, equipmentResult] =
+  const [buildingsResult, templatesResult, crewsResult, techsResult, equipmentResult] =
     await Promise.all([
     supabase
       .from("buildings")
@@ -88,6 +89,11 @@ export default async function NewVisitPage({
       .order("name", { ascending: true }),
     supabase.from("crews").select("id,name").order("name", { ascending: true }),
     supabase
+      .from("profiles")
+      .select("user_id,full_name,home_crew_id,created_at")
+      .eq("role", "tech")
+      .eq("is_active", true),
+    supabase
       .from("equipment")
       .select("id,building_id,name,equipment_type,is_active")
       .eq("is_active", true)
@@ -96,7 +102,13 @@ export default async function NewVisitPage({
 
   const buildings = buildingsResult.data ?? [];
   const templates = templatesResult.data ?? [];
-  const crews = crewsResult.data ?? [];
+  const crewsRaw = crewsResult.data ?? [];
+  const techs = (techsResult.data ?? []) as Array<{
+    user_id: string;
+    full_name: string | null;
+    home_crew_id: string | null;
+  }>;
+  const crews = getCrewsWithDisplay(crewsRaw, techs);
   const equipment = equipmentResult.data ?? [];
 
   return (

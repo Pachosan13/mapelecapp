@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { formatPanamaDateLabel } from "@/lib/dates/panama";
+import { getCrewsWithDisplay } from "@/lib/crews/withMembers";
+import { formatAssignmentLabel } from "@/lib/formatters/assignmentLabel";
 
 const MAX_TEXT_LENGTH = 120;
 const SNAPSHOT_GAP_MS = 3000;
@@ -91,7 +93,7 @@ export default async function OpsVisitDetailPage({
   const { data: visit, error: visitError } = await supabase
     .from("visits")
     .select(
-      "id,scheduled_for,status,assigned_tech_user_id,building:buildings(id,name),template:visit_templates(id,name)"
+      "id,scheduled_for,status,assigned_tech_user_id,assigned_crew_id,tech_observations,building:buildings(id,name),template:visit_templates(id,name)"
     )
     .eq("id", params.id)
     .maybeSingle();
@@ -140,16 +142,46 @@ export default async function OpsVisitDetailPage({
   });
 
   const profileIdList = Array.from(profileIds);
-  const { data: profiles } =
+  const [profilesResult, crewsResult, techsResult] = await Promise.all([
     profileIdList.length > 0
-      ? await supabase
+      ? supabase
           .from("profiles")
           .select("user_id,full_name,role")
           .in("user_id", profileIdList)
-      : { data: [] };
+      : Promise.resolve({ data: [] }),
+    supabase.from("crews").select("id,name").order("name", { ascending: true }),
+    supabase
+      .from("profiles")
+      .select("user_id,full_name,home_crew_id,created_at")
+      .eq("role", "tech")
+      .eq("is_active", true),
+  ]);
+
+  const profiles = profilesResult.data ?? [];
+  const crewsRaw = crewsResult.data ?? [];
+  const techs = (techsResult.data ?? []) as Array<{
+    user_id: string;
+    full_name: string | null;
+    home_crew_id: string | null;
+    created_at?: string | null;
+  }>;
+  const crewsWithDisplay = getCrewsWithDisplay(crewsRaw, techs);
+  const techById = new Map(
+    profiles.map((p) => [p.user_id, { full_name: p.full_name }])
+  );
+  const crewDisplayById = new Map(
+    crewsWithDisplay.map((c) => [c.id, { leader: c.leader, helper: c.helper }])
+  );
+  const assignmentLabel = formatAssignmentLabel(
+    visit,
+    techById,
+    crewDisplayById
+  );
+  const hasRealLeader = Boolean(visit.assigned_tech_user_id);
+  const assignmentSectionLabel = hasRealLeader ? "Líder" : "Asignado";
 
   const profileNameById = new Map(
-    (profiles ?? []).map((profile) => [
+    profiles.map((profile) => [
       profile.user_id,
       profile.full_name?.trim() || "",
     ])
@@ -212,7 +244,6 @@ export default async function OpsVisitDetailPage({
 
   const buildingName = visit.building?.name ?? "Building";
   const templateName = visit.template?.name ?? "Formulario";
-  const techName = getUserName(visit.assigned_tech_user_id ?? null);
   const buildingHref = visit.building?.id
     ? `/ops/buildings/${visit.building.id}`
     : "/ops/buildings";
@@ -241,13 +272,24 @@ export default async function OpsVisitDetailPage({
           <p className="text-sm font-medium">{formatStatus(visit.status)}</p>
         </div>
         <div>
-          <p className="text-xs uppercase text-gray-500">Tech asignado</p>
-          <p className="text-sm font-medium">{techName}</p>
+          <p className="text-xs uppercase text-gray-500">
+            {assignmentSectionLabel}
+          </p>
+          <p className="text-sm font-medium">{assignmentLabel}</p>
         </div>
         <div>
           <p className="text-xs uppercase text-gray-500">Formulario</p>
           <p className="text-sm font-medium">{templateName}</p>
         </div>
+      </div>
+
+      <div className="mb-6 rounded border p-4">
+        <div className="mb-2 text-sm font-semibold text-gray-700">
+          Observaciones del técnico
+        </div>
+        <p className="text-sm text-gray-700 whitespace-pre-wrap">
+          {visit.tech_observations?.trim() ?? "—"}
+        </p>
       </div>
 
       <div className="mb-8 rounded border p-4">

@@ -96,7 +96,7 @@ export default async function TechTodayPage({
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Hoy</h1>
           <p className="text-sm text-gray-500">
-            {displayName} · Visitas programadas para hoy
+            Te toca hoy · Visitas asignadas para hoy
           </p>
         </div>
         <div className="flex items-center gap-4 text-sm text-gray-600">

@@ -6,6 +6,8 @@ import {
   getPanamaDayRange,
   getPanamaTodayDateString,
 } from "@/lib/dates/panama";
+import { getCrewsWithDisplay } from "@/lib/crews/withMembers";
+import { formatAssignmentLabel } from "@/lib/formatters/assignmentLabel";
 
 type SearchParams = {
   date?: string;
@@ -59,7 +61,7 @@ export default async function OpsVisitsPage({
   const visitsQuery = supabase
     .from("visits")
     .select(
-      "id,scheduled_for,status,building_id,assigned_tech_user_id,building:buildings(id,name),template:visit_templates(id,name)"
+      "id,scheduled_for,status,building_id,assigned_tech_user_id,assigned_crew_id,building:buildings(id,name),template:visit_templates(id,name)"
     )
     .order("scheduled_for", { ascending: true })
     .limit(100);
@@ -83,16 +85,18 @@ export default async function OpsVisitsPage({
     visitsQuery.eq("building_id", selectedBuilding);
   }
 
-  const [visitsResult, buildingsResult, techsResult] = await Promise.all([
-    visitsQuery,
-    supabase.from("buildings").select("id,name").order("name", { ascending: true }),
-    supabase
-      .from("profiles")
-      .select("user_id,full_name,is_active")
-      .eq("role", "tech")
-      .eq("is_active", true)
-      .order("full_name", { ascending: true }),
-  ]);
+  const [visitsResult, buildingsResult, techsResult, crewsResult] =
+    await Promise.all([
+      visitsQuery,
+      supabase.from("buildings").select("id,name").order("name", { ascending: true }),
+      supabase
+        .from("profiles")
+        .select("user_id,full_name,is_active")
+        .eq("role", "tech")
+        .eq("is_active", true)
+        .order("full_name", { ascending: true }),
+      supabase.from("crews").select("id,name").order("name", { ascending: true }),
+    ]);
 
   const visits = (visitsResult.data ?? []) as Array<{
     id: string;
@@ -100,37 +104,28 @@ export default async function OpsVisitsPage({
     status?: string | null;
     building_id: string | null;
     assigned_tech_user_id: string | null;
+    assigned_crew_id: string | null;
     building: { id: string; name: string } | null;
     template: { id: string; name: string } | null;
   }>;
 
   const buildingOptions = buildingsResult.data ?? [];
   const techOptions = techsResult.data ?? [];
+  const crewsRaw = crewsResult.data ?? [];
+  const crewsWithDisplay = getCrewsWithDisplay(crewsRaw, techOptions);
 
-  const techIds = Array.from(
-    new Set(visits.map((visit) => visit.assigned_tech_user_id).filter(Boolean))
-  ) as string[];
-
-  const { data: visitTechs } =
-    techIds.length > 0
-      ? await supabase
-          .from("profiles")
-          .select("user_id,full_name")
-          .in("user_id", techIds)
-      : { data: [] };
-
-  const techNameById = new Map(
-    (visitTechs ?? []).map((tech) => [tech.user_id, tech.full_name])
+  const techById = new Map(
+    (techOptions ?? []).map((t) => [t.user_id, { full_name: t.full_name }])
+  );
+  const crewDisplayById = new Map(
+    crewsWithDisplay.map((c) => [c.id, { leader: c.leader, helper: c.helper }])
   );
 
-  const missingTechIds = techIds.filter((id) => !techNameById.has(id));
-  if (missingTechIds.length > 0) {
-    console.warn(
-      `[ops/visits] Missing tech profiles for ids: ${missingTechIds.join(", ")}`
-    );
-  }
-
-  const hasError = visitsResult.error || buildingsResult.error || techsResult.error;
+  const hasError =
+    visitsResult.error ||
+    buildingsResult.error ||
+    techsResult.error ||
+    crewsResult.error;
   const prevDate = shiftDate(selectedDate, -1);
   const nextDate = shiftDate(selectedDate, 1);
 
@@ -178,7 +173,7 @@ export default async function OpsVisitsPage({
             href="/ops/daily-board"
             className="rounded-full px-3 py-1 font-medium text-gray-600 hover:text-gray-900"
           >
-            Cuadrillas
+            Tablero
           </Link>
         </div>
       </div>
@@ -256,12 +251,17 @@ export default async function OpsVisitsPage({
               </tr>
             ) : (
               visits.map((visit) => {
-                const techName =
-                  (visit.assigned_tech_user_id &&
-                    techNameById.get(visit.assigned_tech_user_id)) ||
-                  (visit.assigned_tech_user_id
-                    ? `Usuario ${visit.assigned_tech_user_id.slice(0, 6)}`
-                    : "—");
+                const hasRealLeader = Boolean(visit.assigned_tech_user_id);
+                const assignmentLabel = formatAssignmentLabel(
+                  visit,
+                  techById,
+                  crewDisplayById
+                );
+                const displayText = hasRealLeader
+                  ? `Líder: ${assignmentLabel}`
+                  : assignmentLabel !== "Técnico sin asignar"
+                    ? `Asignado: ${assignmentLabel}`
+                    : assignmentLabel;
 
                 return (
                   <tr key={visit.id} className="border-t border-gray-100">
@@ -280,7 +280,9 @@ export default async function OpsVisitsPage({
                         "—"
                       )}
                     </td>
-                    <td className="px-4 py-3 text-gray-500">{techName}</td>
+                    <td className="px-4 py-3 text-gray-500">
+                      {displayText}
+                    </td>
                     <td className="px-4 py-3 text-gray-500">
                       {visit.template?.name ?? "—"}
                     </td>

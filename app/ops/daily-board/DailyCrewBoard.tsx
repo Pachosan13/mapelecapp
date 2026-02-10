@@ -4,10 +4,15 @@ import { useMemo, useState } from "react";
 import type { DragEvent } from "react";
 import OpsVisitsToast from "../visits/OpsVisitsToast";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { formatCrewLabel } from "@/lib/formatters/crewLabel";
+import { formatAssignmentLabel } from "@/lib/formatters/assignmentLabel";
+import type { CrewForLabel } from "@/lib/formatters/crewLabel";
 
 type Crew = {
   id: string;
   name: string;
+  leader?: { full_name: string | null };
+  helper?: { full_name: string | null };
 };
 
 type Visit = {
@@ -23,6 +28,8 @@ type Visit = {
 type DailyCrewBoardProps = {
   crews: Crew[];
   visits: Visit[];
+  techById: Map<string, { full_name?: string | null }>;
+  crewDisplayById: Map<string, CrewForLabel>;
 };
 
 const formatStatus = (status?: string | null) => {
@@ -43,7 +50,12 @@ const statusDotClass = (status?: string | null) => {
   }
 };
 
-export default function DailyCrewBoard({ crews, visits: initialVisits }: DailyCrewBoardProps) {
+export default function DailyCrewBoard({
+  crews,
+  visits: initialVisits,
+  techById,
+  crewDisplayById,
+}: DailyCrewBoardProps) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [visits, setVisits] = useState<Visit[]>(initialVisits);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -156,7 +168,7 @@ export default function DailyCrewBoard({ crews, visits: initialVisits }: DailyCr
             >
               <div className="flex items-center justify-between px-4 py-3">
                 <div className="text-sm font-semibold text-gray-900">
-                  {crew.name}
+                  {formatCrewLabel(crew)}
                 </div>
                 <span className="text-xs text-gray-400">{crewVisits.length}</span>
               </div>
@@ -185,6 +197,22 @@ export default function DailyCrewBoard({ crews, visits: initialVisits }: DailyCr
                       </div>
                       <div className="text-xs text-gray-500">
                         {visit.template?.name ?? "Formulario sin asignar"}
+                      </div>
+                      <div className="mt-1 text-xs text-gray-500">
+                        {(() => {
+                          const hasRealLeader = Boolean(
+                            visit.assigned_tech_user_id
+                          );
+                          const label = formatAssignmentLabel(
+                            visit,
+                            techById,
+                            crewDisplayById
+                          );
+                          if (hasRealLeader) return <>Líder: {label}</>;
+                          if (label !== "Técnico sin asignar")
+                            return <>Asignado: {label}</>;
+                          return <>{label}</>;
+                        })()}
                       </div>
                       <div className="mt-2 inline-flex items-center gap-2 text-xs text-gray-500">
                         <span
@@ -229,6 +257,22 @@ export default function DailyCrewBoard({ crews, visits: initialVisits }: DailyCr
                   </div>
                   <div className="text-xs text-gray-500">
                     {visit.template?.name ?? "Formulario sin asignar"}
+                  </div>
+                  <div className="mt-1 text-xs text-gray-500">
+                    {(() => {
+                      const hasRealLeader = Boolean(
+                        visit.assigned_tech_user_id
+                      );
+                      const label = formatAssignmentLabel(
+                        visit,
+                        techById,
+                        crewDisplayById
+                      );
+                      if (hasRealLeader) return <>Líder: {label}</>;
+                      if (label !== "Técnico sin asignar")
+                        return <>Asignado: {label}</>;
+                      return <>{label}</>;
+                    })()}
                   </div>
                   <div className="mt-2 inline-flex items-center gap-2 text-xs text-gray-500">
                     <span

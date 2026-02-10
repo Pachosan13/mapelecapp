@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { formatCrewLabel } from "@/lib/formatters/crewLabel";
 
 const CATEGORY_LABELS: Record<string, string> = {
   pump: "Bombas",
@@ -23,6 +24,8 @@ type TemplateOption = {
 type CrewOption = {
   id: string;
   name: string;
+  leader?: { full_name: string | null };
+  helper?: { full_name: string | null };
 };
 
 type EquipmentOption = {
@@ -183,16 +186,16 @@ export default function NewVisitForm({
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium">Cuadrilla</label>
+          <label className="mb-1 block text-sm font-medium">Asignar a</label>
           <select
             name="assigned_crew_id"
             required
             className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-gray-300 focus:outline-none"
           >
-            <option value="">Selecciona una cuadrilla</option>
+            <option value="">Selecciona técnico responsable</option>
             {crews.map((crew) => (
               <option key={crew.id} value={crew.id}>
-                {crew.name}
+                {formatCrewLabel(crew)}
               </option>
             ))}
           </select>

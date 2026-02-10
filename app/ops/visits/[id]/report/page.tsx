@@ -122,7 +122,7 @@ export default async function OpsVisitReportPage({
   const { data: visit, error: visitError } = await supabase
     .from("visits")
     .select(
-      "id,building_id,template_id,assigned_tech_user_id,status,completed_at,building:buildings(id,name),template:visit_templates(id,name)"
+      "id,building_id,template_id,assigned_tech_user_id,status,completed_at,tech_observations,building:buildings(id,name),template:visit_templates(id,name)"
     )
     .eq("id", params.id)
     .maybeSingle();
@@ -216,6 +216,20 @@ export default async function OpsVisitReportPage({
           </p>
         </div>
       </div>
+
+      {visit.tech_observations?.trim() ? (
+        <div className="mb-6 rounded border p-4">
+          <div className="mb-2 text-sm font-semibold text-gray-700">
+            Observaciones del técnico
+          </div>
+          <p className="text-sm text-gray-700 whitespace-pre-wrap">
+            {visit.tech_observations.trim()}
+          </p>
+          <p className="mt-2 text-xs text-gray-500">
+            Estas notas no se envían al cliente automáticamente.
+          </p>
+        </div>
+      ) : null}
 
       <div className="overflow-x-auto rounded border">
         <table className="min-w-full text-left text-sm">

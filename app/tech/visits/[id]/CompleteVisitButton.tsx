@@ -2,13 +2,18 @@
 
 import { useState } from "react";
 
+const CORE_CHECKLIST_ERROR =
+  "Debes marcar todos los ítems como Aprobado o Falla";
+
 type Props = {
   enforceChecklistValidation: boolean;
+  requiredChecklistItemIds: string[];
   isCompleted: boolean;
 };
 
 export default function CompleteVisitButton({
   enforceChecklistValidation,
+  requiredChecklistItemIds,
   isCompleted,
 }: Props) {
   const [uiError, setUiError] = useState<string | null>(null);
@@ -24,47 +29,26 @@ export default function CompleteVisitButton({
       return;
     }
 
-    // Only intercept when trying to complete the visit.
     event.preventDefault();
 
-    const radios = Array.from(
-      form.querySelectorAll<HTMLInputElement>(
-        'input[type="radio"][data-checklist-item="1"]:not(:disabled)'
-      )
-    );
-
-    if (radios.length === 0) {
-      // No checklist-style radios in this form; allow submit.
-      setUiError(null);
-      form.requestSubmit(button);
-      return;
-    }
-
-    const groups = new Map<string, HTMLInputElement[]>();
-    radios.forEach((radio) => {
-      if (!groups.has(radio.name)) {
-        groups.set(radio.name, []);
-      }
-      groups.get(radio.name)!.push(radio);
+    const formData = new FormData(form);
+    const firstMissingId = requiredChecklistItemIds.find((itemId) => {
+      const value = formData.get(`item-${itemId}`);
+      return value !== "approved" && value !== "failed";
     });
 
-    let firstInvalid: HTMLInputElement | null = null;
-
-    for (const group of groups.values()) {
-      const hasChecked = group.some((radio) => radio.checked);
-      if (!hasChecked) {
-        firstInvalid = group[0] ?? null;
-        break;
-      }
-    }
-
-    if (firstInvalid) {
-      setUiError("Debes marcar todos los ítems como Aprobado o Falla");
-      try {
-        firstInvalid.scrollIntoView({ behavior: "smooth", block: "center" });
-        firstInvalid.focus();
-      } catch {
-        // ignore scroll/focus errors
+    if (firstMissingId != null) {
+      setUiError(CORE_CHECKLIST_ERROR);
+      const firstInput = form.querySelector<HTMLInputElement>(
+        `input[name="item-${firstMissingId}"]`
+      );
+      if (firstInput) {
+        try {
+          firstInput.scrollIntoView({ behavior: "smooth", block: "center" });
+          firstInput.focus();
+        } catch {
+          // ignore
+        }
       }
       return;
     }
@@ -91,4 +75,3 @@ export default function CompleteVisitButton({
     </div>
   );
 }
-

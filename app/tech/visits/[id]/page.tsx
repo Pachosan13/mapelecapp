@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient, getCurrentUser } from "@/lib/supabase/server";
+import { isCoreChecklistTemplateId } from "@/lib/constants/coreChecklist";
 import StartVisitButton from "./StartVisitButton";
 import VisitToast from "./VisitToast";
 import RecorridoTable from "./RecorridoTable";
@@ -12,18 +13,6 @@ export const revalidate = 0;
 type SearchParams = {
   error?: string;
   saved?: string;
-};
-
-const CORE_CHECKLIST_TEMPLATE_NAMES = new Set<string>([
-  "Mantenimiento – Bombas",
-  "INSPECCIÓN PRUEBA Y MANTENIMIENTO DE SISTEMAS DE ROCIADORES NFPA25",
-  "RECORRIDO CONTRA INCENDIO",
-  "IPM DE BOMBA CONTRA INCENDIO NFPA25",
-]);
-
-const isCoreChecklistTemplateName = (name?: string | null) => {
-  if (!name) return false;
-  return CORE_CHECKLIST_TEMPLATE_NAMES.has(name.trim());
 };
 
 const isRecorridoPorPisosLabel = (label?: string | null) =>
@@ -51,7 +40,7 @@ async function handleResponses(formData: FormData) {
 
   const { data: visit } = await supabase
     .from("visits")
-    .select("id,template_id,assigned_tech_user_id,status")
+    .select("id,template_id,assigned_tech_user_id,status,tech_observations")
     .eq("id", visitId)
     .maybeSingle();
 
@@ -59,19 +48,15 @@ async function handleResponses(formData: FormData) {
     redirect("/unauthorized");
   }
 
-  const { data: template } = await supabase
-    .from("visit_templates")
-    .select("id,name")
-    .eq("id", visit.template_id)
-    .maybeSingle();
-
-  const isCoreTemplate = isCoreChecklistTemplateName(template?.name ?? null);
+  const isCoreTemplate = isCoreChecklistTemplateId(visit.template_id);
 
   const { data: items } = await supabase
     .from("template_items")
     .select("id,label,item_type,required,sort_order")
     .eq("template_id", visit.template_id)
     .order("sort_order", { ascending: true });
+
+  const techObs = String(formData.get("tech_observations") ?? "").trim();
 
   const errors: string[] = [];
   const savedOnce = formData.get("saved_once") === "1";
@@ -153,12 +138,11 @@ async function handleResponses(formData: FormData) {
     }) ?? [];
 
   if (action === "complete" && errors.length > 0) {
+    const message = isCoreTemplate
+      ? "Debes marcar todos los ítems como Aprobado o Falla"
+      : "Completa los campos requeridos.";
     redirect(
-      `/tech/visits/${visitId}?error=${encodeURIComponent(
-        isCoreTemplate
-          ? "Debes marcar todos los ítems como Aprobado o Falla"
-          : "Completa los campos requeridos."
-      )}`
+      `/tech/visits/${visitId}?error=${encodeURIComponent(message)}`
     );
   }
 
@@ -177,6 +161,20 @@ async function handleResponses(formData: FormData) {
     }
   }
 
+  const techObservationsUpdate = { tech_observations: techObs || null };
+  if (action === "save") {
+    const { error: updateErr } = await supabase
+      .from("visits")
+      .update(techObservationsUpdate)
+      .eq("id", visitId);
+    if (updateErr) {
+      console.error(updateErr);
+      redirect(
+        `/tech/visits/${visitId}?error=${encodeURIComponent(updateErr.message)}`
+      );
+    }
+  }
+
   if (action === "complete") {
     const { error: completeError } = await supabase
       .from("visits")
@@ -184,6 +182,7 @@ async function handleResponses(formData: FormData) {
         status: "completed",
         completed_at: new Date().toISOString(),
         completed_by: user.id,
+        ...techObservationsUpdate,
       })
       .eq("id", visitId);
 
@@ -222,7 +221,7 @@ export default async function TechVisitPage({
   const { data: visit, error: visitError } = await supabase
     .from("visits")
     .select(
-      "id,status,scheduled_for,started_at,completed_at,assigned_tech_user_id,assigned_crew_id,template_id,building:buildings(id,name),template:visit_templates(id,name)"
+      "id,status,scheduled_for,started_at,completed_at,assigned_tech_user_id,assigned_crew_id,template_id,tech_observations,building:buildings(id,name),template:visit_templates(id,name)"
     )
     .eq("id", params.id)
     .maybeSingle();
@@ -262,7 +261,13 @@ export default async function TechVisitPage({
     (responses ?? []).map((response) => [response.item_id, response])
   );
 
-  const isCoreTemplate = isCoreChecklistTemplateName(visit.template?.name ?? null);
+  const isCoreTemplate = isCoreChecklistTemplateId(visit.template_id);
+  const templateItems = items ?? [];
+  const requiredChecklistItemIds = isCoreTemplate
+    ? templateItems
+        .filter((i) => i.item_type === "checkbox")
+        .map((i) => i.id)
+    : [];
 
   const normalizedStatus = String(visit.status ?? "")
     .trim()
@@ -312,7 +317,7 @@ export default async function TechVisitPage({
         <form action={handleResponses} className="space-y-4 max-w-2xl">
           <input type="hidden" name="visit_id" value={visit.id} />
           <input type="hidden" name="saved_once" value={isSaved ? "1" : "0"} />
-        {(items ?? []).length === 0 ? (
+        {templateItems.length === 0 ? (
           <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
             No se pudieron cargar items del formulario (RLS o formulario vacío).
             <div className="mt-1 text-xs text-amber-700">
@@ -320,7 +325,7 @@ export default async function TechVisitPage({
             </div>
           </div>
         ) : null}
-          {(items ?? []).map((item) => {
+          {templateItems.map((item) => {
             const response = responseMap.get(item.id);
             const itemType = String(item.item_type ?? "");
             const fieldName = `item-${item.id}`;
@@ -424,6 +429,20 @@ export default async function TechVisitPage({
             );
           })}
 
+          <div className="rounded border p-4">
+            <label className="mb-2 block text-sm font-medium">
+              Observaciones del técnico (interno)
+            </label>
+            <textarea
+              name="tech_observations"
+              rows={3}
+              defaultValue={visit.tech_observations ?? ""}
+              disabled={isCompleted}
+              placeholder="Observaciones relevantes para el gerente (no se envían al cliente)"
+              className="w-full rounded border px-3 py-2"
+            />
+          </div>
+
           {isCompleted ? (
             <div className="rounded border border-green-200 bg-green-50 p-3 text-sm text-green-700">
               Esta visita ya fue completada.
@@ -441,6 +460,7 @@ export default async function TechVisitPage({
               </button>
               <CompleteVisitButton
                 enforceChecklistValidation={isCoreTemplate}
+                requiredChecklistItemIds={requiredChecklistItemIds}
                 isCompleted={isCompleted}
               />
             </div>
