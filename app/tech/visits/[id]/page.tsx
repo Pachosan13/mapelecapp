@@ -4,6 +4,7 @@ import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import StartVisitButton from "./StartVisitButton";
 import VisitToast from "./VisitToast";
 import RecorridoTable from "./RecorridoTable";
+import CompleteVisitButton from "./CompleteVisitButton";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -11,6 +12,18 @@ export const revalidate = 0;
 type SearchParams = {
   error?: string;
   saved?: string;
+};
+
+const CORE_CHECKLIST_TEMPLATE_NAMES = new Set<string>([
+  "Mantenimiento – Bombas",
+  "INSPECCIÓN PRUEBA Y MANTENIMIENTO DE SISTEMAS DE ROCIADORES NFPA25",
+  "RECORRIDO CONTRA INCENDIO",
+  "IPM DE BOMBA CONTRA INCENDIO NFPA25",
+]);
+
+const isCoreChecklistTemplateName = (name?: string | null) => {
+  if (!name) return false;
+  return CORE_CHECKLIST_TEMPLATE_NAMES.has(name.trim());
 };
 
 const isRecorridoPorPisosLabel = (label?: string | null) =>
@@ -46,6 +59,14 @@ async function handleResponses(formData: FormData) {
     redirect("/unauthorized");
   }
 
+  const { data: template } = await supabase
+    .from("visit_templates")
+    .select("id,name")
+    .eq("id", visit.template_id)
+    .maybeSingle();
+
+  const isCoreTemplate = isCoreChecklistTemplateName(template?.name ?? null);
+
   const { data: items } = await supabase
     .from("template_items")
     .select("id,label,item_type,required,sort_order")
@@ -61,16 +82,40 @@ async function handleResponses(formData: FormData) {
       const required = Boolean(item.required);
 
       if (itemType === "checkbox") {
-        const checked = formData.get(fieldKey) === "on";
-        if (action === "complete" && required && !checked) {
-          errors.push(item.id);
+        const rawValue = formData.get(fieldKey);
+        let valueBool: boolean | null = null;
+
+        if (rawValue === "on") {
+          // Legacy checkbox (templates no core / demo).
+          valueBool = true;
+        } else if (rawValue === "approved") {
+          valueBool = true;
+        } else if (rawValue === "failed") {
+          valueBool = false;
+        } else {
+          valueBool = null;
         }
+
+        if (action === "complete") {
+          if (isCoreTemplate) {
+            // En los formularios core, TODOS los ítems tipo checklist
+            // deben estar marcados como Aprobado o Falla (no se permite null).
+            if (valueBool === null) {
+              errors.push(item.id);
+            }
+          } else if (required && !valueBool) {
+            // Comportamiento legado para otros formularios:
+            // solo se acepta "checked" como válido para campos requeridos.
+            errors.push(item.id);
+          }
+        }
+
         return {
           visit_id: visit.id,
           item_id: item.id,
           value_text: null,
           value_number: null,
-          value_bool: checked,
+          value_bool: valueBool,
           created_by: user.id,
         };
       }
@@ -110,7 +155,9 @@ async function handleResponses(formData: FormData) {
   if (action === "complete" && errors.length > 0) {
     redirect(
       `/tech/visits/${visitId}?error=${encodeURIComponent(
-        "Completa los campos requeridos."
+        isCoreTemplate
+          ? "Debes marcar todos los ítems como Aprobado o Falla"
+          : "Completa los campos requeridos."
       )}`
     );
   }
@@ -215,6 +262,8 @@ export default async function TechVisitPage({
     (responses ?? []).map((response) => [response.item_id, response])
   );
 
+  const isCoreTemplate = isCoreChecklistTemplateName(visit.template?.name ?? null);
+
   const normalizedStatus = String(visit.status ?? "")
     .trim()
     .toLowerCase()
@@ -271,34 +320,72 @@ export default async function TechVisitPage({
             </div>
           </div>
         ) : null}
-        {(items ?? []).map((item) => {
+          {(items ?? []).map((item) => {
             const response = responseMap.get(item.id);
+            const itemType = String(item.item_type ?? "");
+            const fieldName = `item-${item.id}`;
+
             return (
               <div key={item.id} className="rounded border p-4">
                 <label className="mb-2 block text-sm font-medium">
                   {item.label}
                   {item.required ? " *" : ""}
                 </label>
-              {String(item.item_type ?? "") === "checkbox" ? (
-                  <div className="space-y-2">
-                    <p className="text-xs text-gray-500">
-                      ✅ Sí = OK · ❌ No = Falla · N/A: escríbelo en Observaciones
-                    </p>
-                    <input
-                      type="checkbox"
-                      name={`item-${item.id}`}
-                      defaultChecked={response?.value_bool ?? false}
-                      disabled={isCompleted}
-                    />
-                  </div>
+                {itemType === "checkbox" ? (
+                  isCoreTemplate ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-gray-500">
+                        Selecciona una opción por ítem:{" "}
+                        <span className="font-semibold">Aprobado</span> o{" "}
+                        <span className="font-semibold">Falla</span>.
+                      </p>
+                      <div className="flex flex-wrap gap-4">
+                        <label className="inline-flex items-center gap-2 text-sm">
+                          <input
+                            type="radio"
+                            name={fieldName}
+                            value="approved"
+                            defaultChecked={response?.value_bool === true}
+                            disabled={isCompleted}
+                            data-checklist-item="1"
+                          />
+                          <span>Aprobado</span>
+                        </label>
+                        <label className="inline-flex items-center gap-2 text-sm">
+                          <input
+                            type="radio"
+                            name={fieldName}
+                            value="failed"
+                            defaultChecked={response?.value_bool === false}
+                            disabled={isCompleted}
+                            data-checklist-item="1"
+                          />
+                          <span>Falla</span>
+                        </label>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-xs text-gray-500">
+                        ✅ Sí = OK · ❌ No = Falla · N/A: escríbelo en Observaciones
+                      </p>
+                      <input
+                        type="checkbox"
+                        name={fieldName}
+                        defaultChecked={response?.value_bool ?? false}
+                        disabled={isCompleted}
+                      />
+                    </div>
+                  )
                 ) : null}
-              {String(item.item_type ?? "") === "number" ? (
+                {itemType === "number" ? (
                   <div className="flex items-center gap-2">
                     <input
                       type="number"
-                      name={`item-${item.id}`}
+                      name={fieldName}
                       defaultValue={
-                        response?.value_number !== null && response?.value_number !== undefined
+                        response?.value_number !== null &&
+                        response?.value_number !== undefined
                           ? response.value_number
                           : ""
                       }
@@ -307,16 +394,16 @@ export default async function TechVisitPage({
                     />
                   </div>
                 ) : null}
-              {String(item.item_type ?? "") === "text" ? (
+                {itemType === "text" ? (
                   <input
                     type="text"
-                    name={`item-${item.id}`}
+                    name={fieldName}
                     defaultValue={response?.value_text ?? ""}
                     disabled={isCompleted}
                     className="w-full rounded border px-3 py-2"
                   />
                 ) : null}
-              {String(item.item_type ?? "") === "textarea" ? (
+                {itemType === "textarea" ? (
                   isRecorridoPorPisosLabel(item.label) ? (
                     <RecorridoTable
                       itemId={item.id}
@@ -325,7 +412,7 @@ export default async function TechVisitPage({
                     />
                   ) : (
                     <textarea
-                      name={`item-${item.id}`}
+                      name={fieldName}
                       rows={3}
                       defaultValue={response?.value_text ?? ""}
                       disabled={isCompleted}
@@ -352,14 +439,10 @@ export default async function TechVisitPage({
               >
                 Guardar
               </button>
-              <button
-                type="submit"
-                name="action"
-                value="complete"
-                className="rounded bg-black px-4 py-2 text-white"
-              >
-                Completar visita
-              </button>
+              <CompleteVisitButton
+                enforceChecklistValidation={isCoreTemplate}
+                isCompleted={isCompleted}
+              />
             </div>
           )}
         </form>
