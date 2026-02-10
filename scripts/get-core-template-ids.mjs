@@ -43,6 +43,4 @@ if (error) {
 }
 
 const ids = (rows ?? []).map((r) => r.id);
-console.log("Add to .env.local:");
 console.log("CORE_TEMPLATE_IDS=" + ids.join(","));
-(rows ?? []).forEach((r) => console.log("  ", r.id, r.name));
