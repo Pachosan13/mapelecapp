@@ -17,7 +17,8 @@ export async function ensureProfileExists(userId: string) {
   }
 
   if (!data) {
-    const { error: upsertError } = await supabase.from("profiles").upsert(
+    const profiles = (supabase as any).from("profiles");
+    const { error: upsertError } = await profiles.upsert(
       {
         user_id: userId,
         full_name: null,
