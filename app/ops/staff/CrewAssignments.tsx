@@ -27,7 +27,7 @@ type StatusState = "idle" | "saving" | "saved" | "error";
 type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];
 
 export default function CrewAssignments({ crews, techs }: CrewAssignmentsProps) {
-  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const supabase = useMemo(() => createSupabaseBrowserClient().schema("public"), []);
   const [toast, setToast] = useState<{
     message: string;
     tone: "success" | "error";

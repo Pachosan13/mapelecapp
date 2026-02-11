@@ -136,14 +136,10 @@ export default function DailyCrewBoard({
       )
     );
 
-    const visitsTable = supabase.from("visits") as unknown as {
-      update: (values: VisitUpdate) => any;
-      eq: (col: string, val: any) => any;
-      is: (col: string, val: any) => any;
-    };
-
-    const { data, error } = await visitsTable
-      .update({ assigned_crew_id: targetCrewId } as unknown as VisitUpdate)
+    const payload: VisitUpdate = { assigned_crew_id: targetCrewId };
+    const { data, error } = await supabase
+      .from("visits")
+      .update(payload)
       .eq("id", visitId)
       .eq("status", "planned")
       .is("assigned_tech_user_id", null)

@@ -7,9 +7,10 @@ import type { Database } from "@/lib/database.types";
 type ProfilesInsert = Database["public"]["Tables"]["profiles"]["Insert"];
 
 export async function ensureProfileExists(userId: string) {
-  const supabase = (await createClient()).schema("public");
+  const supabase = await createClient();
+  const supabaseDb = supabase.schema("public");
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseDb
     .from("profiles")
     .select("user_id")
     .eq("user_id", userId)
@@ -26,7 +27,7 @@ export async function ensureProfileExists(userId: string) {
       role: "tech",
       is_active: false,
     };
-    const { error: insertError } = await supabase
+    const { error: insertError } = await supabaseDb
       .from("profiles")
       .insert(profileToInsert);
 

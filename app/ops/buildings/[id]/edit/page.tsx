@@ -9,7 +9,7 @@ type Category = NonNullable<
   Database["public"]["Tables"]["buildings"]["Row"]["systems"]
 >[number];
 
-const SYSTEM_OPTIONS = [
+const SYSTEM_OPTIONS: Array<{ value: Category; label: string }> = [
   { value: "pump", label: "Bombas" },
   { value: "fire", label: "Incendio" },
 ];
@@ -137,7 +137,7 @@ export default async function EditBuildingPage({
     notFound();
   }
 
-  const currentSystems = building.systems ?? [];
+  const currentSystems = toCategories((building.systems ?? []).map(String));
 
   return (
     <div className="min-h-screen p-8">
@@ -193,7 +193,7 @@ export default async function EditBuildingPage({
                   type="checkbox"
                   name="systems"
                   value={option.value}
-                  defaultChecked={currentSystems.includes(option.value as any)}
+                  defaultChecked={currentSystems.includes(option.value)}
                 />
                 <span>{option.label}</span>
               </label>

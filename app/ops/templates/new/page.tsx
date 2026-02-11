@@ -10,7 +10,6 @@ async function createTemplate(formData: FormData) {
   "use server";
 
   const supabase = await createClient();
-  const supabaseDb = supabase.schema("public");
   const {
     data: { user },
     error: authError,
@@ -27,7 +26,7 @@ async function createTemplate(formData: FormData) {
     redirect("/ops/templates/new?error=Nombre%20y%20categor%C3%ADa%20requeridos");
   }
 
-  const { error } = await supabaseDb.from("visit_templates").insert({
+  const { error } = await supabase.from("visit_templates").insert({
     name,
     category,
     is_active: true,

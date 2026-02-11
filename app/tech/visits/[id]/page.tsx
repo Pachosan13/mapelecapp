@@ -32,7 +32,6 @@ async function handleResponses(formData: FormData) {
   "use server";
 
   const supabase = await createClient();
-  const supabaseDb = supabase.schema("public");
   const {
     data: { user },
     error: authError,
@@ -49,7 +48,7 @@ async function handleResponses(formData: FormData) {
     redirect("/tech/today");
   }
 
-  const { data: visit } = await supabaseDb
+  const { data: visit } = await supabase
     .from("visits")
     .select("id,template_id,assigned_tech_user_id,status")
     .eq("id", visitId)
@@ -62,7 +61,7 @@ async function handleResponses(formData: FormData) {
   const isCoreTemplate = isCoreChecklistTemplateId(visit.template_id);
 
   const { data: templateItemsData } = visit.template_id
-    ? await supabaseDb
+    ? await supabase
         .from("template_items")
         .select("id,label,item_type,required,sort_order")
         .eq("template_id", visit.template_id)
@@ -157,7 +156,7 @@ async function handleResponses(formData: FormData) {
   }
 
   if (action === "save" || (action === "complete" && !savedOnce)) {
-    const { error: insertError } = await supabaseDb
+    const { error: insertError } = await supabase
       .from("visit_responses")
       .insert(responses);
 
@@ -172,7 +171,7 @@ async function handleResponses(formData: FormData) {
   }
 
   if (action === "complete") {
-    const { error: completeError } = await supabaseDb
+    const { error: completeError } = await supabase
       .from("visits")
       .update({
         status: "completed",

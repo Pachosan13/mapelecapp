@@ -15,8 +15,7 @@ type VisitStatus = NonNullable<Database["public"]["Tables"]["visits"]["Row"]["st
 async function createVisit(formData: FormData) {
   "use server";
 
-  const supabase = (await createClient()).schema("public");
-  const supabaseDb = supabase.schema("public");
+  const supabase = await createClient();
   const {
     data: { user },
     error: authError,
@@ -54,7 +53,7 @@ async function createVisit(formData: FormData) {
     status,
   }));
 
-  const { error } = await supabaseDb.from("visits").insert(rows);
+  const { error } = await supabase.from("visits").insert(rows);
 
   if (error) {
     redirect(
