@@ -43,6 +43,7 @@ async function handleResponses(formData: FormData) {
 
   const visitId = String(formData.get("visit_id") ?? "");
   const action = String(formData.get("action") ?? "save");
+  const notes = String(formData.get("notes") ?? "").trim();
 
   if (!visitId) {
     redirect("/tech/today");
@@ -170,6 +171,22 @@ async function handleResponses(formData: FormData) {
     }
   }
 
+  if (action === "save") {
+    const { error: notesError } = await supabase
+      .from("visits")
+      .update({ notes: notes || null })
+      .eq("id", visitId);
+
+    if (notesError) {
+      console.error(notesError);
+      redirect(
+        `/tech/visits/${visitId}?error=${encodeURIComponent(
+          notesError.message
+        )}`
+      );
+    }
+  }
+
   if (action === "complete") {
     const { error: completeError } = await supabase
       .from("visits")
@@ -177,6 +194,7 @@ async function handleResponses(formData: FormData) {
         status: "completed",
         completed_at: new Date().toISOString(),
         completed_by: user.id,
+        notes: notes || null,
       })
       .eq("id", visitId);
 
@@ -215,7 +233,7 @@ export default async function TechVisitPage({
   const { data: visit, error: visitError } = await supabase
     .from("visits")
     .select(
-      "id,status,scheduled_for,started_at,completed_at,assigned_tech_user_id,assigned_crew_id,building_id,template_id"
+      "id,status,scheduled_for,started_at,completed_at,assigned_tech_user_id,assigned_crew_id,building_id,template_id,notes"
     )
     .eq("id", params.id)
     .maybeSingle();
@@ -436,7 +454,14 @@ export default async function TechVisitPage({
             <label className="mb-2 block text-sm font-medium">
               Observaciones del técnico (interno)
             </label>
-            <div className="text-gray-500">—</div>
+            <textarea
+              name="notes"
+              rows={3}
+              defaultValue={visit.notes ?? ""}
+              disabled={isCompleted}
+              placeholder="Observaciones relevantes para el gerente (no se envían al cliente)"
+              className="w-full rounded border px-3 py-2"
+            />
           </div>
 
           {isCompleted ? (
