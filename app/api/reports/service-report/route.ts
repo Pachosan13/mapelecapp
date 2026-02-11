@@ -10,6 +10,9 @@ import {
   parseRecorridoPorPisosValue,
 } from "@/lib/reports/serviceReport";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 const PAGE_MARGIN = 48;
 const PANAMA_TIME_ZONE = "America/Panama";
 
