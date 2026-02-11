@@ -21,6 +21,21 @@ type VisitResponse = Pick<
   Database["public"]["Tables"]["visit_responses"]["Row"],
   "id" | "item_id" | "value_text" | "value_number" | "value_bool" | "created_at" | "created_by"
 >;
+type VisitWithRefs = Pick<
+  Database["public"]["Tables"]["visits"]["Row"],
+  | "id"
+  | "building_id"
+  | "template_id"
+  | "scheduled_for"
+  | "status"
+  | "assigned_tech_user_id"
+  | "assigned_crew_id"
+> & {
+  building: Pick<Database["public"]["Tables"]["buildings"]["Row"], "id" | "name"> | null;
+  template:
+    | Pick<Database["public"]["Tables"]["visit_templates"]["Row"], "id" | "name">
+    | null;
+};
 
 type Snapshot = {
   created_at: string;
@@ -86,10 +101,10 @@ export default async function OpsVisitDetailPage({
   const { data: visit, error: visitError } = await supabase
     .from("visits")
     .select(
-      "id,building_id,template_id,scheduled_for,status,assigned_tech_user_id,assigned_crew_id"
+      "id,building_id,template_id,scheduled_for,status,assigned_tech_user_id,assigned_crew_id,building:buildings(id,name),template:visit_templates(id,name)"
     )
     .eq("id", params.id)
-    .maybeSingle();
+    .maybeSingle<VisitWithRefs>();
 
   if (visitError || !visit) {
     return (
@@ -238,13 +253,20 @@ export default async function OpsVisitDetailPage({
     ? formatPanamaDateTime(latestSnapshot.created_at)
     : null;
 
-  const buildingName = "Building";
-  const templateName = visit.template_id
-    ? `Template ${visit.template_id.slice(0, 8)}`
-    : "Formulario";
+  const buildingName = visit.building?.name
+    ? visit.building.name
+    : visit.building_id
+      ? `Building ${visit.building_id.slice(0, 8)}`
+      : "Building";
+  const templateName = visit.template?.name
+    ? visit.template.name
+    : visit.template_id
+      ? `Template ${visit.template_id.slice(0, 8)}`
+      : "Formulario";
   const buildingHref = visit.building_id
     ? `/ops/buildings/${visit.building_id}`
     : "/ops/buildings";
+  const canGenerateReport = visit.status === "completed" && Boolean(visit.building_id);
 
   return (
     <div className="min-h-screen p-8">
@@ -256,6 +278,14 @@ export default async function OpsVisitDetailPage({
         <p className="text-gray-600">
           {buildingName} · {templateName}
         </p>
+        {canGenerateReport ? (
+          <Link
+            href={`/api/reports/service-report?buildingId=${visit.building_id}&reportDate=${visit.scheduled_for}`}
+            className="mt-3 inline-flex rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white"
+          >
+            Generar reporte (PDF)
+          </Link>
+        ) : null}
       </div>
 
       <div className="mb-6 grid gap-4 rounded border p-4 text-sm text-gray-700 md:grid-cols-2">

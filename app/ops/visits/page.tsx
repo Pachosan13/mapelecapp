@@ -47,6 +47,32 @@ const buildAgendaUrl = (date: string, tech?: string, building?: string) => {
   return `/ops/visits?${params.toString()}`;
 };
 
+const formatBuildingLabel = (visit: {
+  building: { id: string; name: string } | null;
+  building_id: string | null;
+}) => {
+  if (visit.building?.name) {
+    return visit.building.name;
+  }
+  if (visit.building_id) {
+    return `Building ${visit.building_id.slice(0, 8)}`;
+  }
+  return "Building";
+};
+
+const formatTemplateLabel = (visit: {
+  template: { id: string; name: string } | null;
+  template_id: string | null;
+}) => {
+  if (visit.template?.name) {
+    return visit.template.name;
+  }
+  if (visit.template_id) {
+    return `Template ${visit.template_id.slice(0, 8)}`;
+  }
+  return "Formulario";
+};
+
 export default async function OpsVisitsPage({
   searchParams,
 }: {
@@ -61,7 +87,7 @@ export default async function OpsVisitsPage({
   const visitsQuery = supabase
     .from("visits")
     .select(
-      "id,scheduled_for,status,building_id,assigned_tech_user_id,assigned_crew_id,building:buildings(id,name),template:visit_templates(id,name)"
+      "id,scheduled_for,status,building_id,template_id,assigned_tech_user_id,assigned_crew_id,building:buildings(id,name),template:visit_templates(id,name)"
     )
     .order("scheduled_for", { ascending: true })
     .limit(100);
@@ -93,6 +119,7 @@ export default async function OpsVisitsPage({
     scheduled_for: string;
     status?: VisitStatus | null;
     building_id: string | null;
+    template_id: string | null;
     assigned_tech_user_id: string | null;
     assigned_crew_id: string | null;
     building: { id: string; name: string } | null;
@@ -151,6 +178,12 @@ export default async function OpsVisitsPage({
           className="rounded-full border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700"
         >
           Next →
+        </Link>
+        <Link
+          href="/ops/visits"
+          className="rounded-full border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700"
+        >
+          Hoy
         </Link>
         <div className="ml-auto inline-flex rounded-full border border-gray-200 bg-white p-1 text-xs text-gray-600">
           <Link
@@ -259,12 +292,12 @@ export default async function OpsVisitsPage({
                       {formatPanamaDateLabel(visit.scheduled_for)}
                     </td>
                     <td className="px-4 py-3 font-medium">
-                      {visit.building ? (
+                      {visit.building || visit.building_id ? (
                         <Link
-                          href={`/ops/buildings/${visit.building.id}`}
+                          href={`/ops/buildings/${visit.building?.id ?? visit.building_id}`}
                           className="text-blue-600 hover:underline"
                         >
-                          {visit.building.name}
+                          {formatBuildingLabel(visit)}
                         </Link>
                       ) : (
                         "—"
@@ -274,7 +307,7 @@ export default async function OpsVisitsPage({
                       {displayText}
                     </td>
                     <td className="px-4 py-3 text-gray-500">
-                      {visit.template?.name ?? "—"}
+                      {formatTemplateLabel(visit)}
                     </td>
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-2 text-xs text-gray-500">

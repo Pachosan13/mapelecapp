@@ -60,7 +60,7 @@ export default async function BuildingHistoryPage({
   const visitsQuery = supabase
     .from("visits")
     .select(
-      "id,scheduled_for,status,assigned_tech_user_id,template_id,started_at,completed_at,created_at"
+      "id,scheduled_for,status,assigned_tech_user_id,template_id,started_at,completed_at,created_at,template:visit_templates(id,name)"
     )
     .eq("building_id", params.id)
     .order("scheduled_for", { ascending: false })
@@ -91,6 +91,7 @@ export default async function BuildingHistoryPage({
     status: string | null;
     assigned_tech_user_id: string | null;
     template_id: string | null;
+    template: { id: string; name: string } | null;
     started_at: string | null;
     completed_at: string | null;
   }>;
@@ -101,26 +102,16 @@ export default async function BuildingHistoryPage({
   const techIds = Array.from(
     new Set(visits.map((visit) => visit.assigned_tech_user_id).filter(Boolean))
   ) as string[];
-  const templateIds = Array.from(
-    new Set(visits.map((visit) => visit.template_id).filter(Boolean))
-  ) as string[];
 
-  const [techProfilesResult, templatesResult] = await Promise.all([
+  const [techProfilesResult] = await Promise.all([
     techIds.length > 0
       ? supabase.from("profiles").select("user_id,full_name").in("user_id", techIds)
-      : Promise.resolve({ data: [] }),
-    templateIds.length > 0
-      ? supabase.from("visit_templates").select("id,name").in("id", templateIds)
       : Promise.resolve({ data: [] }),
   ]);
 
   const techNameById = new Map(
     (techProfilesResult.data ?? []).map((tech) => [tech.user_id, tech.full_name])
   );
-  const templateNameById = new Map(
-    (templatesResult.data ?? []).map((template) => [template.id, template.name])
-  );
-
   const statusOptions = Array.from(
     new Set(visits.map((visit) => visit.status).filter(Boolean))
   ) as string[];
@@ -135,11 +126,17 @@ export default async function BuildingHistoryPage({
     return techNameById.get(userId) || `Usuario ${userId.slice(0, 6)}`;
   };
 
-  const formatTemplateName = (templateId: string | null) => {
-    if (!templateId) {
-      return "—";
+  const formatTemplateName = (visit: {
+    template: { id: string; name: string } | null;
+    template_id: string | null;
+  }) => {
+    if (visit.template?.name) {
+      return visit.template.name;
     }
-    return templateNameById.get(templateId) || "—";
+    if (visit.template_id) {
+      return `Template ${visit.template_id.slice(0, 8)}`;
+    }
+    return "Formulario";
   };
 
   return (
@@ -247,7 +244,7 @@ export default async function BuildingHistoryPage({
                     {formatTechName(visit.assigned_tech_user_id)}
                   </td>
                   <td className="px-4 py-3 text-gray-600">
-                    {formatTemplateName(visit.template_id)}
+                    {formatTemplateName(visit)}
                   </td>
                   <td className="px-4 py-3 text-gray-600">
                     {visit.started_at ? formatPanamaDateLabel(visit.started_at) : "—"}

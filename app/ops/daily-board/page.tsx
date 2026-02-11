@@ -103,6 +103,12 @@ export default async function OpsDailyBoardPage({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/ops/daily-board"
+            className="rounded-full border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700"
+          >
+            Hoy
+          </Link>
           <div className="rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-medium">
             {formatPanamaDateLabel(selectedDate)}
           </div>
