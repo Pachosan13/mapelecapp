@@ -29,8 +29,6 @@ export default function CompleteVisitButton({
       return;
     }
 
-    event.preventDefault();
-
     const formData = new FormData(form);
     const firstMissingId = requiredChecklistItemIds.find((itemId) => {
       const value = formData.get(`item-${itemId}`);
@@ -38,6 +36,7 @@ export default function CompleteVisitButton({
     });
 
     if (firstMissingId != null) {
+      event.preventDefault();
       setUiError(CORE_CHECKLIST_ERROR);
       const firstInput = document.getElementById(`item-${firstMissingId}`);
       if (firstInput) {
@@ -52,13 +51,12 @@ export default function CompleteVisitButton({
     }
 
     setUiError(null);
-    form.requestSubmit(button);
   };
 
   return (
     <div className="flex flex-col gap-2">
       <button
-        type={enforceChecklistValidation ? "button" : "submit"}
+        type="submit"
         name="action"
         value="complete"
         className="rounded bg-black px-4 py-2 text-white"
