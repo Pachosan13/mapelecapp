@@ -2,9 +2,12 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import type { Database } from "@/lib/database.types";
+
+type ProfilesInsert = Database["public"]["Tables"]["profiles"]["Insert"];
 
 export async function ensureProfileExists(userId: string) {
-  const supabase = await createClient();
+  const supabase = (await createClient()).schema("public");
 
   const { data, error } = await supabase
     .from("profiles")
@@ -17,19 +20,18 @@ export async function ensureProfileExists(userId: string) {
   }
 
   if (!data) {
-    const profiles = (supabase as any).from("profiles");
-    const { error: upsertError } = await profiles.upsert(
-      {
-        user_id: userId,
-        full_name: null,
-        role: "tech",
-        is_active: false,
-      },
-      { onConflict: "user_id" }
-    );
+    const profileToInsert: ProfilesInsert = {
+      user_id: userId,
+      full_name: null,
+      role: "tech",
+      is_active: false,
+    };
+    const { error: insertError } = await supabase
+      .from("profiles")
+      .insert(profileToInsert);
 
-    if (upsertError) {
-      return { error: upsertError };
+    if (insertError && insertError.code !== "23505") {
+      return { error: insertError };
     }
   }
 

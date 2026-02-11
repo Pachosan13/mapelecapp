@@ -1,11 +1,20 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import type { Database } from "@/lib/database.types";
+
+type Category = Database["public"]["Tables"]["equipment"]["Row"]["equipment_type"];
 
 const EQUIPMENT_TYPE_OPTIONS = [
   { value: "pump", label: "Bombas" },
   { value: "fire", label: "Incendio" },
 ];
+
+const ALLOWED_CATEGORY_SET = new Set<string>(["pump", "fire"]);
+
+function toCategory(value: string): Category | undefined {
+  return ALLOWED_CATEGORY_SET.has(value) ? (value as Category) : undefined;
+}
 
 type SearchParams = {
   error?: string;
@@ -19,12 +28,14 @@ export default async function NewEquipmentPage({
   searchParams?: SearchParams;
 }) {
   const supabase = await createClient();
+  const supabaseDb = supabase.schema("public");
 
-  const { data: building, error: buildingError } = await supabase
+  const { data: buildingData, error: buildingError } = await supabaseDb
     .from("buildings")
     .select("id,name")
     .eq("id", params.id)
     .maybeSingle();
+  const building = buildingData;
 
   if (buildingError) {
     return (
@@ -44,6 +55,7 @@ export default async function NewEquipmentPage({
     "use server";
 
     const supabase = await createClient();
+    const supabaseDb = supabase.schema("public");
     const {
       data: { user },
       error: authError,
@@ -56,6 +68,7 @@ export default async function NewEquipmentPage({
     const buildingId = String(formData.get("building_id") ?? "");
     const name = String(formData.get("name") ?? "").trim();
     const equipmentType = String(formData.get("equipment_type") ?? "").trim();
+    const equipmentTypeTyped = toCategory(equipmentType);
     const manufacturer = String(formData.get("manufacturer") ?? "").trim();
     const model = String(formData.get("model") ?? "").trim();
     const serial = String(formData.get("serial") ?? "").trim();
@@ -64,7 +77,7 @@ export default async function NewEquipmentPage({
     const notes = String(formData.get("notes") ?? "").trim();
     const isActive = formData.get("is_active") === "on";
 
-    if (!buildingId || !name || !equipmentType) {
+    if (!buildingId || !name || !equipmentTypeTyped) {
       redirect(
         `/ops/buildings/${params.id}/equipment/new?error=${encodeURIComponent(
           "Nombre y tipo son requeridos."
@@ -72,10 +85,10 @@ export default async function NewEquipmentPage({
       );
     }
 
-    const { error } = await supabase.from("equipment").insert({
+    const { error } = await supabaseDb.from("equipment").insert({
       building_id: buildingId,
       name,
-      equipment_type: equipmentType,
+      equipment_type: equipmentTypeTyped,
       manufacturer: manufacturer || null,
       model: model || null,
       serial: serial || null,

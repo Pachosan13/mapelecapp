@@ -5,7 +5,7 @@ import { getCrewsWithDisplay } from "@/lib/crews/withMembers";
 import CrewAssignments from "./CrewAssignments";
 
 export default async function StaffPage() {
-  const supabase = await createClient();
+  const supabase = (await createClient()).schema("public");
 
   const [profilesResult, crewsResult] = await Promise.all([
     getAllProfiles(),

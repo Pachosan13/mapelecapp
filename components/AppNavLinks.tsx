@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 
 type ActiveMatch = "exact" | "startsWith";
 
-type NavLink = {
+export type NavLink = {
   href: string;
   label: string;
   activeMatch?: ActiveMatch;

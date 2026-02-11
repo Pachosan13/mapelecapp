@@ -6,6 +6,21 @@ import { formatPanamaDateLabel } from "@/lib/dates/panama";
 const MAX_STATUS_ITEMS = 8;
 const MAX_TEXT_LENGTH = 80;
 
+type LatestResponse = {
+  visit_id: string;
+  item_id: string;
+  value_text: string | null;
+  value_number: number | null;
+  value_bool: boolean | null;
+};
+
+type LatestItem = {
+  id: string;
+  label: string;
+  sort_order: number;
+  value: string;
+};
+
 const truncateText = (value: string, maxLength: number) => {
   if (value.length <= maxLength) {
     return value;
@@ -13,12 +28,15 @@ const truncateText = (value: string, maxLength: number) => {
   return `${value.slice(0, Math.max(0, maxLength - 3))}...`;
 };
 
+const isLatestItem = (item: LatestItem | null): item is LatestItem =>
+  item !== null;
+
 export default async function BuildingHistoryPage({
   params,
 }: {
   params: { id: string };
 }) {
-  const supabase = await createClient();
+  const supabase = (await createClient()).schema("public");
 
   const { data: building, error: buildingError } = await supabase
     .from("buildings")
@@ -42,18 +60,11 @@ export default async function BuildingHistoryPage({
 
   const { data: visitsData, error: visitsError } = await supabase
     .from("visits")
-    .select(
-      "id,scheduled_for,assigned_tech_user_id,template:visit_templates(id,name)"
-    )
+    .select("id,scheduled_for,assigned_tech_user_id,template_id")
     .eq("building_id", params.id)
     .order("scheduled_for", { ascending: false });
 
-  const visits = (visitsData ?? []) as Array<{
-    id: string;
-    scheduled_for: string;
-    assigned_tech_user_id: string | null;
-    template: { id: string; name: string } | null;
-  }>;
+  const visits = visitsData ?? [];
 
   const techIds = Array.from(
     new Set(visits.map((visit) => visit.assigned_tech_user_id).filter(Boolean))
@@ -73,7 +84,7 @@ export default async function BuildingHistoryPage({
 
   const visitIds = visits.map((visit) => visit.id);
   const templateIds = Array.from(
-    new Set(visits.map((visit) => visit.template?.id).filter(Boolean))
+    new Set(visits.map((visit) => visit.template_id).filter(Boolean))
   ) as string[];
 
   const { data: latestResponses } =
@@ -85,6 +96,29 @@ export default async function BuildingHistoryPage({
           )
           .in("visit_id", visitIds)
       : { data: [] };
+
+  const latestResponsesTyped: LatestResponse[] = (latestResponses ?? [])
+    .map((row) => {
+      if (!row || typeof row !== "object") {
+        return null;
+      }
+      const record = row as Record<string, unknown>;
+      if (
+        typeof record.visit_id !== "string" ||
+        typeof record.item_id !== "string"
+      ) {
+        return null;
+      }
+      return {
+        visit_id: record.visit_id,
+        item_id: record.item_id,
+        value_text: typeof record.value_text === "string" ? record.value_text : null,
+        value_number:
+          typeof record.value_number === "number" ? record.value_number : null,
+        value_bool: typeof record.value_bool === "boolean" ? record.value_bool : null,
+      };
+    })
+    .filter((row): row is LatestResponse => row !== null);
 
   const { data: templateItems } =
     templateIds.length > 0
@@ -108,7 +142,7 @@ export default async function BuildingHistoryPage({
     }>
   >();
 
-  (latestResponses ?? []).forEach((response) => {
+  latestResponsesTyped.forEach((response) => {
     const list = latestResponsesByVisitId.get(response.visit_id) ?? [];
     list.push(response);
     latestResponsesByVisitId.set(response.visit_id, list);
@@ -208,14 +242,9 @@ export default async function BuildingHistoryPage({
                       value,
                     };
                   })
-                  .filter(Boolean)
+                  .filter(isLatestItem)
                   .sort((a, b) => a.sort_order - b.sort_order)
-                  .slice(0, MAX_STATUS_ITEMS) as Array<{
-                  id: string;
-                  label: string;
-                  sort_order: number;
-                  value: string;
-                }>;
+                  .slice(0, MAX_STATUS_ITEMS);
 
                 return (
                   <tr key={visit.id} className="border-t">
@@ -224,7 +253,9 @@ export default async function BuildingHistoryPage({
                     </td>
                     <td className="px-4 py-3 text-gray-600">{techName}</td>
                     <td className="px-4 py-3 text-gray-600">
-                      {visit.template?.name ?? "—"}
+                      {visit.template_id
+                        ? `Template ${visit.template_id.slice(0, 8)}`
+                        : "-"}
                     </td>
                     <td className="px-4 py-3">
                       <div className="text-xs font-semibold text-gray-700">

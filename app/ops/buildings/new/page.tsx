@@ -1,11 +1,22 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import type { Database } from "@/lib/database.types";
+
+type Category = NonNullable<
+  Database["public"]["Tables"]["buildings"]["Row"]["systems"]
+>[number];
 
 const SYSTEM_OPTIONS = [
   { value: "pump", label: "Bombas" },
   { value: "fire", label: "Incendio" },
 ];
+
+const ALLOWED_CATEGORY_SET = new Set<string>(["pump", "fire"]);
+
+function toCategories(values: string[]): Category[] {
+  return values.filter((v): v is Category => ALLOWED_CATEGORY_SET.has(v));
+}
 
 type SearchParams = {
   error?: string;
@@ -15,6 +26,7 @@ async function createBuilding(formData: FormData) {
   "use server";
 
   const supabase = await createClient();
+  const supabaseDb = supabase.schema("public");
   const {
     data: { user },
     error: authError,
@@ -27,24 +39,22 @@ async function createBuilding(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const address = String(formData.get("address") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim();
-  const systems = formData
-    .getAll("systems")
-    .map((value) => String(value))
-    .filter((value) => SYSTEM_OPTIONS.some((option) => option.value === value));
+  const systems = formData.getAll("systems").map(String);
+  const systemsTyped = toCategories(systems);
 
   if (!name) {
     redirect("/ops/buildings/new?error=Nombre%20requerido");
   }
 
-  if (systems.length === 0) {
+  if (systemsTyped.length === 0) {
     redirect("/ops/buildings/new?error=Selecciona%20al%20menos%20un%20sistema");
   }
 
-  const { error } = await supabase.from("buildings").insert({
+  const { error } = await supabaseDb.from("buildings").insert({
     name,
     address: address || null,
     notes: notes || null,
-    systems,
+    systems: systemsTyped,
     created_by: user.id,
   });
 

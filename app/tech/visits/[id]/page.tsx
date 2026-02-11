@@ -6,6 +6,7 @@ import StartVisitButton from "./StartVisitButton";
 import VisitToast from "./VisitToast";
 import RecorridoTable from "./RecorridoTable";
 import CompleteVisitButton from "./CompleteVisitButton";
+import type { Database } from "@/lib/database.types";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,6 +16,15 @@ type SearchParams = {
   saved?: string;
 };
 
+type TemplateItem = Pick<
+  Database["public"]["Tables"]["template_items"]["Row"],
+  "id" | "label" | "item_type" | "required" | "sort_order"
+>;
+type VisitLatestResponse = Pick<
+  Database["public"]["Views"]["visit_latest_responses"]["Row"],
+  "item_id" | "value_text" | "value_number" | "value_bool"
+>;
+
 const isRecorridoPorPisosLabel = (label?: string | null) =>
   (label ?? "").trim().toLowerCase().startsWith("recorrido por pisos");
 
@@ -22,6 +32,7 @@ async function handleResponses(formData: FormData) {
   "use server";
 
   const supabase = await createClient();
+  const supabaseDb = supabase.schema("public");
   const {
     data: { user },
     error: authError,
@@ -38,9 +49,9 @@ async function handleResponses(formData: FormData) {
     redirect("/tech/today");
   }
 
-  const { data: visit } = await supabase
+  const { data: visit } = await supabaseDb
     .from("visits")
-    .select("id,template_id,assigned_tech_user_id,status,tech_observations")
+    .select("id,template_id,assigned_tech_user_id,status")
     .eq("id", visitId)
     .maybeSingle();
 
@@ -50,18 +61,17 @@ async function handleResponses(formData: FormData) {
 
   const isCoreTemplate = isCoreChecklistTemplateId(visit.template_id);
 
-  const { data: items } = await supabase
-    .from("template_items")
-    .select("id,label,item_type,required,sort_order")
-    .eq("template_id", visit.template_id)
-    .order("sort_order", { ascending: true });
-
-  const techObs = String(formData.get("tech_observations") ?? "").trim();
+  const { data: templateItemsData } = visit.template_id
+    ? await supabaseDb
+        .from("template_items")
+        .select("id,label,item_type,required,sort_order")
+        .eq("template_id", visit.template_id)
+        .order("sort_order", { ascending: true })
+    : { data: [] as TemplateItem[] };
 
   const errors: string[] = [];
   const savedOnce = formData.get("saved_once") === "1";
-  const responses =
-    (items ?? []).map((item) => {
+  const responses = (templateItemsData ?? []).map((item) => {
       const fieldKey = `item-${item.id}`;
       const itemType = String(item.item_type ?? "");
       const required = Boolean(item.required);
@@ -135,7 +145,7 @@ async function handleResponses(formData: FormData) {
         value_bool: null,
         created_by: user.id,
       };
-    }) ?? [];
+    });
 
   if (action === "complete" && errors.length > 0) {
     const message = isCoreTemplate
@@ -147,7 +157,7 @@ async function handleResponses(formData: FormData) {
   }
 
   if (action === "save" || (action === "complete" && !savedOnce)) {
-    const { error: insertError } = await supabase
+    const { error: insertError } = await supabaseDb
       .from("visit_responses")
       .insert(responses);
 
@@ -161,28 +171,13 @@ async function handleResponses(formData: FormData) {
     }
   }
 
-  const techObservationsUpdate = { tech_observations: techObs || null };
-  if (action === "save") {
-    const { error: updateErr } = await supabase
-      .from("visits")
-      .update(techObservationsUpdate)
-      .eq("id", visitId);
-    if (updateErr) {
-      console.error(updateErr);
-      redirect(
-        `/tech/visits/${visitId}?error=${encodeURIComponent(updateErr.message)}`
-      );
-    }
-  }
-
   if (action === "complete") {
-    const { error: completeError } = await supabase
+    const { error: completeError } = await supabaseDb
       .from("visits")
       .update({
         status: "completed",
         completed_at: new Date().toISOString(),
         completed_by: user.id,
-        ...techObservationsUpdate,
       })
       .eq("id", visitId);
 
@@ -221,7 +216,7 @@ export default async function TechVisitPage({
   const { data: visit, error: visitError } = await supabase
     .from("visits")
     .select(
-      "id,status,scheduled_for,started_at,completed_at,assigned_tech_user_id,assigned_crew_id,template_id,tech_observations,building:buildings(id,name),template:visit_templates(id,name)"
+      "id,status,scheduled_for,started_at,completed_at,assigned_tech_user_id,assigned_crew_id,building_id,template_id"
     )
     .eq("id", params.id)
     .maybeSingle();
@@ -239,30 +234,34 @@ export default async function TechVisitPage({
   const canAccessVisit =
     visit?.assigned_tech_user_id === user.id ||
     (visit?.assigned_tech_user_id === null &&
-      visit?.assigned_crew_id &&
+      Boolean(visit?.assigned_crew_id) &&
       visit?.assigned_crew_id === user.home_crew_id);
 
   if (!visit || !canAccessVisit) {
     redirect("/unauthorized");
   }
 
-  const { data: items } = await supabase
-    .from("template_items")
-    .select("id,label,item_type,required,sort_order")
-    .eq("template_id", visit.template_id)
-    .order("sort_order", { ascending: true });
+  const { data: templateItemsData } = visit.template_id
+    ? await supabase
+        .from("template_items")
+        .select("id,label,item_type,required,sort_order")
+        .eq("template_id", visit.template_id)
+        .order("sort_order", { ascending: true })
+    : { data: [] as TemplateItem[] };
 
   const { data: responses } = await supabase
     .from("visit_latest_responses")
     .select("item_id,value_text,value_number,value_bool")
     .eq("visit_id", visit.id);
 
-  const responseMap = new Map(
-    (responses ?? []).map((response) => [response.item_id, response])
-  );
+  const responseMap = new Map<string, VisitLatestResponse>();
+  (responses ?? []).forEach((response) => {
+    if (!response.item_id) return;
+    responseMap.set(response.item_id, response);
+  });
 
   const isCoreTemplate = isCoreChecklistTemplateId(visit.template_id);
-  const templateItems = items ?? [];
+  const templateItems = templateItemsData ?? [];
   const requiredChecklistItemIds = isCoreTemplate
     ? templateItems
         .filter((i) => i.item_type === "checkbox")
@@ -278,6 +277,12 @@ export default async function TechVisitPage({
   const canShowForm =
     normalizedStatus === "in_progress" || normalizedStatus === "completed";
   const isSaved = searchParams?.saved === "1";
+  const buildingName = visit.building_id
+    ? `Building ${visit.building_id.slice(0, 8)}`
+    : "Building";
+  const templateName = visit.template_id
+    ? `Template ${visit.template_id.slice(0, 8)}`
+    : "Formulario";
 
   return (
     <div className="min-h-screen p-8">
@@ -288,7 +293,7 @@ export default async function TechVisitPage({
         </Link>
         <h1 className="mt-2 text-2xl font-bold">Visita</h1>
         <p className="text-gray-600">
-          {visit.building?.name ?? "Building"} · {visit.template?.name ?? "Formulario"}
+          {buildingName} · {templateName}
         </p>
       </div>
 
@@ -317,14 +322,14 @@ export default async function TechVisitPage({
         <form action={handleResponses} className="space-y-4 max-w-2xl">
           <input type="hidden" name="visit_id" value={visit.id} />
           <input type="hidden" name="saved_once" value={isSaved ? "1" : "0"} />
-        {templateItems.length === 0 ? (
-          <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-            No se pudieron cargar items del formulario (RLS o formulario vacío).
-            <div className="mt-1 text-xs text-amber-700">
-              template_id: {visit.template_id} · visit_id: {visit.id}
+          {templateItems.length === 0 ? (
+            <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              No se pudieron cargar items del formulario (RLS o formulario vacío).
+              <div className="mt-1 text-xs text-amber-700">
+                template_id: {visit.template_id} · visit_id: {visit.id}
+              </div>
             </div>
-          </div>
-        ) : null}
+          ) : null}
           {templateItems.map((item) => {
             const response = responseMap.get(item.id);
             const itemType = String(item.item_type ?? "");
@@ -432,14 +437,7 @@ export default async function TechVisitPage({
             <label className="mb-2 block text-sm font-medium">
               Observaciones del técnico (interno)
             </label>
-            <textarea
-              name="tech_observations"
-              rows={3}
-              defaultValue={visit.tech_observations ?? ""}
-              disabled={isCompleted}
-              placeholder="Observaciones relevantes para el gerente (no se envían al cliente)"
-              className="w-full rounded border px-3 py-2"
-            />
+            <div className="text-gray-500">—</div>
           </div>
 
           {isCompleted ? (

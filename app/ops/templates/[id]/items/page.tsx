@@ -16,7 +16,8 @@ function parseItemType(value: string) {
 async function createItem(formData: FormData) {
   "use server";
 
-  const supabase = await createClient();
+  const supabase = (await createClient()).schema("public");
+  const supabaseDb = supabase.schema("public");
   const {
     data: { user },
     error: authError,
@@ -40,7 +41,7 @@ async function createItem(formData: FormData) {
     );
   }
 
-  const { error } = await supabase.from("template_items").insert({
+  const { error } = await supabaseDb.from("template_items").insert({
     template_id: templateId,
     label,
     item_type: itemType,
@@ -63,6 +64,7 @@ async function updateItem(formData: FormData) {
   "use server";
 
   const supabase = await createClient();
+  const supabaseDb = supabase.schema("public");
   const {
     data: { user },
     error: authError,
@@ -87,7 +89,7 @@ async function updateItem(formData: FormData) {
     );
   }
 
-  const { error } = await supabase
+  const { error } = await supabaseDb
     .from("template_items")
     .update({
       label,
@@ -112,6 +114,7 @@ async function deleteItem(formData: FormData) {
   "use server";
 
   const supabase = await createClient();
+  const supabaseDb = supabase.schema("public");
   const {
     data: { user },
     error: authError,
@@ -132,7 +135,7 @@ async function deleteItem(formData: FormData) {
     );
   }
 
-  const { error } = await supabase.from("template_items").delete().eq("id", itemId);
+  const { error } = await supabaseDb.from("template_items").delete().eq("id", itemId);
 
   if (error) {
     redirect(

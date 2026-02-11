@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatPanamaDateLabel } from "@/lib/dates/panama";
 import { getCrewsWithDisplay } from "@/lib/crews/withMembers";
 import { formatAssignmentLabel } from "@/lib/formatters/assignmentLabel";
+import type { Database } from "@/lib/database.types";
 
 const MAX_TEXT_LENGTH = 120;
 const SNAPSHOT_GAP_MS = 3000;
@@ -12,22 +13,14 @@ type SearchParams = {
   all?: string;
 };
 
-type TemplateItem = {
-  id: string;
-  label: string;
-  item_type: string;
-  sort_order: number | null;
-};
-
-type VisitResponse = {
-  id: string;
-  item_id: string;
-  value_text: string | null;
-  value_number: number | null;
-  value_bool: boolean | null;
-  created_at: string;
-  created_by: string | null;
-};
+type TemplateItem = Pick<
+  Database["public"]["Tables"]["template_items"]["Row"],
+  "id" | "label" | "item_type" | "sort_order"
+>;
+type VisitResponse = Pick<
+  Database["public"]["Tables"]["visit_responses"]["Row"],
+  "id" | "item_id" | "value_text" | "value_number" | "value_bool" | "created_at" | "created_by"
+>;
 
 type Snapshot = {
   created_at: string;
@@ -88,12 +81,12 @@ export default async function OpsVisitDetailPage({
   params: { id: string };
   searchParams?: SearchParams;
 }) {
-  const supabase = await createClient();
+  const supabase = (await createClient()).schema("public");
 
   const { data: visit, error: visitError } = await supabase
     .from("visits")
     .select(
-      "id,scheduled_for,status,assigned_tech_user_id,assigned_crew_id,tech_observations,building:buildings(id,name),template:visit_templates(id,name)"
+      "id,building_id,template_id,scheduled_for,status,assigned_tech_user_id,assigned_crew_id"
     )
     .eq("id", params.id)
     .maybeSingle();
@@ -111,11 +104,11 @@ export default async function OpsVisitDetailPage({
   }
 
   const { data: templateItems } =
-    visit.template?.id
+    visit.template_id
       ? await supabase
           .from("template_items")
           .select("id,label,item_type,sort_order")
-          .eq("template_id", visit.template.id)
+          .eq("template_id", visit.template_id)
           .order("sort_order", { ascending: true })
       : { data: [] };
 
@@ -202,6 +195,7 @@ export default async function OpsVisitDetailPage({
   let lastTimestampMs: number | null = null;
 
   (responses ?? []).forEach((response: VisitResponse) => {
+    if (!response.created_at) return;
     const timestampMs = new Date(response.created_at).getTime();
     const shouldStartNew =
       lastTimestampMs === null || timestampMs - lastTimestampMs > SNAPSHOT_GAP_MS;
@@ -222,12 +216,14 @@ export default async function OpsVisitDetailPage({
   const buildSnapshotItems = (snapshot: Snapshot) => {
     return snapshot.responses
       .map((response) => {
-        const item = templateItemById.get(response.item_id);
+        const item = response.item_id
+          ? templateItemById.get(response.item_id)
+          : undefined;
         const itemType = item?.item_type ?? "text";
         return {
           id: response.id,
           item_id: response.item_id,
-          label: item?.label ?? `Item ${response.item_id.slice(0, 6)}`,
+          label: item?.label ?? `Item ${response.item_id?.slice(0, 6) ?? "—"}`,
           sort_order: item?.sort_order ?? 0,
           value: formatResponseValue(itemType, response),
         };
@@ -242,10 +238,12 @@ export default async function OpsVisitDetailPage({
     ? formatPanamaDateTime(latestSnapshot.created_at)
     : null;
 
-  const buildingName = visit.building?.name ?? "Building";
-  const templateName = visit.template?.name ?? "Formulario";
-  const buildingHref = visit.building?.id
-    ? `/ops/buildings/${visit.building.id}`
+  const buildingName = "Building";
+  const templateName = visit.template_id
+    ? `Template ${visit.template_id.slice(0, 8)}`
+    : "Formulario";
+  const buildingHref = visit.building_id
+    ? `/ops/buildings/${visit.building_id}`
     : "/ops/buildings";
 
   return (
@@ -288,7 +286,7 @@ export default async function OpsVisitDetailPage({
           Observaciones del técnico
         </div>
         <p className="text-sm text-gray-700 whitespace-pre-wrap">
-          {visit.tech_observations?.trim() ?? "—"}
+          —
         </p>
       </div>
 

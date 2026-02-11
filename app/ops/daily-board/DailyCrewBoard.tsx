@@ -7,6 +7,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { formatCrewLabel } from "@/lib/formatters/crewLabel";
 import { formatAssignmentLabel } from "@/lib/formatters/assignmentLabel";
 import type { CrewForLabel } from "@/lib/formatters/crewLabel";
+import type { Database } from "@/lib/database.types";
 
 type Crew = {
   id: string;
@@ -31,6 +32,8 @@ type DailyCrewBoardProps = {
   techById: Map<string, { full_name?: string | null }>;
   crewDisplayById: Map<string, CrewForLabel>;
 };
+
+type VisitUpdate = Database["public"]["Tables"]["visits"]["Update"];
 
 const formatStatus = (status?: string | null) => {
   if (!status) return "Scheduled";
@@ -133,9 +136,14 @@ export default function DailyCrewBoard({
       )
     );
 
-    const { data, error } = await supabase
-      .from("visits")
-      .update({ assigned_crew_id: targetCrewId })
+    const visitsTable = supabase.from("visits") as unknown as {
+      update: (values: VisitUpdate) => any;
+      eq: (col: string, val: any) => any;
+      is: (col: string, val: any) => any;
+    };
+
+    const { data, error } = await visitsTable
+      .update({ assigned_crew_id: targetCrewId } as unknown as VisitUpdate)
       .eq("id", visitId)
       .eq("status", "planned")
       .is("assigned_tech_user_id", null)

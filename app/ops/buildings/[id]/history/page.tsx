@@ -1,12 +1,22 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient, getCurrentUser } from "@/lib/supabase/server";
+import type { Database } from "@/lib/database.types";
 import { formatPanamaDateLabel } from "@/lib/dates/panama";
+
+type VisitStatus = NonNullable<Database["public"]["Tables"]["visits"]["Row"]["status"]>;
 
 type SearchParams = {
   status?: string;
   tech?: string;
 };
+
+const ALLOWED_STATUS_SET = new Set<string>(["planned", "in_progress", "completed"]);
+
+function toVisitStatus(value: string | undefined | null): VisitStatus | null {
+  if (!value) return null;
+  return ALLOWED_STATUS_SET.has(value) ? (value as VisitStatus) : null;
+}
 
 const formatStatus = (status?: string | null) => {
   if (!status) return "Scheduled";
@@ -20,7 +30,7 @@ export default async function BuildingHistoryPage({
   params: { id: string };
   searchParams?: SearchParams;
 }) {
-  const supabase = await createClient();
+  const supabase = (await createClient()).schema("public");
   const currentUser = await getCurrentUser();
   const canAccessServiceReport =
     currentUser?.role === "ops_manager" || currentUser?.role === "director";
@@ -56,8 +66,9 @@ export default async function BuildingHistoryPage({
     .order("scheduled_for", { ascending: false })
     .order("created_at", { ascending: false });
 
-  if (selectedStatus) {
-    visitsQuery.eq("status", selectedStatus);
+  const statusTyped = toVisitStatus(selectedStatus);
+  if (statusTyped) {
+    visitsQuery.eq("status", statusTyped);
   }
 
   if (selectedTech) {

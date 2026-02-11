@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { formatCrewLabel } from "@/lib/formatters/crewLabel";
+import type { Database } from "@/lib/database.types";
 
 type Crew = {
   id: string;
@@ -23,6 +24,7 @@ type CrewAssignmentsProps = {
 };
 
 type StatusState = "idle" | "saving" | "saved" | "error";
+type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];
 
 export default function CrewAssignments({ crews, techs }: CrewAssignmentsProps) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -61,9 +63,10 @@ export default function CrewAssignments({ crews, techs }: CrewAssignmentsProps) 
     setAssignedCrewByTech((prev) => ({ ...prev, [techId]: nextValue }));
     setStatusByTech((prev) => ({ ...prev, [techId]: "saving" }));
 
+    const payload: ProfileUpdate = { home_crew_id: nextValue };
     const { error } = await supabase
       .from("profiles")
-      .update({ home_crew_id: nextValue })
+      .update(payload)
       .eq("user_id", techId);
 
     if (error) {

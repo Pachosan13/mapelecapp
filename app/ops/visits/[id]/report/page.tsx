@@ -1,22 +1,16 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { isRecorridoPorPisosItem } from "@/lib/reports/serviceReport";
+import type { Database } from "@/lib/database.types";
 
-type TemplateItem = {
-  id: string;
-  label: string;
-  item_type: string;
-  required: boolean | null;
-  sort_order: number | null;
-};
-
-type VisitResponse = {
-  item_id: string;
-  value_text: string | null;
-  value_number: number | null;
-  value_bool: boolean | null;
-  created_at: string;
-};
+type TemplateItem = Pick<
+  Database["public"]["Tables"]["template_items"]["Row"],
+  "id" | "label" | "item_type" | "required" | "sort_order"
+>;
+type VisitResponse = Pick<
+  Database["public"]["Tables"]["visit_responses"]["Row"],
+  "item_id" | "value_text" | "value_number" | "value_bool" | "created_at"
+>;
 
 const PANAMA_TIME_ZONE = "America/Panama";
 
@@ -117,12 +111,12 @@ export default async function OpsVisitReportPage({
 }: {
   params: { id: string };
 }) {
-  const supabase = await createClient();
+  const supabase = (await createClient()).schema("public");
 
   const { data: visit, error: visitError } = await supabase
     .from("visits")
     .select(
-      "id,building_id,template_id,assigned_tech_user_id,status,completed_at,tech_observations,building:buildings(id,name),template:visit_templates(id,name)"
+      "id,building_id,template_id,scheduled_for,status,assigned_tech_user_id,assigned_crew_id,completed_at"
     )
     .eq("id", params.id)
     .maybeSingle();
@@ -168,20 +162,25 @@ export default async function OpsVisitReportPage({
 
   const latestResponseByItemId = new Map<string, VisitResponse>();
   (responses ?? []).forEach((response: VisitResponse) => {
+    if (!response.item_id) return;
+    if (!response.created_at) return;
     const existing = latestResponseByItemId.get(response.item_id);
     if (!existing) {
       latestResponseByItemId.set(response.item_id, response);
       return;
     }
+    if (!existing.created_at) return;
     if (new Date(response.created_at) > new Date(existing.created_at)) {
       latestResponseByItemId.set(response.item_id, response);
     }
   });
 
-  const buildingName = visit.building?.name ?? "Building";
-  const templateName = visit.template?.name ?? "Formulario";
-  const buildingHref = visit.building?.id
-    ? `/ops/buildings/${visit.building.id}/history`
+  const buildingName = "Building";
+  const templateName = visit.template_id
+    ? `Template ${visit.template_id.slice(0, 8)}`
+    : "Formulario";
+  const buildingHref = visit.building_id
+    ? `/ops/buildings/${visit.building_id}/history`
     : "/ops/buildings";
 
   return (
@@ -217,19 +216,12 @@ export default async function OpsVisitReportPage({
         </div>
       </div>
 
-      {visit.tech_observations?.trim() ? (
-        <div className="mb-6 rounded border p-4">
-          <div className="mb-2 text-sm font-semibold text-gray-700">
-            Observaciones del técnico
-          </div>
-          <p className="text-sm text-gray-700 whitespace-pre-wrap">
-            {visit.tech_observations.trim()}
-          </p>
-          <p className="mt-2 text-xs text-gray-500">
-            Estas notas no se envían al cliente automáticamente.
-          </p>
+      <div className="mb-6 rounded border p-4">
+        <div className="mb-2 text-sm font-semibold text-gray-700">
+          Observaciones del técnico
         </div>
-      ) : null}
+        <p className="text-sm text-gray-700 whitespace-pre-wrap">—</p>
+      </div>
 
       <div className="overflow-x-auto rounded border">
         <table className="min-w-full text-left text-sm">

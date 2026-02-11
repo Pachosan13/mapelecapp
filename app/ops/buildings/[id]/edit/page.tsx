@@ -2,12 +2,25 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import { getBuildingById } from "@/lib/buildings/queries";
+import type { Database } from "@/lib/database.types";
 import DeleteButton from "./DeleteButton";
+
+type Category = NonNullable<
+  Database["public"]["Tables"]["buildings"]["Row"]["systems"]
+>[number];
 
 const SYSTEM_OPTIONS = [
   { value: "pump", label: "Bombas" },
   { value: "fire", label: "Incendio" },
 ];
+
+const ALLOWED_CATEGORY_SET = new Set<string>(["pump", "fire"]);
+
+function toCategories(values: string[]): Category[] {
+  return values.filter((value): value is Category =>
+    ALLOWED_CATEGORY_SET.has(value)
+  );
+}
 
 type SearchParams = {
   error?: string;
@@ -17,6 +30,7 @@ async function updateBuilding(formData: FormData) {
   "use server";
 
   const supabase = await createClient();
+  const supabaseDb = supabase.schema("public");
   const {
     data: { user },
     error: authError,
@@ -32,26 +46,26 @@ async function updateBuilding(formData: FormData) {
   const notes = String(formData.get("notes") ?? "").trim();
   const systems = formData
     .getAll("systems")
-    .map((value) => String(value))
-    .filter((value) => SYSTEM_OPTIONS.some((option) => option.value === value));
+    .map((value) => String(value));
+  const systemsTyped = toCategories(systems);
 
   if (!name) {
     redirect(`/ops/buildings/${id}/edit?error=Nombre%20requerido`);
   }
 
-  if (systems.length === 0) {
+  if (systemsTyped.length === 0) {
     redirect(
       `/ops/buildings/${id}/edit?error=Selecciona%20al%20menos%20un%20sistema`
     );
   }
 
-  const { error } = await supabase
+  const { error } = await supabaseDb
     .from("buildings")
     .update({
       name,
       address: address || null,
       notes: notes || null,
-      systems,
+      systems: systemsTyped,
     })
     .eq("id", id);
 
@@ -70,6 +84,7 @@ async function deleteBuilding(formData: FormData) {
   "use server";
 
   const supabase = await createClient();
+  const supabaseDb = supabase.schema("public");
   const {
     data: { user },
     error: authError,
@@ -81,7 +96,7 @@ async function deleteBuilding(formData: FormData) {
 
   const id = String(formData.get("id") ?? "");
 
-  const { error } = await supabase.from("buildings").delete().eq("id", id);
+  const { error } = await supabaseDb.from("buildings").delete().eq("id", id);
 
   if (error) {
     redirect(
@@ -178,7 +193,7 @@ export default async function EditBuildingPage({
                   type="checkbox"
                   name="systems"
                   value={option.value}
-                  defaultChecked={currentSystems.includes(option.value)}
+                  defaultChecked={currentSystems.includes(option.value as any)}
                 />
                 <span>{option.label}</span>
               </label>

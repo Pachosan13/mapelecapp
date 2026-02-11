@@ -1,10 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import type { Database } from "@/types/database";
+import type { Database } from "@/lib/database.types";
 
-type Profile = Database["public"]["Tables"]["profiles"]["Row"];
-
-async function createClient() {
+export async function createClient() {
   const cookieStore = await cookies();
 
   return createServerClient<Database>(
@@ -12,27 +10,11 @@ async function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: any) {
-          try {
-            cookieStore.set({ name, value, ...options });
-          } catch (error) {
-            // The `set` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
-          }
-        },
-        remove(name: string, options: any) {
-          try {
-            cookieStore.set({ name, value: "", ...options });
-          } catch (error) {
-            // The `delete` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
-          }
-        },
+        get: (name) => cookieStore.get(name)?.value,
+        set: (name, value, options) =>
+          cookieStore.set({ name, value, ...options }),
+        remove: (name, options) =>
+          cookieStore.set({ name, value: "", ...options }),
       },
     }
   );
@@ -80,15 +62,13 @@ async function getCurrentUser(): Promise<CurrentUser | null> {
     };
   }
 
-  const safeProfile = profile as Profile | null;
-
   return {
     id: user.id,
     email: user.email,
-    full_name: safeProfile?.full_name ?? null,
-    role: safeProfile?.role ?? null,
-      home_crew_id: safeProfile?.home_crew_id ?? null,
+    full_name: profile?.full_name ?? null,
+    role: profile?.role ?? null,
+    home_crew_id: profile?.home_crew_id ?? null,
   };
 }
 
-export { createClient, getCurrentUser };
+export { getCurrentUser };

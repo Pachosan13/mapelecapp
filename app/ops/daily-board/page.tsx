@@ -11,12 +11,22 @@ type SearchParams = {
   date?: string;
 };
 
+type Visit = {
+  id: string;
+  status: string | null;
+  scheduled_for: string;
+  assigned_crew_id: string | null;
+  assigned_tech_user_id: string | null;
+  building_id: string | null;
+  template_id: string | null;
+};
+
 export default async function OpsDailyBoardPage({
   searchParams,
 }: {
   searchParams?: SearchParams;
 }) {
-  const supabase = await createClient();
+  const supabase = (await createClient()).schema("public");
   const today = getPanamaTodayDateString();
   const selectedDate = searchParams?.date?.trim() || today;
 
@@ -30,7 +40,7 @@ export default async function OpsDailyBoardPage({
     supabase
       .from("visits")
       .select(
-        "id,status,scheduled_for,assigned_crew_id,assigned_tech_user_id,building:buildings(id,name),template:visit_templates(id,name)"
+        "id,status,scheduled_for,assigned_crew_id,assigned_tech_user_id,building_id,template_id"
       )
       .eq("scheduled_for", selectedDate)
       .order("scheduled_for", { ascending: true }),
@@ -44,7 +54,28 @@ export default async function OpsDailyBoardPage({
     created_at?: string | null;
   }>;
   const crews = getCrewsWithDisplay(crewsRaw, techs);
-  const visits = visitsResult.data ?? [];
+  const visits = (visitsResult.data ?? []) as Visit[];
+  const boardVisits: Parameters<typeof DailyCrewBoard>[0]["visits"] = visits.map(
+    (visit) => ({
+      id: visit.id,
+      status: visit.status,
+      scheduled_for: visit.scheduled_for,
+      assigned_crew_id: visit.assigned_crew_id,
+      assigned_tech_user_id: visit.assigned_tech_user_id,
+      building: visit.building_id
+        ? {
+            id: visit.building_id,
+            name: `Building ${visit.building_id.slice(0, 8)}`,
+          }
+        : null,
+      template: visit.template_id
+        ? {
+            id: visit.template_id,
+            name: `Template ${visit.template_id.slice(0, 8)}`,
+          }
+        : null,
+    })
+  );
   const techById = new Map(
     techs.map((t) => [t.user_id, { full_name: t.full_name }])
   );
@@ -96,7 +127,7 @@ export default async function OpsDailyBoardPage({
 
       <DailyCrewBoard
         crews={crews}
-        visits={visits}
+        visits={boardVisits}
         techById={techById}
         crewDisplayById={crewDisplayById}
       />

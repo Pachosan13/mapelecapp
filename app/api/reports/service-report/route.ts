@@ -139,6 +139,7 @@ export async function GET(request: Request) {
     }
 
     const supabase = await createClient();
+    const supabaseDb = supabase.schema("public");
     const {
       data: { user },
       error: authError,
@@ -148,9 +149,9 @@ export async function GET(request: Request) {
       return new Response("Unauthorized", { status: 401 });
     }
 
-    const { data: profile, error: profileError } = await supabase
+    const { data: profile, error: profileError } = await supabaseDb
       .from("profiles")
-      .select("role")
+      .select("user_id, full_name, role")
       .eq("user_id", user.id)
       .maybeSingle();
 
@@ -479,7 +480,7 @@ export async function GET(request: Request) {
 
     const pdfBytes = await pdfDoc.save();
 
-    return new NextResponse(pdfBytes, {
+    return new NextResponse(Buffer.from(pdfBytes), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",

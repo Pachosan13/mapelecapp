@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { getCurrentUser, createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import type { Database } from "@/lib/database.types";
+
+type VisitStatus = Database["public"]["Tables"]["visits"]["Row"]["status"];
 
 export default async function TechTodayPage({
   searchParams,
@@ -15,14 +18,14 @@ export default async function TechTodayPage({
 
   const displayName =
     user.full_name?.trim() || `Usuario ${user.id.slice(0, 6)}`;
-  const supabase = await createClient();
+  const supabase = (await createClient()).schema("public");
   const today = new Intl.DateTimeFormat("en-CA", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
     timeZone: "America/Panama",
   }).format(new Date());
-  const uid = user.user_id ?? user.id;
+  const uid = user.id;
 
   const selectFields =
     "id,status,scheduled_for,assigned_crew_id,assigned_tech_user_id,building:buildings(id,name)";
@@ -73,14 +76,14 @@ export default async function TechTodayPage({
       return a.id.localeCompare(b.id);
     }) as Array<{
     id: string;
-    status: string;
+    status: VisitStatus | null;
     scheduled_for: string;
     assigned_crew_id: string | null;
     assigned_tech_user_id: string | null;
     building: { id: string; name: string } | null;
   }>;
 
-  const formatStatus = (status?: string) => {
+  const formatStatus = (status?: VisitStatus | null) => {
     if (!status) return "Sin estado";
     return status
       .replace(/_/g, " ")

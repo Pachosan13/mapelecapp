@@ -2,7 +2,7 @@ import { createClient, getCurrentUser } from "@/lib/supabase/server";
 
 export default async function DebugMePage() {
   const user = await getCurrentUser();
-  const supabase = await createClient();
+  const supabase = (await createClient()).schema("public");
 
   let profilesRow:
     | { user_id: string; role: string; is_active: boolean }

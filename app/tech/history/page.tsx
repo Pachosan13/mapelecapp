@@ -5,11 +5,26 @@ import { redirect } from "next/navigation";
 import { unstable_noStore as noStore } from "next/cache";
 import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import { formatPanamaDateLabel } from "@/lib/dates/panama";
+import type { Database } from "@/lib/database.types";
 
 type SearchParams = {
   status?: string;
   building?: string;
 };
+
+type VisitStatus = NonNullable<Database["public"]["Tables"]["visits"]["Row"]["status"]>;
+
+const ALLOWED_STATUS_SET = new Set<string>([
+  "planned",
+  "in_progress",
+  "completed",
+  "missed",
+]);
+
+function toVisitStatus(v?: string | null): VisitStatus | null {
+  if (!v) return null;
+  return ALLOWED_STATUS_SET.has(v) ? (v as VisitStatus) : null;
+}
 
 const formatStatus = (status?: string | null) => {
   if (!status) return "Sin estado";
@@ -65,8 +80,9 @@ export default async function TechHistoryPage({
     .order("scheduled_for", { ascending: false })
     .order("created_at", { ascending: false });
 
-  if (selectedStatus) {
-    visitsQuery.eq("status", selectedStatus);
+  const statusTyped = toVisitStatus(selectedStatus);
+  if (statusTyped) {
+    visitsQuery.eq("status", statusTyped);
   }
 
   if (selectedBuilding) {

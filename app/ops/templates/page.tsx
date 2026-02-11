@@ -7,7 +7,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export default async function OpsTemplatesPage() {
-  const supabase = await createClient();
+  const supabase = (await createClient()).schema("public");
   const { data, error } = await supabase
     .from("visit_templates")
     .select("id,name,category,is_active,created_at")

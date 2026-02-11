@@ -38,7 +38,7 @@ async function updateReportNotes(formData: FormData) {
     return;
   }
 
-  const supabase = await createClient();
+  const supabase = (await createClient()).schema("public");
   await supabase
     .from("service_reports")
     .update({
@@ -60,7 +60,7 @@ async function markReportReady(formData: FormData) {
     return;
   }
 
-  const supabase = await createClient();
+  const supabase = (await createClient()).schema("public");
   await supabase
     .from("service_reports")
     .update({
@@ -82,7 +82,7 @@ async function sendReport(formData: FormData) {
     return;
   }
 
-  const supabase = await createClient();
+  const supabase = (await createClient()).schema("public");
   await supabase
     .from("service_reports")
     .update({
@@ -118,7 +118,7 @@ export default async function ServiceReportPage({
     );
   }
 
-  const supabase = await createClient();
+  const supabase = (await createClient()).schema("public");
   const { data: building, error: buildingError } = await supabase
     .from("buildings")
     .select("id,name")

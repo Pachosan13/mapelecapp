@@ -8,6 +8,7 @@ import {
 } from "@/lib/dates/panama";
 import { getCrewsWithDisplay } from "@/lib/crews/withMembers";
 import { formatAssignmentLabel } from "@/lib/formatters/assignmentLabel";
+import type { Database } from "@/lib/database.types";
 
 type SearchParams = {
   date?: string;
@@ -15,6 +16,12 @@ type SearchParams = {
   building?: string;
   success?: string;
 };
+
+type VisitStatus = Database["public"]["Tables"]["visits"]["Row"]["status"];
+type TechProfile = Pick<
+  Database["public"]["Tables"]["profiles"]["Row"],
+  "user_id" | "full_name" | "home_crew_id" | "is_active"
+>;
 
 const shiftDate = (dateString: string, days: number) => {
   const parsed = new Date(`${dateString}T00:00:00Z`);
@@ -25,7 +32,7 @@ const shiftDate = (dateString: string, days: number) => {
   return parsed.toISOString().slice(0, 10);
 };
 
-const formatStatus = (status?: string) => {
+const formatStatus = (status?: VisitStatus | null) => {
   if (!status) return "Scheduled";
   return status.replace(/_/g, " ").replace(/\b\w/g, (match) => match.toUpperCase());
 };
@@ -43,7 +50,7 @@ export default async function OpsVisitsPage({
 }: {
   searchParams?: SearchParams;
 }) {
-  const supabase = await createClient();
+  const supabase = (await createClient()).schema("public");
   const today = getPanamaTodayDateString();
   const selectedDate = searchParams?.date?.trim() || today;
   const selectedTech = searchParams?.tech?.trim() || "";
@@ -91,7 +98,7 @@ export default async function OpsVisitsPage({
       supabase.from("buildings").select("id,name").order("name", { ascending: true }),
       supabase
         .from("profiles")
-        .select("user_id,full_name,is_active")
+        .select("user_id,full_name,is_active,home_crew_id")
         .eq("role", "tech")
         .eq("is_active", true)
         .order("full_name", { ascending: true }),
@@ -101,7 +108,7 @@ export default async function OpsVisitsPage({
   const visits = (visitsResult.data ?? []) as Array<{
     id: string;
     scheduled_for: string;
-    status?: string | null;
+    status?: VisitStatus | null;
     building_id: string | null;
     assigned_tech_user_id: string | null;
     assigned_crew_id: string | null;
@@ -110,7 +117,7 @@ export default async function OpsVisitsPage({
   }>;
 
   const buildingOptions = buildingsResult.data ?? [];
-  const techOptions = techsResult.data ?? [];
+  const techOptions = (techsResult.data ?? []) as TechProfile[];
   const crewsRaw = crewsResult.data ?? [];
   const crewsWithDisplay = getCrewsWithDisplay(crewsRaw, techOptions);
 

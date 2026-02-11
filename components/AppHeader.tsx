@@ -2,6 +2,7 @@ import Link from "next/link";
 import { logout } from "@/app/actions/auth";
 import { getCurrentUser } from "@/lib/supabase/server";
 import AppNavLinks from "@/components/AppNavLinks";
+import type { NavLink } from "@/components/AppNavLinks";
 import UserMenu from "@/components/UserMenu";
 
 const roleLabelMap: Record<string, string> = {
@@ -22,7 +23,7 @@ export default async function AppHeader() {
   const displayName =
     user.full_name?.trim() || `Usuario ${user.id.slice(0, 6)}`;
 
-  const links =
+  const links: NavLink[] =
     role === "tech"
       ? [{ href: "/tech/today", label: "Hoy", activeMatch: "exact" }]
       : role === "ops_manager"

@@ -25,12 +25,14 @@ export default async function BuildingEquipmentPage({
 
   const isReadOnly = user.role === "director";
   const supabase = await createClient();
+  const supabaseDb = supabase.schema("public");
 
-  const { data: building, error: buildingError } = await supabase
+  const { data: buildingData, error: buildingError } = await supabaseDb
     .from("buildings")
     .select("id,name,address")
     .eq("id", params.id)
     .maybeSingle();
+  const building = buildingData;
 
   if (buildingError) {
     return (
@@ -46,11 +48,12 @@ export default async function BuildingEquipmentPage({
     notFound();
   }
 
-  const { data: equipment, error: equipmentError } = await supabase
+  const { data: equipmentData, error: equipmentError } = await supabaseDb
     .from("equipment")
     .select("id,name,equipment_type,is_active,location,model")
     .eq("building_id", params.id)
     .order("name", { ascending: true });
+  const equipment = equipmentData;
 
   return (
     <div className="min-h-screen p-8">

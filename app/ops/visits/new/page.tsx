@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import type { Database } from "@/lib/database.types";
 import { getCrewsWithDisplay } from "@/lib/crews/withMembers";
 import NewVisitForm from "./NewVisitForm";
 
@@ -8,10 +9,14 @@ type SearchParams = {
   error?: string;
 };
 
+type VisitInsert = Database["public"]["Tables"]["visits"]["Insert"];
+type VisitStatus = NonNullable<Database["public"]["Tables"]["visits"]["Row"]["status"]>;
+
 async function createVisit(formData: FormData) {
   "use server";
 
-  const supabase = await createClient();
+  const supabase = (await createClient()).schema("public");
+  const supabaseDb = supabase.schema("public");
   const {
     data: { user },
     error: authError,
@@ -39,16 +44,17 @@ async function createVisit(formData: FormData) {
     );
   }
 
-  const { error } = await supabase.from("visits").insert(
-    templateIds.map((templateId) => ({
-      building_id: buildingId,
-      template_id: templateId,
-      scheduled_for: scheduledFor,
-      assigned_tech_user_id: null,
-      assigned_crew_id: assignedCrewId,
-      status: "planned",
-    }))
-  );
+  const status: VisitStatus = "planned";
+  const rows: VisitInsert[] = templateIds.map((templateId) => ({
+    building_id: buildingId,
+    template_id: templateId,
+    scheduled_for: scheduledFor,
+    assigned_tech_user_id: null,
+    assigned_crew_id: assignedCrewId,
+    status,
+  }));
+
+  const { error } = await supabaseDb.from("visits").insert(rows);
 
   if (error) {
     redirect(
