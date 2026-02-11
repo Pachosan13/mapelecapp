@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import type { Database } from "@/lib/database.types";
 import { formatPanamaDateLabel } from "@/lib/dates/panama";
+import { formatDateOnlyLabel } from "@/lib/dates/dateOnly";
 
 type VisitStatus = NonNullable<Database["public"]["Tables"]["visits"]["Row"]["status"]>;
 
@@ -233,7 +234,7 @@ export default async function BuildingHistoryPage({
               visits.map((visit) => (
                 <tr key={visit.id} className="border-t">
                   <td className="px-4 py-3">
-                    {formatPanamaDateLabel(visit.scheduled_for)}
+                    {formatDateOnlyLabel(visit.scheduled_for)}
                   </td>
                   <td className="px-4 py-3">
                     <span className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700">

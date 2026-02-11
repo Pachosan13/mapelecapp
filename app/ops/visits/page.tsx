@@ -1,9 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import OpsVisitsToast from "./OpsVisitsToast";
-import {
-  formatPanamaDateLabel,
-} from "@/lib/dates/panama";
+import { formatDateOnlyLabel, shiftDateOnly } from "@/lib/dates/dateOnly";
 import { getCrewsWithDisplay } from "@/lib/crews/withMembers";
 import { formatAssignmentLabel } from "@/lib/formatters/assignmentLabel";
 import type { Database } from "@/lib/database.types";
@@ -21,18 +19,6 @@ type TechProfile = Pick<
   Database["public"]["Tables"]["profiles"]["Row"],
   "user_id" | "full_name" | "home_crew_id" | "is_active"
 >;
-
-const shiftDate = (dateString: string, days: number) => {
-  const [year, month, day] = dateString.split("-").map(Number);
-  if (!year || !month || !day) {
-    return dateString;
-  }
-  const shifted = new Date(Date.UTC(year, month - 1, day + days));
-  const y = shifted.getUTCFullYear();
-  const m = String(shifted.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(shifted.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-};
 
 const formatStatus = (status?: VisitStatus | null) => {
   if (!status) return "Scheduled";
@@ -143,8 +129,8 @@ export default async function OpsVisitsPage({
     buildingsResult.error ||
     techsResult.error ||
     crewsResult.error;
-  const prevDate = shiftDate(selectedDate, -1);
-  const nextDate = shiftDate(selectedDate, 1);
+  const prevDate = shiftDateOnly(selectedDate, -1);
+  const nextDate = shiftDateOnly(selectedDate, 1);
 
   return (
     <div className="min-h-screen bg-gray-50/40 p-8">
@@ -171,7 +157,7 @@ export default async function OpsVisitsPage({
           ← Prev
         </Link>
         <div className="rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-800">
-          {formatPanamaDateLabel(selectedDate)}
+          {formatDateOnlyLabel(selectedDate)}
         </div>
         <Link
           href={buildAgendaUrl(nextDate, selectedTech, selectedBuilding)}
@@ -289,7 +275,7 @@ export default async function OpsVisitsPage({
                 return (
                   <tr key={visit.id} className="border-t border-gray-100">
                     <td className="px-4 py-3">
-                      {formatPanamaDateLabel(visit.scheduled_for)}
+                      {formatDateOnlyLabel(visit.scheduled_for)}
                     </td>
                     <td className="px-4 py-3 font-medium">
                       {visit.building || visit.building_id ? (

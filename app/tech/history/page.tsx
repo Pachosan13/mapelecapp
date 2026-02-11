@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { unstable_noStore as noStore } from "next/cache";
 import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import { formatPanamaDateLabel } from "@/lib/dates/panama";
+import { formatDateOnlyLabel } from "@/lib/dates/dateOnly";
 import type { Database } from "@/lib/database.types";
 
 type SearchParams = {
@@ -223,7 +224,7 @@ export default async function TechHistoryPage({
         {visitsData.map((visit) => (
           <div key={visit.id} className="rounded border p-4 text-sm">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-medium">{safeFormatDate(visit.scheduled_for)}</span>
+              <span className="font-medium">{formatDateOnlyLabel(visit.scheduled_for)}</span>
               <span className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700">
                 {formatStatus(visit.status)}
               </span>

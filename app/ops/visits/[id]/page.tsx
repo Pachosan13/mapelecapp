@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { formatPanamaDateLabel } from "@/lib/dates/panama";
+import { formatDateOnlyLabel } from "@/lib/dates/dateOnly";
 import { getCrewsWithDisplay } from "@/lib/crews/withMembers";
 import { formatAssignmentLabel } from "@/lib/formatters/assignmentLabel";
 import type { Database } from "@/lib/database.types";
@@ -292,7 +293,7 @@ export default async function OpsVisitDetailPage({
         <div>
           <p className="text-xs uppercase text-gray-500">Scheduled for</p>
           <p className="text-sm font-medium">
-            {formatPanamaDateLabel(visit.scheduled_for)}
+            {formatDateOnlyLabel(visit.scheduled_for)}
           </p>
         </div>
         <div>

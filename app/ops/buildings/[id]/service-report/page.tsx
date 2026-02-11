@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth/requireRole";
-import { getPanamaDayRange, formatPanamaDateLabel } from "@/lib/dates/panama";
+import { getPanamaDayRange } from "@/lib/dates/panama";
+import { formatDateOnlyLabel } from "@/lib/dates/dateOnly";
 import { createClient } from "@/lib/supabase/server";
 import {
   formatResponseValue,
@@ -200,7 +201,7 @@ export default async function ServiceReportPage({
               <div>
                 <p className="text-xs uppercase text-gray-500">Fecha del reporte</p>
                 <p className="text-sm font-medium">
-                  {formatPanamaDateLabel(reportData.report_date)}
+                  {formatDateOnlyLabel(reportData.report_date)}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
                   Se agrupa por día calendario en {reportData.time_zone}.

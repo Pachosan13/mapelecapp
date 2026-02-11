@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import {
-  formatPanamaDateLabel,
-} from "@/lib/dates/panama";
+import { formatDateOnlyLabel } from "@/lib/dates/dateOnly";
 import { getCrewsWithDisplay } from "@/lib/crews/withMembers";
 import DailyCrewBoard from "./DailyCrewBoard";
 import { panamaDay } from "@/lib/dates/panamaDay";
@@ -110,7 +108,7 @@ export default async function OpsDailyBoardPage({
             Hoy
           </Link>
           <div className="rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-medium">
-            {formatPanamaDateLabel(selectedDate)}
+            {formatDateOnlyLabel(selectedDate)}
           </div>
           <form method="get" className="flex items-center gap-2">
             <input

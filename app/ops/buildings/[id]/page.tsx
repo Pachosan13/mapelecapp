@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatPanamaDateLabel } from "@/lib/dates/panama";
+import { formatDateOnlyLabel } from "@/lib/dates/dateOnly";
 
 const MAX_STATUS_ITEMS = 8;
 const MAX_TEXT_LENGTH = 80;
@@ -249,7 +250,7 @@ export default async function BuildingHistoryPage({
                 return (
                   <tr key={visit.id} className="border-t">
                     <td className="px-4 py-3">
-                      {formatPanamaDateLabel(visit.scheduled_for)}
+                      {formatDateOnlyLabel(visit.scheduled_for)}
                     </td>
                     <td className="px-4 py-3 text-gray-600">{techName}</td>
                     <td className="px-4 py-3 text-gray-600">
