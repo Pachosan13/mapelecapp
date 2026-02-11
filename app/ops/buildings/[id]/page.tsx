@@ -22,6 +22,14 @@ type LatestItem = {
   value: string;
 };
 
+type VisitRow = {
+  id: string;
+  scheduled_for: string;
+  assigned_tech_user_id: string | null;
+  template_id: string | null;
+  template?: { id: string; name: string | null } | null;
+};
+
 const truncateText = (value: string, maxLength: number) => {
   if (value.length <= maxLength) {
     return value;
@@ -61,11 +69,13 @@ export default async function BuildingHistoryPage({
 
   const { data: visitsData, error: visitsError } = await supabase
     .from("visits")
-    .select("id,scheduled_for,assigned_tech_user_id,template_id")
+    .select(
+      "id,scheduled_for,assigned_tech_user_id,template_id,template:visit_templates(id,name)"
+    )
     .eq("building_id", params.id)
     .order("scheduled_for", { ascending: false });
 
-  const visits = visitsData ?? [];
+  const visits: VisitRow[] = visitsData ?? [];
 
   const techIds = Array.from(
     new Set(visits.map((visit) => visit.assigned_tech_user_id).filter(Boolean))
@@ -254,9 +264,10 @@ export default async function BuildingHistoryPage({
                     </td>
                     <td className="px-4 py-3 text-gray-600">{techName}</td>
                     <td className="px-4 py-3 text-gray-600">
-                      {visit.template_id
-                        ? `Template ${visit.template_id.slice(0, 8)}`
-                        : "-"}
+                      {visit.template?.name ??
+                        (visit.template_id
+                          ? `Template ${visit.template_id.slice(0, 8)}`
+                          : "Formulario")}
                     </td>
                     <td className="px-4 py-3">
                       <div className="text-xs font-semibold text-gray-700">
