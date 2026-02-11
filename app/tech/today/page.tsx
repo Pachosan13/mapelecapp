@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getCurrentUser, createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import type { Database } from "@/lib/database.types";
+import { panamaDay } from "@/lib/dates/panamaDay";
 
 type VisitStatus = Database["public"]["Tables"]["visits"]["Row"]["status"];
 
@@ -19,12 +20,7 @@ export default async function TechTodayPage({
   const displayName =
     user.full_name?.trim() || `Usuario ${user.id.slice(0, 6)}`;
   const supabase = (await createClient()).schema("public");
-  const today = new Intl.DateTimeFormat("en-CA", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    timeZone: "America/Panama",
-  }).format(new Date());
+  const today = panamaDay();
   const uid = user.id;
 
   const selectFields =

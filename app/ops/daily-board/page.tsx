@@ -2,14 +2,16 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import {
   formatPanamaDateLabel,
-  getPanamaTodayDateString,
 } from "@/lib/dates/panama";
 import { getCrewsWithDisplay } from "@/lib/crews/withMembers";
 import DailyCrewBoard from "./DailyCrewBoard";
+import { panamaDay } from "@/lib/dates/panamaDay";
 
 type SearchParams = {
   date?: string;
 };
+
+const DAY_PARAM_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 type Visit = {
   id: string;
@@ -27,8 +29,10 @@ export default async function OpsDailyBoardPage({
   searchParams?: SearchParams;
 }) {
   const supabase = (await createClient()).schema("public");
-  const today = getPanamaTodayDateString();
-  const selectedDate = searchParams?.date?.trim() || today;
+  const today = panamaDay();
+  const dateParam = searchParams?.date?.trim();
+  const selectedDate =
+    dateParam && DAY_PARAM_PATTERN.test(dateParam) ? dateParam : today;
 
   const [crewsResult, techsResult, visitsResult] = await Promise.all([
     supabase.from("crews").select("id,name").order("name", { ascending: true }),

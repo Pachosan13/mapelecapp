@@ -3,12 +3,11 @@ import { createClient } from "@/lib/supabase/server";
 import OpsVisitsToast from "./OpsVisitsToast";
 import {
   formatPanamaDateLabel,
-  getPanamaDayRange,
-  getPanamaTodayDateString,
 } from "@/lib/dates/panama";
 import { getCrewsWithDisplay } from "@/lib/crews/withMembers";
 import { formatAssignmentLabel } from "@/lib/formatters/assignmentLabel";
 import type { Database } from "@/lib/database.types";
+import { panamaDay } from "@/lib/dates/panamaDay";
 
 type SearchParams = {
   date?: string;
@@ -24,12 +23,15 @@ type TechProfile = Pick<
 >;
 
 const shiftDate = (dateString: string, days: number) => {
-  const parsed = new Date(`${dateString}T00:00:00Z`);
-  if (Number.isNaN(parsed.getTime())) {
+  const [year, month, day] = dateString.split("-").map(Number);
+  if (!year || !month || !day) {
     return dateString;
   }
-  parsed.setUTCDate(parsed.getUTCDate() + days);
-  return parsed.toISOString().slice(0, 10);
+  const shifted = new Date(Date.UTC(year, month - 1, day + days));
+  const y = shifted.getUTCFullYear();
+  const m = String(shifted.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(shifted.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 };
 
 const formatStatus = (status?: VisitStatus | null) => {
@@ -51,19 +53,10 @@ export default async function OpsVisitsPage({
   searchParams?: SearchParams;
 }) {
   const supabase = (await createClient()).schema("public");
-  const today = getPanamaTodayDateString();
+  const today = panamaDay();
   const selectedDate = searchParams?.date?.trim() || today;
   const selectedTech = searchParams?.tech?.trim() || "";
   const selectedBuilding = searchParams?.building?.trim() || "";
-
-  const { data: scheduledForSample } = await supabase
-    .from("visits")
-    .select("scheduled_for")
-    .limit(1);
-
-  const scheduledForValue = scheduledForSample?.[0]?.scheduled_for;
-  const scheduledForIsTimestamp =
-    typeof scheduledForValue === "string" && scheduledForValue.includes("T");
 
   const visitsQuery = supabase
     .from("visits")
@@ -72,17 +65,7 @@ export default async function OpsVisitsPage({
     )
     .order("scheduled_for", { ascending: true })
     .limit(100);
-
-  if (scheduledForIsTimestamp) {
-    const range = getPanamaDayRange(selectedDate);
-    if (range) {
-      visitsQuery.gte("scheduled_for", range.start).lt("scheduled_for", range.end);
-    } else {
-      visitsQuery.eq("scheduled_for", selectedDate);
-    }
-  } else {
-    visitsQuery.eq("scheduled_for", selectedDate);
-  }
+  visitsQuery.eq("scheduled_for", selectedDate);
 
   if (selectedTech) {
     visitsQuery.eq("assigned_tech_user_id", selectedTech);
