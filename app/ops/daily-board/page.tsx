@@ -19,6 +19,8 @@ type Visit = {
   assigned_tech_user_id: string | null;
   building_id: string | null;
   template_id: string | null;
+  building: { id: string; name: string } | null;
+  template: { id: string; name: string } | null;
 };
 
 export default async function OpsDailyBoardPage({
@@ -42,7 +44,7 @@ export default async function OpsDailyBoardPage({
     supabase
       .from("visits")
       .select(
-        "id,status,scheduled_for,assigned_crew_id,assigned_tech_user_id,building_id,template_id"
+        "id,status,scheduled_for,assigned_crew_id,assigned_tech_user_id,building_id,template_id,building:buildings(id,name),template:visit_templates(id,name)"
       )
       .eq("scheduled_for", selectedDate)
       .order("scheduled_for", { ascending: true }),
@@ -64,18 +66,22 @@ export default async function OpsDailyBoardPage({
       scheduled_for: visit.scheduled_for,
       assigned_crew_id: visit.assigned_crew_id,
       assigned_tech_user_id: visit.assigned_tech_user_id,
-      building: visit.building_id
-        ? {
-            id: visit.building_id,
-            name: `Building ${visit.building_id.slice(0, 8)}`,
-          }
-        : null,
-      template: visit.template_id
-        ? {
-            id: visit.template_id,
-            name: `Template ${visit.template_id.slice(0, 8)}`,
-          }
-        : null,
+      building: visit.building
+        ? visit.building
+        : visit.building_id
+          ? {
+              id: visit.building_id,
+              name: `Building ${visit.building_id.slice(0, 8)}`,
+            }
+          : null,
+      template: visit.template
+        ? visit.template
+        : visit.template_id
+          ? {
+              id: visit.template_id,
+              name: `Template ${visit.template_id.slice(0, 8)}`,
+            }
+          : null,
     })
   );
   const techById = new Map(
