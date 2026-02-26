@@ -13,6 +13,7 @@ export type VisitStatus = "planned" | "in_progress" | "completed";
 export type ObsStatus = "open" | "quoted" | "approved" | "in_progress" | "closed";
 export type EmergencyStatus = "open" | "dispatched" | "resolved";
 export type TemplateItemType = "checkbox" | "number" | "text" | "textarea";
+export type MediaKind = "evidence" | "signature" | "document";
 
 export interface Database {
   public: {
@@ -155,6 +156,50 @@ export interface Database {
           notes?: string | null;
           created_at?: string;
           updated_at?: string;
+        };
+      };
+      media: {
+        Row: {
+          id: string;
+          building_id: string;
+          visit_id: string | null;
+          service_report_id: string | null;
+          equipment_id: string | null;
+          kind: MediaKind;
+          storage_path: string;
+          mime_type: string;
+          size_bytes: number;
+          captured_at: string | null;
+          created_by: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          building_id: string;
+          visit_id?: string | null;
+          service_report_id?: string | null;
+          equipment_id?: string | null;
+          kind?: MediaKind;
+          storage_path: string;
+          mime_type: string;
+          size_bytes: number;
+          captured_at?: string | null;
+          created_by: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          building_id?: string;
+          visit_id?: string | null;
+          service_report_id?: string | null;
+          equipment_id?: string | null;
+          kind?: MediaKind;
+          storage_path?: string;
+          mime_type?: string;
+          size_bytes?: number;
+          captured_at?: string | null;
+          created_by?: string;
+          created_at?: string;
         };
       };
       service_reports: {
@@ -334,3 +379,4 @@ export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 export type Crew = Database["public"]["Tables"]["crews"]["Row"];
 export type Building = Database["public"]["Tables"]["buildings"]["Row"];
 export type Equipment = Database["public"]["Tables"]["equipment"]["Row"];
+export type Media = Database["public"]["Tables"]["media"]["Row"];

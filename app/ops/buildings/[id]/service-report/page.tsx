@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/auth/requireRole";
 import { getPanamaDayRange } from "@/lib/dates/panama";
 import { formatDateOnlyLabel } from "@/lib/dates/dateOnly";
 import { createClient } from "@/lib/supabase/server";
+import { createSignedMediaUrl } from "@/lib/media/service";
 import {
   formatResponseValue,
   getServiceReportData,
@@ -147,6 +148,51 @@ export default async function ServiceReportPage({
         userId: user.id,
       })
     : { data: null, error: null };
+
+  const visitIds = reportData
+    ? reportData.sections.flatMap((section) => section.visits.map((visit) => visit.id))
+    : [];
+  const uniqueVisitIds = Array.from(new Set(visitIds));
+
+  const mediaRows =
+    reportData && uniqueVisitIds.length > 0
+      ? (
+          await supabase
+            .from("media")
+            .select("id,visit_id,storage_path,mime_type,size_bytes,created_at")
+            .eq("building_id", building.id)
+            .in("visit_id", uniqueVisitIds)
+            .order("created_at", { ascending: false })
+        ).data ?? []
+      : [];
+
+  const mediaByVisitId = new Map<
+    string,
+    Array<{
+      id: string;
+      visit_id: string | null;
+      storage_path: string;
+      mime_type: string;
+      size_bytes: number;
+      created_at: string;
+      signed_url: string | null;
+    }>
+  >();
+
+  await Promise.all(
+    mediaRows.map(async (media) => {
+      const { data: signedUrl } = await createSignedMediaUrl(media.storage_path);
+      const row = {
+        ...media,
+        signed_url: signedUrl,
+      };
+      if (!media.visit_id) return;
+      if (!mediaByVisitId.has(media.visit_id)) {
+        mediaByVisitId.set(media.visit_id, []);
+      }
+      mediaByVisitId.get(media.visit_id)?.push(row);
+    })
+  );
 
   return (
     <div className="min-h-screen p-8">
@@ -345,6 +391,53 @@ export default async function ServiceReportPage({
                           )}
                         </tbody>
                       </table>
+                    </div>
+
+                    <div className="mt-3 rounded border p-3">
+                      <p className="text-xs font-semibold uppercase text-gray-500">
+                        Evidencia
+                      </p>
+                      {(() => {
+                        const visitMedia = mediaByVisitId.get(visit.id) ?? [];
+                        if (visitMedia.length === 0) {
+                          return (
+                            <p className="mt-2 text-sm text-gray-500">
+                              Sin evidencia para esta ejecución.
+                            </p>
+                          );
+                        }
+                        return (
+                          <ul className="mt-2 space-y-2">
+                            {visitMedia.map((media) => (
+                              <li
+                                key={media.id}
+                                className="flex flex-wrap items-center justify-between gap-3 rounded border px-3 py-2 text-sm"
+                              >
+                                <div className="min-w-0">
+                                  <p className="truncate font-medium">
+                                    {media.storage_path.split("/").pop()}
+                                  </p>
+                                  <p className="text-xs text-gray-500">
+                                    {media.mime_type} · {(media.size_bytes / 1024 / 1024).toFixed(2)} MB
+                                  </p>
+                                </div>
+                                {media.signed_url ? (
+                                  <a
+                                    href={media.signed_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="rounded border px-3 py-1.5 text-xs"
+                                  >
+                                    Ver archivo
+                                  </a>
+                                ) : (
+                                  <span className="text-xs text-gray-400">Sin enlace</span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        );
+                      })()}
                     </div>
                   </div>
                 ))}

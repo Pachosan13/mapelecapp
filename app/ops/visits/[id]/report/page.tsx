@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { isRecorridoPorPisosItem } from "@/lib/reports/serviceReport";
+import { createSignedMediaUrl, listMedia } from "@/lib/media/service";
 import type { Database } from "@/lib/database.types";
 
 type TemplateItem = Pick<
@@ -182,6 +183,16 @@ export default async function OpsVisitReportPage({
   const buildingHref = visit.building_id
     ? `/ops/buildings/${visit.building_id}/history`
     : "/ops/buildings";
+  const { data: mediaRows } = await listMedia({ visitId: visit.id, limit: 50 });
+  const mediaWithUrls = await Promise.all(
+    (mediaRows ?? []).map(async (row) => {
+      const { data: signedUrl } = await createSignedMediaUrl(row.storage_path);
+      return {
+        ...row,
+        signed_url: signedUrl,
+      };
+    })
+  );
 
   return (
     <div className="min-h-screen p-8">
@@ -221,6 +232,41 @@ export default async function OpsVisitReportPage({
           Observaciones del técnico
         </div>
         <p className="text-sm text-gray-700 whitespace-pre-wrap">—</p>
+      </div>
+
+      <div className="mb-6 rounded border p-4">
+        <div className="mb-2 text-sm font-semibold text-gray-700">Evidencia</div>
+        {mediaWithUrls.length === 0 ? (
+          <p className="text-sm text-gray-500">Sin evidencia para esta visita.</p>
+        ) : (
+          <ul className="space-y-2">
+            {mediaWithUrls.map((media) => (
+              <li
+                key={media.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded border px-3 py-2 text-sm"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{media.storage_path.split("/").pop()}</p>
+                  <p className="text-xs text-gray-500">
+                    {media.mime_type} · {(media.size_bytes / 1024 / 1024).toFixed(2)} MB
+                  </p>
+                </div>
+                {media.signed_url ? (
+                  <a
+                    href={media.signed_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded border px-3 py-1.5 text-xs"
+                  >
+                    Ver archivo
+                  </a>
+                ) : (
+                  <span className="text-xs text-gray-400">Sin enlace</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="overflow-x-auto rounded border">

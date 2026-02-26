@@ -35,7 +35,7 @@ Sistema de gestión de mantenimiento preventivo para cuadrillas de bombas e ince
 - **service_reports**: Daily report per building/date with editorial status (draft/ready/sent) and client/internal notes.
 - **observations**: Issues found during visits. Linked to visit/building, status, quotes, work orders.
 - **emergencies**: Emergency calls/dispatches. Linked to building, crew, status, timestamps.
-- **media**: Photos/documents attached to visits, observations, or emergencies. Stored in Supabase Storage.
+- **media**: Photos/documents attached to visits and service reports (MVP v1), extensible to observations/emergencies. Stored in Supabase Storage bucket `media` (private) with RLS-backed access.
 - **plans/templates**: Maintenance plans and visit templates. Define frequency, checklists, requirements.
 
 ## Status Enums
@@ -93,3 +93,25 @@ Sistema de gestión de mantenimiento preventivo para cuadrillas de bombas e ince
 - **Próxima fase**: persistir relación visit↔equipment (join table) y UI para seleccionar equipment por visita y render por equipment.
 
 - **Template**: "Mantenimiento – Bombas" usa `template_items` (text/textarea/number/checkbox), se ordena por `sort_order` y valida `required` en tech.
+
+## Media / Evidence (MVP v1)
+
+- **Tabla `public.media`**:
+  - `id` uuid primary key default `gen_random_uuid()`
+  - `building_id` uuid not null references `public.buildings(id)` on delete cascade
+  - `visit_id` uuid null references `public.visits(id)` on delete cascade
+  - `service_report_id` uuid null references `public.service_reports(id)` on delete cascade
+  - `equipment_id` uuid null references `public.equipment(id)` on delete set null
+  - `kind` text not null default `evidence` (`evidence` | `signature` | `document`)
+  - `storage_path` text not null unique (path del objeto en Storage)
+  - `mime_type` text not null
+  - `size_bytes` bigint not null check `>= 0`
+  - `captured_at` timestamptz null
+  - `created_by` uuid not null references `auth.users(id)` on delete restrict
+  - `created_at` timestamptz not null default now()
+  - Regla de referencia: al menos uno entre `visit_id` o `service_report_id` debe existir
+- **Storage bucket**: `media` (privado), límite 10MB por archivo, MIME permitidos: `image/jpeg`, `image/png`, `image/webp`, `application/pdf`.
+- **RLS media**:
+  - `ops_manager`/`director`: lectura.
+  - `ops_manager`: insert/update/delete.
+  - `tech`: lectura de media asociada a visitas propias/de su crew; insert/delete solo en sus visitas.

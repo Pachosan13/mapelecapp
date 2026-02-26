@@ -133,6 +133,80 @@ export type Database = {
           },
         ]
       }
+      media: {
+        Row: {
+          building_id: string
+          captured_at: string | null
+          created_at: string
+          created_by: string
+          equipment_id: string | null
+          id: string
+          kind: string
+          mime_type: string
+          service_report_id: string | null
+          size_bytes: number
+          storage_path: string
+          visit_id: string | null
+        }
+        Insert: {
+          building_id: string
+          captured_at?: string | null
+          created_at?: string
+          created_by: string
+          equipment_id?: string | null
+          id?: string
+          kind?: string
+          mime_type: string
+          service_report_id?: string | null
+          size_bytes: number
+          storage_path: string
+          visit_id?: string | null
+        }
+        Update: {
+          building_id?: string
+          captured_at?: string | null
+          created_at?: string
+          created_by?: string
+          equipment_id?: string | null
+          id?: string
+          kind?: string
+          mime_type?: string
+          service_report_id?: string | null
+          size_bytes?: number
+          storage_path?: string
+          visit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_equipment_id_fkey"
+            columns: ["equipment_id"]
+            isOneToOne: false
+            referencedRelation: "equipment"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_service_report_id_fkey"
+            columns: ["service_report_id"]
+            isOneToOne: false
+            referencedRelation: "service_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string | null
