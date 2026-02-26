@@ -183,6 +183,36 @@ export async function GET(request: Request) {
       sections: data.sections?.length ?? 0,
     });
 
+    const visitIds = data.sections.flatMap((section) =>
+      section.visits.map((visit) => visit.id)
+    );
+    const uniqueVisitIds = Array.from(new Set(visitIds));
+    const mediaByVisitId = new Map<
+      string,
+      Array<{ storage_path: string; mime_type: string; size_bytes: number }>
+    >();
+
+    if (uniqueVisitIds.length > 0) {
+      const { data: mediaRows } = await supabase
+        .from("media")
+        .select("visit_id,storage_path,mime_type,size_bytes")
+        .eq("building_id", buildingId)
+        .in("visit_id", uniqueVisitIds)
+        .order("created_at", { ascending: true });
+
+      (mediaRows ?? []).forEach((row) => {
+        if (!row.visit_id) return;
+        if (!mediaByVisitId.has(row.visit_id)) {
+          mediaByVisitId.set(row.visit_id, []);
+        }
+        mediaByVisitId.get(row.visit_id)?.push({
+          storage_path: row.storage_path,
+          mime_type: row.mime_type,
+          size_bytes: row.size_bytes,
+        });
+      });
+    }
+
     const pdfDoc = await PDFDocument.create();
     let page = pdfDoc.addPage();
     let { width, height } = page.getSize();
@@ -339,7 +369,7 @@ export async function GET(request: Request) {
       });
       cursorY -= 4;
 
-      section.visits.forEach((visit, index) => {
+      for (const [index, visit] of section.visits.entries()) {
         const visitTitle = `Ejecución #${index + 1} · ${formatPanamaDateTime(
           visit.completed_at
         )}`;
@@ -455,8 +485,118 @@ export async function GET(request: Request) {
           );
         });
 
+        const visitMedia = mediaByVisitId.get(visit.id) ?? [];
+        wrapText(
+          `Evidencia adjunta: ${visitMedia.length}`,
+          font,
+          fontSize,
+          width - PAGE_MARGIN * 2
+        ).forEach((linePart) => {
+          if (cursorY < PAGE_MARGIN + 60) {
+            page = pdfDoc.addPage();
+            ({ width, height } = page.getSize());
+            cursorY = height - PAGE_MARGIN;
+          }
+          page.drawText(sanitizePdfText(linePart), {
+            x: PAGE_MARGIN,
+            y: cursorY,
+            size: fontSize,
+            font,
+          });
+          cursorY -= lineHeight;
+        });
+
+        visitMedia.forEach((media, mediaIndex) => {
+          const mediaName = media.storage_path.split("/").pop() || media.storage_path;
+          const mediaSizeMb = (media.size_bytes / 1024 / 1024).toFixed(2);
+          const mediaLine = `- Archivo ${mediaIndex + 1}: ${mediaName} (${media.mime_type}, ${mediaSizeMb} MB)`;
+          wrapText(mediaLine, font, fontSize, width - PAGE_MARGIN * 2).forEach(
+            (linePart) => {
+              if (cursorY < PAGE_MARGIN + 60) {
+                page = pdfDoc.addPage();
+                ({ width, height } = page.getSize());
+                cursorY = height - PAGE_MARGIN;
+              }
+              page.drawText(sanitizePdfText(linePart), {
+                x: PAGE_MARGIN,
+                y: cursorY,
+                size: fontSize,
+                font,
+              });
+              cursorY -= lineHeight;
+            }
+          );
+        });
+
+        // Render inline previews for image evidence (JPG/PNG).
+        for (const media of visitMedia) {
+          const mimeType = (media.mime_type ?? "").toLowerCase();
+          const isJpeg = mimeType === "image/jpeg" || mimeType === "image/jpg";
+          const isPng = mimeType === "image/png";
+          if (!isJpeg && !isPng) {
+            continue;
+          }
+
+          const { data: fileBlob, error: downloadError } = await supabase.storage
+            .from("media")
+            .download(media.storage_path);
+
+          if (downloadError || !fileBlob) {
+            wrapText(
+              `No se pudo cargar vista previa para: ${media.storage_path.split("/").pop() ?? media.storage_path}`,
+              font,
+              noteFontSize,
+              width - PAGE_MARGIN * 2
+            ).forEach((linePart) => {
+              if (cursorY < PAGE_MARGIN + 60) {
+                page = pdfDoc.addPage();
+                ({ width, height } = page.getSize());
+                cursorY = height - PAGE_MARGIN;
+              }
+              page.drawText(sanitizePdfText(linePart), {
+                x: PAGE_MARGIN,
+                y: cursorY,
+                size: noteFontSize,
+                font,
+                color: rgb(0.45, 0.45, 0.45),
+              });
+              cursorY -= noteLineHeight;
+            });
+            continue;
+          }
+
+          const imageBytes = new Uint8Array(await fileBlob.arrayBuffer());
+          const image = isPng
+            ? await pdfDoc.embedPng(imageBytes)
+            : await pdfDoc.embedJpg(imageBytes);
+          const imageScaleBase = image.scale(1);
+          const maxImageWidth = width - PAGE_MARGIN * 2;
+          const maxImageHeight = 180;
+          const scale = Math.min(
+            maxImageWidth / imageScaleBase.width,
+            maxImageHeight / imageScaleBase.height,
+            1
+          );
+          const imageWidth = imageScaleBase.width * scale;
+          const imageHeight = imageScaleBase.height * scale;
+
+          if (cursorY < PAGE_MARGIN + imageHeight + 24) {
+            page = pdfDoc.addPage();
+            ({ width, height } = page.getSize());
+            cursorY = height - PAGE_MARGIN;
+          }
+
+          page.drawImage(image, {
+            x: PAGE_MARGIN,
+            y: cursorY - imageHeight,
+            width: imageWidth,
+            height: imageHeight,
+          });
+          cursorY -= imageHeight + 10;
+        }
+
         cursorY -= 8;
-      });
+      }
 
       cursorY -= 8;
     }

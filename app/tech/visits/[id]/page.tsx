@@ -2,10 +2,17 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import { isCoreChecklistTemplateId } from "@/lib/constants/coreChecklist";
+import {
+  MEDIA_BUCKET,
+  createSignedMediaUrl,
+  listMedia,
+  uploadMedia,
+} from "@/lib/media/service";
 import StartVisitButton from "./StartVisitButton";
 import VisitToast from "./VisitToast";
 import RecorridoTable from "./RecorridoTable";
 import CompleteVisitButton from "./CompleteVisitButton";
+import PhotoCaptureField from "./PhotoCaptureField";
 import type { Database } from "@/lib/database.types";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +21,8 @@ export const revalidate = 0;
 type SearchParams = {
   error?: string;
   saved?: string;
+  media_error?: string;
+  media_saved?: string;
 };
 
 type TemplateItem = Pick<
@@ -215,6 +224,142 @@ async function handleResponses(formData: FormData) {
   redirect(`/tech/visits/${visitId}?saved=1`);
 }
 
+async function handleMediaUpload(formData: FormData) {
+  "use server";
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    redirect("/login");
+  }
+
+  const visitId = String(formData.get("visit_id") ?? "");
+  if (!visitId) {
+    redirect("/tech/today");
+  }
+
+  const file = formData.get("media_file");
+  if (!(file instanceof File) || !file.size) {
+    redirect(
+      `/tech/visits/${visitId}?media_error=${encodeURIComponent(
+        "Selecciona un archivo válido."
+      )}`
+    );
+  }
+
+  const { data: visit } = await supabase
+    .from("visits")
+    .select("id,building_id,assigned_tech_user_id,assigned_crew_id,status")
+    .eq("id", visitId)
+    .maybeSingle();
+
+  if (!visit || !visit.building_id) {
+    redirect(
+      `/tech/visits/${visitId}?media_error=${encodeURIComponent(
+        "No se encontró la visita."
+      )}`
+    );
+  }
+
+  const canAccessVisit =
+    visit.assigned_tech_user_id === user.id ||
+    (visit.assigned_tech_user_id === null &&
+      Boolean(visit.assigned_crew_id) &&
+      visit.assigned_crew_id ===
+        (
+          await supabase
+            .from("profiles")
+            .select("home_crew_id")
+            .eq("user_id", user.id)
+            .maybeSingle()
+        ).data?.home_crew_id);
+
+  if (!canAccessVisit) {
+    redirect("/unauthorized");
+  }
+
+  const { error } = await uploadMedia({
+    buildingId: visit.building_id,
+    visitId: visit.id,
+    file,
+    kind: "evidence",
+  });
+
+  if (error) {
+    redirect(
+      `/tech/visits/${visitId}?media_error=${encodeURIComponent(error)}`
+    );
+  }
+
+  redirect(`/tech/visits/${visitId}?media_saved=1`);
+}
+
+async function handleMediaDelete(formData: FormData) {
+  "use server";
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    redirect("/login");
+  }
+
+  const visitId = String(formData.get("visit_id") ?? "");
+  const mediaId = String(formData.get("media_id") ?? "");
+  if (!visitId || !mediaId) {
+    redirect("/tech/today");
+  }
+
+  const { data: mediaRow, error: mediaReadError } = await supabase
+    .from("media")
+    .select("id,visit_id,storage_path,created_by")
+    .eq("id", mediaId)
+    .eq("visit_id", visitId)
+    .maybeSingle();
+
+  if (mediaReadError || !mediaRow) {
+    redirect(
+      `/tech/visits/${visitId}?media_error=${encodeURIComponent(
+        "No se encontró la evidencia."
+      )}`
+    );
+  }
+
+  const { error: storageDeleteError } = await supabase.storage
+    .from(MEDIA_BUCKET)
+    .remove([mediaRow.storage_path]);
+
+  if (storageDeleteError) {
+    redirect(
+      `/tech/visits/${visitId}?media_error=${encodeURIComponent(
+        storageDeleteError.message
+      )}`
+    );
+  }
+
+  const { error: dbDeleteError } = await supabase
+    .from("media")
+    .delete()
+    .eq("id", mediaId);
+
+  if (dbDeleteError) {
+    redirect(
+      `/tech/visits/${visitId}?media_error=${encodeURIComponent(
+        dbDeleteError.message
+      )}`
+    );
+  }
+
+  redirect(`/tech/visits/${visitId}?media_saved=1`);
+}
+
 export default async function TechVisitPage({
   params,
   searchParams,
@@ -294,12 +439,24 @@ export default async function TechVisitPage({
   const canShowForm =
     normalizedStatus === "in_progress" || normalizedStatus === "completed";
   const isSaved = searchParams?.saved === "1";
+  const isMediaSaved = searchParams?.media_saved === "1";
   const buildingName = visit.building_id
     ? `Building ${visit.building_id.slice(0, 8)}`
     : "Building";
   const templateName = visit.template_id
     ? `Template ${visit.template_id.slice(0, 8)}`
     : "Formulario";
+
+  const { data: mediaRows } = await listMedia({ visitId: visit.id, limit: 50 });
+  const mediaWithUrls = await Promise.all(
+    (mediaRows ?? []).map(async (row) => {
+      const { data: signedUrl } = await createSignedMediaUrl(row.storage_path);
+      return {
+        ...row,
+        signed_url: signedUrl,
+      };
+    })
+  );
 
   return (
     <div className="min-h-screen p-8">
@@ -325,6 +482,16 @@ export default async function TechVisitPage({
           {decodeURIComponent(searchParams.error)}
         </div>
       ) : null}
+      {searchParams?.media_error ? (
+        <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {decodeURIComponent(searchParams.media_error)}
+        </div>
+      ) : null}
+      {isMediaSaved ? (
+        <div className="mb-4 rounded border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+          Evidencia guardada ✅
+        </div>
+      ) : null}
 
       <div className="mb-6 rounded border p-4 text-sm text-gray-700">
         <div>Scheduled for: {visit.scheduled_for}</div>
@@ -336,24 +503,25 @@ export default async function TechVisitPage({
       ) : null}
 
       {canShowForm ? (
-        <form action={handleResponses} className="space-y-4 max-w-2xl">
-          <input type="hidden" name="visit_id" value={visit.id} />
-          <input type="hidden" name="saved_once" value={isSaved ? "1" : "0"} />
-          {templateItems.length === 0 ? (
-            <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-              No se pudieron cargar items del formulario (RLS o formulario vacío).
-              <div className="mt-1 text-xs text-amber-700">
-                template_id: {visit.template_id} · visit_id: {visit.id}
+        <>
+          <form action={handleResponses} className="space-y-4 max-w-2xl">
+            <input type="hidden" name="visit_id" value={visit.id} />
+            <input type="hidden" name="saved_once" value={isSaved ? "1" : "0"} />
+            {templateItems.length === 0 ? (
+              <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                No se pudieron cargar items del formulario (RLS o formulario vacío).
+                <div className="mt-1 text-xs text-amber-700">
+                  template_id: {visit.template_id} · visit_id: {visit.id}
+                </div>
               </div>
-            </div>
-          ) : null}
-          {templateItems.map((item) => {
-            const response = responseMap.get(item.id);
-            const itemType = String(item.item_type ?? "");
-            const fieldName = `item-${item.id}`;
+            ) : null}
+            {templateItems.map((item) => {
+              const response = responseMap.get(item.id);
+              const itemType = String(item.item_type ?? "");
+              const fieldName = `item-${item.id}`;
 
-            return (
-              <div key={item.id} className="rounded border p-4">
+              return (
+                <div key={item.id} className="rounded border p-4">
                 <label className="mb-2 block text-sm font-medium">
                   {item.label}
                   {item.required ? " *" : ""}
@@ -446,47 +614,113 @@ export default async function TechVisitPage({
                     />
                   )
                 ) : null}
-              </div>
-            );
-          })}
+                </div>
+              );
+            })}
 
-          <div className="rounded border p-4">
-            <label className="mb-2 block text-sm font-medium">
-              Observaciones del técnico (interno)
-            </label>
-            <textarea
-              name="notes"
-              rows={3}
-              defaultValue={visit.notes ?? ""}
-              disabled={isCompleted}
-              placeholder="Observaciones relevantes para el gerente (no se envían al cliente)"
-              className="w-full rounded border px-3 py-2"
-            />
-          </div>
-
-          {isCompleted ? (
-            <div className="rounded border border-green-200 bg-green-50 p-3 text-sm text-green-700">
-              Esta visita ya fue completada.
-            </div>
-          ) : (
-            <div className="flex gap-3">
-              <button
-                type="submit"
-                name="action"
-                value="save"
-                disabled={isSaved}
-                className="rounded border px-4 py-2 text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Guardar
-              </button>
-              <CompleteVisitButton
-                enforceChecklistValidation={isCoreTemplate}
-                requiredChecklistItemIds={requiredChecklistItemIds}
-                isCompleted={isCompleted}
+            <div className="rounded border p-4">
+              <label className="mb-2 block text-sm font-medium">
+                Observaciones del técnico (interno)
+              </label>
+              <textarea
+                name="notes"
+                rows={3}
+                defaultValue={visit.notes ?? ""}
+                disabled={isCompleted}
+                placeholder="Observaciones relevantes para el gerente (no se envían al cliente)"
+                className="w-full rounded border px-3 py-2"
               />
             </div>
-          )}
-        </form>
+
+            {isCompleted ? (
+              <div className="rounded border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+                Esta visita ya fue completada.
+              </div>
+            ) : (
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  name="action"
+                  value="save"
+                  disabled={isSaved}
+                  className="rounded border px-4 py-2 text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Guardar
+                </button>
+                <CompleteVisitButton
+                  enforceChecklistValidation={isCoreTemplate}
+                  requiredChecklistItemIds={requiredChecklistItemIds}
+                  isCompleted={isCompleted}
+                />
+              </div>
+            )}
+          </form>
+
+          <div className="mt-4 max-w-2xl rounded border p-4">
+            <form
+              action={handleMediaUpload}
+              encType="multipart/form-data"
+              className="space-y-3"
+            >
+              <input type="hidden" name="visit_id" value={visit.id} />
+              <PhotoCaptureField disabled={isCompleted} />
+              <button
+                type="submit"
+                disabled={isCompleted}
+                className="rounded border px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Subir evidencia
+              </button>
+            </form>
+
+            <div className="mt-4">
+              <p className="text-sm font-medium text-gray-800">Evidencia subida</p>
+              {mediaWithUrls.length === 0 ? (
+                <p className="mt-2 text-sm text-gray-500">Sin evidencia todavía.</p>
+              ) : (
+                <ul className="mt-2 space-y-2">
+                  {mediaWithUrls.map((media) => (
+                    <li
+                      key={media.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded border px-3 py-2 text-sm"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{media.storage_path.split("/").pop()}</p>
+                        <p className="text-xs text-gray-500">
+                          {media.mime_type} · {(media.size_bytes / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {media.signed_url ? (
+                          <a
+                            href={media.signed_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded border px-3 py-1.5 text-xs"
+                          >
+                            Ver
+                          </a>
+                        ) : null}
+                        {!isCompleted ? (
+                          <form action={handleMediaDelete}>
+                            <input type="hidden" name="visit_id" value={visit.id} />
+                            <input type="hidden" name="media_id" value={media.id} />
+                            <button
+                              type="submit"
+                              className="rounded border border-red-200 px-3 py-1.5 text-xs text-red-700"
+                            >
+                              Eliminar
+                            </button>
+                          </form>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </>
       ) : null}
     </div>
   );
