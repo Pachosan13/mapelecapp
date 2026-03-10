@@ -94,6 +94,7 @@ Sistema de gestión de mantenimiento preventivo para cuadrillas de bombas e ince
 
 - **Template**: "Mantenimiento – Bombas" usa `template_items` (text/textarea/number/checkbox), se ordena por `sort_order` y valida `required` en tech.
 - **Bombas (Fase feedback 1)**: en bombas principales se usa `Presión estática`/`Presión constante`; en principales y reforzadoras, `Valvulería en succión` y `Valvulería en descarga` son campos de texto (no numéricos).
+- **Bombas (Fase feedback 2)**: `Sensor de nivel` existe también en bombas principales y reforzadoras como ítem `checkbox`, reutilizando el estado en tech: `Aprobado`, `Falla`, `N/A`.
 
 ## Media / Evidence (MVP v1)
 

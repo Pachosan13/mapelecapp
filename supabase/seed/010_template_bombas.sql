@@ -39,6 +39,7 @@ items AS (
       ('Plomería OK', 'checkbox', NULL, 'Bombas Principales', 'principal_1', false, 8),
       ('Valvulería OK', 'checkbox', NULL, 'Bombas Principales', 'principal_1', false, 9),
       ('Tanque de presión', 'number', 'PSI', 'Bombas Principales', 'principal_1', false, 10),
+      ('Sensor de nivel', 'checkbox', NULL, 'Bombas Principales', 'principal_1', false, 11),
 
       -- Bombas Principales (principal_2)
       ('Voltaje L1-L2', 'number', 'V', 'Bombas Principales', 'principal_2', false, 1),
@@ -51,6 +52,7 @@ items AS (
       ('Plomería OK', 'checkbox', NULL, 'Bombas Principales', 'principal_2', false, 8),
       ('Valvulería OK', 'checkbox', NULL, 'Bombas Principales', 'principal_2', false, 9),
       ('Tanque de presión', 'number', 'PSI', 'Bombas Principales', 'principal_2', false, 10),
+      ('Sensor de nivel', 'checkbox', NULL, 'Bombas Principales', 'principal_2', false, 11),
 
       -- Bombas Principales - Tablero (principal_1)
       ('Relay alternador', 'checkbox', NULL, 'Bombas Principales - Tablero', 'principal_1', false, 1),
@@ -85,6 +87,7 @@ items AS (
       ('Plomería OK', 'checkbox', NULL, 'Bombas Reforzadoras', 'reforzadora_1', false, 8),
       ('Valvulería OK', 'checkbox', NULL, 'Bombas Reforzadoras', 'reforzadora_1', false, 9),
       ('Tanque de presión', 'number', 'PSI', 'Bombas Reforzadoras', 'reforzadora_1', false, 10),
+      ('Sensor de nivel', 'checkbox', NULL, 'Bombas Reforzadoras', 'reforzadora_1', false, 11),
 
       -- Bombas Reforzadoras (reforzadora_2)
       ('Voltaje L1-L2', 'number', 'V', 'Bombas Reforzadoras', 'reforzadora_2', false, 1),
@@ -97,6 +100,7 @@ items AS (
       ('Plomería OK', 'checkbox', NULL, 'Bombas Reforzadoras', 'reforzadora_2', false, 8),
       ('Valvulería OK', 'checkbox', NULL, 'Bombas Reforzadoras', 'reforzadora_2', false, 9),
       ('Tanque de presión', 'number', 'PSI', 'Bombas Reforzadoras', 'reforzadora_2', false, 10),
+      ('Sensor de nivel', 'checkbox', NULL, 'Bombas Reforzadoras', 'reforzadora_2', false, 11),
 
       -- Bombas Reforzadoras (reforzadora_3)
       ('Voltaje L1-L2', 'number', 'V', 'Bombas Reforzadoras', 'reforzadora_3', false, 1),
@@ -109,6 +113,7 @@ items AS (
       ('Plomería OK', 'checkbox', NULL, 'Bombas Reforzadoras', 'reforzadora_3', false, 8),
       ('Valvulería OK', 'checkbox', NULL, 'Bombas Reforzadoras', 'reforzadora_3', false, 9),
       ('Tanque de presión', 'number', 'PSI', 'Bombas Reforzadoras', 'reforzadora_3', false, 10),
+      ('Sensor de nivel', 'checkbox', NULL, 'Bombas Reforzadoras', 'reforzadora_3', false, 11),
 
       -- Planta Eléctrica
       ('Marca', 'text', NULL, 'Planta Eléctrica', NULL, false, 1),
