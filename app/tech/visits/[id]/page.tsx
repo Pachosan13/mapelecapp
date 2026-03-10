@@ -102,7 +102,6 @@ async function handleResponses(formData: FormData) {
     : { data: [] as TemplateItem[] };
 
   const errors: string[] = [];
-  const savedOnce = formData.get("saved_once") === "1";
   const responses = (templateItemsData ?? []).map((item) => {
       const fieldKey = `item-${item.id}`;
       const itemType = String(item.item_type ?? "");
@@ -187,16 +186,14 @@ async function handleResponses(formData: FormData) {
     );
   }
 
-  if (action === "save" || (action === "complete" && !savedOnce)) {
-    const { error: insertError } = await supabase
-      .from("visit_responses")
-      .insert(responses);
+  if (action === "save" || action === "complete") {
+    const { error: insertError } = await supabase.from("visit_responses").insert(responses);
 
     if (insertError) {
       console.error(insertError);
       redirect(
         `/tech/visits/${visitId}?error=${encodeURIComponent(
-          insertError.message
+          `No se pudieron guardar las respuestas: ${insertError.message}`
         )}`
       );
     }
@@ -538,7 +535,6 @@ export default async function TechVisitPage({
         <>
           <form action={handleResponses} className="space-y-4 max-w-2xl">
             <input type="hidden" name="visit_id" value={visit.id} />
-            <input type="hidden" name="saved_once" value={isSaved ? "1" : "0"} />
             {templateItems.length === 0 ? (
               <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                 No se pudieron cargar items del formulario (RLS o formulario vacío).
@@ -696,8 +692,7 @@ export default async function TechVisitPage({
                   type="submit"
                   name="action"
                   value="save"
-                  disabled={isSaved}
-                  className="rounded border px-4 py-2 text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded border px-4 py-2 text-gray-700"
                 >
                   Guardar
                 </button>
