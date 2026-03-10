@@ -93,6 +93,7 @@ Sistema de gestión de mantenimiento preventivo para cuadrillas de bombas e ince
 - **Próxima fase**: persistir relación visit↔equipment (join table) y UI para seleccionar equipment por visita y render por equipment.
 
 - **Template**: "Mantenimiento – Bombas" usa `template_items` (text/textarea/number/checkbox), se ordena por `sort_order` y valida `required` en tech.
+- **Bombas (Fase feedback 1)**: en bombas principales se usa `Presión estática`/`Presión constante`; en principales y reforzadoras, `Valvulería en succión` y `Valvulería en descarga` son campos de texto (no numéricos).
 
 ## Media / Evidence (MVP v1)
 
