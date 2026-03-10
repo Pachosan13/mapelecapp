@@ -37,6 +37,19 @@ type VisitLatestResponse = Pick<
 const isRecorridoPorPisosLabel = (label?: string | null) =>
   (label ?? "").trim().toLowerCase().startsWith("recorrido por pisos");
 
+const isBombasTemplate = (
+  templateName?: string | null,
+  templateCategory?: string | null
+) => {
+  const normalizedName = (templateName ?? "").trim().toLowerCase();
+  const normalizedCategory = (templateCategory ?? "").trim().toLowerCase();
+  return (
+    normalizedName === "mantenimiento – bombas" ||
+    normalizedName === "mantenimiento - bombas" ||
+    normalizedCategory === "bombas"
+  );
+};
+
 async function handleResponses(formData: FormData) {
   "use server";
 
@@ -68,7 +81,17 @@ async function handleResponses(formData: FormData) {
     redirect("/unauthorized");
   }
 
-  const isCoreTemplate = isCoreChecklistTemplateId(visit.template_id);
+  const { data: templateMeta } = visit.template_id
+    ? await supabase
+        .from("visit_templates")
+        .select("name,category")
+        .eq("id", visit.template_id)
+        .maybeSingle()
+    : { data: null as { name?: string | null; category?: string | null } | null };
+
+  const isChecklistTemplate =
+    isCoreChecklistTemplateId(visit.template_id) ||
+    isBombasTemplate(templateMeta?.name, templateMeta?.category);
 
   const { data: templateItemsData } = visit.template_id
     ? await supabase
@@ -97,19 +120,18 @@ async function handleResponses(formData: FormData) {
         } else if (rawValue === "failed") {
           valueBool = false;
         } else {
+          // "na" y cualquier otro → null
           valueBool = null;
         }
 
         if (action === "complete") {
-          if (isCoreTemplate) {
+          if (isChecklistTemplate) {
             // En los formularios core, TODOS los ítems tipo checklist
-            // deben estar marcados como Aprobado o Falla (no se permite null).
-            if (valueBool === null) {
+            // deben estar marcados como Aprobado, Falla o N/A.
+            if (valueBool === null && rawValue !== "na") {
               errors.push(item.id);
             }
           } else if (required && !valueBool) {
-            // Comportamiento legado para otros formularios:
-            // solo se acepta "checked" como válido para campos requeridos.
             errors.push(item.id);
           }
         }
@@ -117,7 +139,7 @@ async function handleResponses(formData: FormData) {
         return {
           visit_id: visit.id,
           item_id: item.id,
-          value_text: null,
+          value_text: rawValue === "na" ? "na" : null,
           value_number: null,
           value_bool: valueBool,
           created_by: user.id,
@@ -157,8 +179,8 @@ async function handleResponses(formData: FormData) {
     });
 
   if (action === "complete" && errors.length > 0) {
-    const message = isCoreTemplate
-      ? "Debes marcar todos los ítems como Aprobado o Falla"
+    const message = isChecklistTemplate
+      ? "Debes marcar todos los ítems como Aprobado, Falla o N/A"
       : "Completa los campos requeridos.";
     redirect(
       `/tech/visits/${visitId}?error=${encodeURIComponent(message)}`
@@ -422,9 +444,19 @@ export default async function TechVisitPage({
     responseMap.set(response.item_id, response);
   });
 
-  const isCoreTemplate = isCoreChecklistTemplateId(visit.template_id);
+  const { data: templateMeta } = visit.template_id
+    ? await supabase
+        .from("visit_templates")
+        .select("name,category")
+        .eq("id", visit.template_id)
+        .maybeSingle()
+    : { data: null as { name?: string | null; category?: string | null } | null };
+
+  const isChecklistTemplate =
+    isCoreChecklistTemplateId(visit.template_id) ||
+    isBombasTemplate(templateMeta?.name, templateMeta?.category);
   const templateItems = templateItemsData ?? [];
-  const requiredChecklistItemIds = isCoreTemplate
+  const requiredChecklistItemIds = isChecklistTemplate
     ? templateItems
         .filter((i) => i.item_type === "checkbox")
         .map((i) => i.id)
@@ -527,12 +559,13 @@ export default async function TechVisitPage({
                   {item.required ? " *" : ""}
                 </label>
                 {itemType === "checkbox" ? (
-                  isCoreTemplate ? (
+                  isChecklistTemplate ? (
                     <div className="space-y-2">
                       <p className="text-xs text-gray-500">
                         Selecciona una opción por ítem:{" "}
-                        <span className="font-semibold">Aprobado</span> o{" "}
-                        <span className="font-semibold">Falla</span>.
+                        <span className="font-semibold">Aprobado</span>,{" "}
+                        <span className="font-semibold">Falla</span> o{" "}
+                        <span className="font-semibold">N/A</span>.
                       </p>
                       <div className="flex flex-wrap gap-4">
                         <label className="inline-flex items-center gap-2 text-sm">
@@ -555,6 +588,19 @@ export default async function TechVisitPage({
                             disabled={isCompleted}
                           />
                           <span>Falla</span>
+                        </label>
+                        <label className="inline-flex items-center gap-2 text-sm">
+                          <input
+                            type="radio"
+                            name={fieldName}
+                            value="na"
+                            defaultChecked={
+                              response?.value_bool === null &&
+                              response?.value_text === "na"
+                            }
+                            disabled={isCompleted}
+                          />
+                          <span>N/A</span>
                         </label>
                       </div>
                     </div>
@@ -614,6 +660,14 @@ export default async function TechVisitPage({
                     />
                   )
                 ) : null}
+                {itemType !== "textarea" &&
+                  isRecorridoPorPisosLabel(item.label) ? (
+                  <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+                    Error de configuración: este campo debe ser tipo
+                    &quot;textarea&quot; para mostrar la tabla de recorrido.
+                    Contacte al administrador.
+                  </div>
+                ) : null}
                 </div>
               );
             })}
@@ -648,7 +702,7 @@ export default async function TechVisitPage({
                   Guardar
                 </button>
                 <CompleteVisitButton
-                  enforceChecklistValidation={isCoreTemplate}
+                  enforceChecklistValidation={isChecklistTemplate}
                   requiredChecklistItemIds={requiredChecklistItemIds}
                   isCompleted={isCompleted}
                 />
