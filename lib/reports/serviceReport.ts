@@ -127,7 +127,7 @@ export const formatResponseValue = (
 
   if (itemType === "checkbox") {
     if (response.value_bool === null) {
-      return "—";
+      return response.value_text === "na" ? "N/A" : "—";
     }
     return response.value_bool ? "Sí" : "No";
   }

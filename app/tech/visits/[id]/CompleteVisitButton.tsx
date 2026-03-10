@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 const CORE_CHECKLIST_ERROR =
-  "Debes marcar todos los ítems como Aprobado o Falla";
+  "Debes marcar todos los ítems como Aprobado, Falla o N/A";
 
 type Props = {
   enforceChecklistValidation: boolean;
@@ -32,7 +32,7 @@ export default function CompleteVisitButton({
     const formData = new FormData(form);
     const firstMissingId = requiredChecklistItemIds.find((itemId) => {
       const value = formData.get(`item-${itemId}`);
-      return value !== "approved" && value !== "failed";
+      return value !== "approved" && value !== "failed" && value !== "na";
     });
 
     if (firstMissingId != null) {
