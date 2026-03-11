@@ -7,7 +7,12 @@ type SearchParams = {
 };
 
 function parseItemType(value: string) {
-  if (value === "checkbox" || value === "number" || value === "text") {
+  if (
+    value === "checkbox" ||
+    value === "number" ||
+    value === "text" ||
+    value === "textarea"
+  ) {
     return value;
   }
   return null;
@@ -234,7 +239,14 @@ export default async function TemplateItemsPage({
                   <option value="checkbox">Checkbox</option>
                   <option value="number">Número</option>
                   <option value="text">Texto</option>
+                  <option value="textarea">Textarea</option>
                 </select>
+                {(item.label ?? "").trim().toLowerCase().startsWith("recorrido por pisos") &&
+                  item.item_type !== "textarea" && (
+                    <p className="mt-1 text-xs text-amber-600">
+                      Este campo debe ser tipo &quot;Textarea&quot; para renderizar la tabla.
+                    </p>
+                  )}
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium">Orden</label>
@@ -290,6 +302,7 @@ export default async function TemplateItemsPage({
                 <option value="checkbox">Checkbox</option>
                 <option value="number">Número</option>
                 <option value="text">Texto</option>
+                <option value="textarea">Textarea</option>
               </select>
             </div>
             <div>

@@ -67,19 +67,28 @@
    observacion: value.observacion ?? "",
  });
 
+ const DEFAULT_FLOOR_COUNT = 70;
+
+ const generateDefaultRows = (count: number): RecorridoRowDraft[] =>
+   Array.from({ length: count }, (_, i) => ({
+     ...emptyRow(),
+     piso: String(i + 1),
+   }));
+
  const parseInitialRows = (rawValue?: string | null): RecorridoRowDraft[] => {
-   if (!rawValue) return [];
+   if (!rawValue) return generateDefaultRows(DEFAULT_FLOOR_COUNT);
    try {
      const parsed = JSON.parse(rawValue);
-     if (!Array.isArray(parsed)) return [];
-     return parsed
+     if (!Array.isArray(parsed)) return generateDefaultRows(DEFAULT_FLOOR_COUNT);
+     const rows = parsed
        .map((row) => {
          if (!row || typeof row !== "object") return null;
          return toDraft(row as RecorridoRowValue);
        })
        .filter(Boolean) as RecorridoRowDraft[];
+     return rows.length > 0 ? rows : generateDefaultRows(DEFAULT_FLOOR_COUNT);
    } catch {
-     return [];
+     return generateDefaultRows(DEFAULT_FLOOR_COUNT);
    }
  };
 
@@ -95,6 +104,7 @@
    const [rows, setRows] = useState<RecorridoRowDraft[]>(
      parseInitialRows(defaultValue)
    );
+   const [floorCount, setFloorCount] = useState<string>(String(DEFAULT_FLOOR_COUNT));
 
    const serialized = useMemo(() => {
      const normalized: RecorridoRowValue[] = rows.map((row) => ({
@@ -124,6 +134,12 @@
      setRows((prev) => [...prev, emptyRow()]);
    };
 
+   const handleGenerateRows = () => {
+     const count = parseInt(floorCount, 10);
+     if (!count || count < 1 || count > 200) return;
+     setRows(generateDefaultRows(count));
+   };
+
    const removeRow = (index: number) => {
      setRows((prev) => prev.filter((_, rowIndex) => rowIndex !== index));
    };
@@ -131,6 +147,30 @@
    return (
      <div className="space-y-3">
        <input type="hidden" name={`item-${itemId}`} value={serialized} />
+       {!disabled && (
+         <div className="flex items-end gap-2">
+           <div>
+             <label className="mb-1 block text-xs font-medium text-gray-600">
+               Cantidad de pisos
+             </label>
+             <input
+               type="number"
+               value={floorCount}
+               onChange={(e) => setFloorCount(e.target.value)}
+               min={1}
+               max={200}
+               className="w-20 rounded border px-2 py-1 text-sm"
+             />
+           </div>
+           <button
+             type="button"
+             onClick={handleGenerateRows}
+             className="rounded border px-3 py-1 text-sm text-gray-700"
+           >
+             Generar filas
+           </button>
+         </div>
+       )}
        <div className="overflow-x-auto rounded border">
          <table className="min-w-full text-left text-xs">
            <thead className="bg-gray-50 text-gray-600">
@@ -157,7 +197,7 @@
                </tr>
              ) : null}
              {rows.map((row, index) => (
-               <tr key={`${index}-${row.piso}`} className="border-t align-top">
+               <tr key={index} className="border-t align-top">
                  <td className="px-3 py-2">
                    <input
                      type="text"
