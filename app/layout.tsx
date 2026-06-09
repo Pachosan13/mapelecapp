@@ -3,7 +3,7 @@ import "./globals.css";
 import AppHeader from "@/components/AppHeader";
 
 export const metadata: Metadata = {
-  title: "MAPELEC",
+  title: "SEMCO",
   description: "Sistema de gestión de mantenimiento preventivo",
 };
 

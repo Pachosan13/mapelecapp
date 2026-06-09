@@ -202,9 +202,9 @@ export default async function ServiceReportPage({
         </Link>
         <div className="mt-3 flex flex-wrap items-center gap-4">
           <img
-            src="/logomapelec.png"
-            alt="Mapelec"
-            className="h-10 w-auto"
+            src="/logosemco.png"
+            alt="SEMCO"
+            className="h-12 w-auto"
           />
           <div>
             <h1 className="text-2xl font-bold">Service report del día</h1>

@@ -208,7 +208,7 @@ export async function GET(request: Request) {
       sections.push({ title: section.template_name, visits });
     }
 
-    const logoPath = path.join(process.cwd(), "public", "logomapelec.png");
+    const logoPath = path.join(process.cwd(), "public", "logosemco.png");
     const logoBytes = new Uint8Array(await readFile(logoPath));
 
     const pdfBytes = await renderServiceReportPdf({

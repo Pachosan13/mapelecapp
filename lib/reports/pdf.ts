@@ -1,7 +1,7 @@
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb, RGB } from "pdf-lib";
 
 /* ──────────────────────────────────────────────────────────
-   Mapelec — Informe de Servicio Técnico
+   SEMCO — Informe de Servicio Técnico
    High-end consulting layout renderer (pdf-lib, pure function).
    ────────────────────────────────────────────────────────── */
 
@@ -642,7 +642,7 @@ function drawFooters(c: Ctx, generatedAtLabel: string) {
       thickness: 0.5,
       color: LINE,
     });
-    page.drawText("Mapelec · Mantenimiento de Sistemas Contra Incendio", {
+    page.drawText("SEMCO · Mantenimiento de Sistemas Contra Incendio", {
       x: MARGIN,
       y: FOOTER_Y,
       size: 7,

@@ -42,10 +42,12 @@ export default function LoginClient() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow">
         <div>
-          <h2 className="text-center text-3xl font-bold text-gray-900">
-            MAPELEC
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
+          <img
+            src="/logosemco.png"
+            alt="SEMCO Panamá"
+            className="mx-auto h-28 w-auto"
+          />
+          <p className="mt-3 text-center text-sm text-gray-600">
             Sistema de gestión de mantenimiento preventivo
           </p>
         </div>

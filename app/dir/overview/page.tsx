@@ -270,7 +270,7 @@ export default async function DirectorDashboardPage() {
       <div className="bg-navy-700 px-6 pb-24 pt-8 md:px-8">
         <div className="mx-auto max-w-6xl">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-400">
-            Centro de Control · Mapelec
+            Centro de Control · SEMCO
           </p>
           <h1 className="mt-1 text-2xl font-bold text-white md:text-3xl">
             Estado Operativo

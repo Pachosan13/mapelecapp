@@ -42,8 +42,8 @@ export default async function AppHeader() {
     <header className="border-b bg-white">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
         <div className="flex items-center gap-6">
-          <Link href="/" className="text-sm font-semibold text-gray-900">
-            MAPELEC
+          <Link href="/" className="flex items-center">
+            <img src="/logosemco.png" alt="SEMCO" className="h-9 w-auto" />
           </Link>
           <AppNavLinks links={links} />
         </div>
