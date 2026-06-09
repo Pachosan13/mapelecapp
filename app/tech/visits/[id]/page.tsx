@@ -645,11 +645,13 @@ export default async function TechVisitPage({
               const response = responseMap.get(item.id);
               const itemType = String(item.item_type ?? "");
               const fieldName = `item-${item.id}`;
+              const _sep = String(item.label ?? "").indexOf(" - ");
+              const cleanLabel = _sep > 0 ? String(item.label).slice(_sep + 3) : item.label;
 
               return (
                 <div key={item.id} className="rounded border border-slate-200 p-4">
                 <label className="mb-2 block text-sm font-medium">
-                  {item.label}
+                  {cleanLabel}
                   {item.required ? " *" : ""}
                 </label>
                 {itemType === "checkbox" ? (
