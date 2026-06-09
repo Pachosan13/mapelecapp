@@ -178,9 +178,14 @@ async function handleResponses(formData: FormData) {
     });
 
   if (action === "complete" && errors.length > 0) {
-    const message = isChecklistTemplate
-      ? "Debes marcar todos los ítems como Aprobado, Falla o N/A"
-      : "Completa los campos requeridos.";
+    // Mensaje preciso: distingue si lo que falta son checkbox o campos de texto/número.
+    const errorItems = (templateItemsData ?? []).filter((i) => errors.includes(i.id));
+    const onlyCheckbox = errorItems.every((i) => i.item_type === "checkbox");
+    const message = !isChecklistTemplate
+      ? "Completa los campos requeridos."
+      : onlyCheckbox
+        ? "Debes marcar todos los ítems como Aprobado, Falla o N/A."
+        : "Faltan campos requeridos por completar (revisa los marcados con *).";
     redirect(
       `/tech/visits/${visitId}?error=${encodeURIComponent(message)}`
     );
