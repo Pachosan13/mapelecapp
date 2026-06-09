@@ -449,6 +449,27 @@ export default async function TechVisitPage({
         .maybeSingle()
     : { data: null as { name?: string | null; category?: string | null } | null };
 
+  // Nombre real del edificio + equipos precargados (encabezado y sección "Equipos del edificio").
+  const buildingRow = visit.building_id
+    ? (
+        await supabase
+          .from("buildings")
+          .select("name")
+          .eq("id", visit.building_id)
+          .maybeSingle()
+      ).data
+    : null;
+  const buildingEquipment = visit.building_id
+    ? (
+        await supabase
+          .from("equipment")
+          .select("id,name,system,kind,manufacturer,model,specs")
+          .eq("building_id", visit.building_id)
+          .eq("is_active", true)
+          .order("system", { ascending: true })
+      ).data ?? []
+    : [];
+
   const isChecklistTemplate =
     isCoreChecklistTemplateId(visit.template_id) ||
     isBombasTemplate(templateMeta?.name, templateMeta?.category);
@@ -469,12 +490,35 @@ export default async function TechVisitPage({
     normalizedStatus === "in_progress" || normalizedStatus === "completed";
   const isSaved = searchParams?.saved === "1";
   const isMediaSaved = searchParams?.media_saved === "1";
-  const buildingName = visit.building_id
-    ? `Building ${visit.building_id.slice(0, 8)}`
-    : "Building";
-  const templateName = visit.template_id
-    ? `Template ${visit.template_id.slice(0, 8)}`
-    : "Formulario";
+  const buildingName = buildingRow?.name ?? "Edificio";
+  const templateName = templateMeta?.name ?? "Formulario";
+
+  // Agrupa los campos del formulario por el prefijo del label (antes del primer " - ")
+  // para mostrarlos en secciones desplegables — mejor experiencia en campo.
+  const SYSTEM_LABELS: Record<string, string> = {
+    transferencia_agua_potable: "Transferencia agua potable",
+    reforzador_agua_potable: "Reforzador agua potable",
+    contra_incendios: "Contra incendios (NFPA)",
+    achique_freatico: "Achique freático",
+    achique_elevador: "Achique elevador",
+    achique_pluvial: "Achique pluvial",
+    sanitario: "Sanitario",
+    planta_diesel: "Planta diésel",
+  };
+  const groupOf = (label: string) => {
+    const i = label.indexOf(" - ");
+    return i > 0 ? label.slice(0, i).trim() : "Datos generales";
+  };
+  const itemGroups: { name: string; items: typeof templateItems }[] = [];
+  for (const item of templateItems) {
+    const g = groupOf(String(item.label ?? ""));
+    let bucket = itemGroups.find((x) => x.name === g);
+    if (!bucket) {
+      bucket = { name: g, items: [] };
+      itemGroups.push(bucket);
+    }
+    bucket.items.push(item);
+  }
 
   const { data: mediaRows } = await listMedia({ visitId: visit.id, limit: 50 });
   const mediaWithUrls = await Promise.all(
@@ -490,14 +534,16 @@ export default async function TechVisitPage({
   return (
     <div className="min-h-screen p-8">
       <VisitToast message={searchParams?.error} />
-      <div className="mb-6">
-        <Link href="/tech/today" className="text-sm text-gray-500">
+      <div className="-mx-8 -mt-8 mb-6 bg-slate-900 px-8 pb-5 pt-6 text-white">
+        <Link href="/tech/today" className="text-sm text-slate-300 hover:text-white">
           ← Volver a hoy
         </Link>
-        <h1 className="mt-2 text-2xl font-bold">Visita</h1>
-        <p className="text-gray-600">
-          {buildingName} · {templateName}
-        </p>
+        <h1 className="mt-2 text-2xl font-bold">{buildingName}</h1>
+        <p className="text-slate-300">{templateName}</p>
+        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-slate-400">
+          <span>Programada: {visit.scheduled_for}</span>
+          <span>Estado: {visit.status}</span>
+        </div>
       </div>
 
       {searchParams?.saved ? (
@@ -522,10 +568,34 @@ export default async function TechVisitPage({
         </div>
       ) : null}
 
-      <div className="mb-6 rounded border p-4 text-sm text-gray-700">
-        <div>Scheduled for: {visit.scheduled_for}</div>
-        <div>Status: {visit.status}</div>
-      </div>
+      {buildingEquipment.length > 0 ? (
+        <details className="mb-6 overflow-hidden rounded-lg border border-slate-200 bg-white" open>
+          <summary className="cursor-pointer list-none bg-slate-100 px-4 py-3 font-semibold text-slate-800">
+            Equipos del edificio
+            <span className="ml-2 text-sm font-normal text-slate-500">
+              ({buildingEquipment.length} precargados)
+            </span>
+          </summary>
+          <div className="divide-y divide-slate-100 px-4 py-1">
+            {buildingEquipment.map((eq) => (
+              <div
+                key={eq.id}
+                className="flex flex-wrap items-baseline gap-x-2 py-1.5 text-sm"
+              >
+                <span className="font-medium text-slate-800">{eq.name}</span>
+                {eq.system ? (
+                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                    {SYSTEM_LABELS[eq.system] ?? eq.system}
+                  </span>
+                ) : null}
+                <span className="text-xs text-slate-500">
+                  {[eq.manufacturer, eq.model].filter(Boolean).join(" · ")}
+                </span>
+              </div>
+            ))}
+          </div>
+        </details>
+      ) : null}
 
       {normalizedStatus === "planned" ? (
         <StartVisitButton visitId={visit.id} />
@@ -543,13 +613,26 @@ export default async function TechVisitPage({
                 </div>
               </div>
             ) : null}
-            {templateItems.map((item) => {
+            {itemGroups.map((group, gi) => (
+              <details
+                key={group.name}
+                open={gi === 0}
+                className="overflow-hidden rounded-lg border border-slate-200 bg-white"
+              >
+                <summary className="cursor-pointer list-none bg-slate-800 px-4 py-3 font-semibold text-white">
+                  {group.name}
+                  <span className="ml-2 text-sm font-normal text-slate-300">
+                    ({group.items.length})
+                  </span>
+                </summary>
+                <div className="space-y-3 p-3">
+                  {group.items.map((item) => {
               const response = responseMap.get(item.id);
               const itemType = String(item.item_type ?? "");
               const fieldName = `item-${item.id}`;
 
               return (
-                <div key={item.id} className="rounded border p-4">
+                <div key={item.id} className="rounded border border-slate-200 p-4">
                 <label className="mb-2 block text-sm font-medium">
                   {item.label}
                   {item.required ? " *" : ""}
@@ -667,6 +750,9 @@ export default async function TechVisitPage({
                 </div>
               );
             })}
+                </div>
+              </details>
+            ))}
 
             <div className="rounded border p-4">
               <label className="mb-2 block text-sm font-medium">
