@@ -1,20 +1,6 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { Database } from "@/lib/database.types";
-
-type Category = Database["public"]["Tables"]["equipment"]["Row"]["equipment_type"];
-
-const EQUIPMENT_TYPE_OPTIONS = [
-  { value: "pump", label: "Bombas" },
-  { value: "fire", label: "Incendio" },
-];
-
-const ALLOWED_CATEGORY_SET = new Set<string>(["pump", "fire"]);
-
-function toCategory(value: string): Category | undefined {
-  return ALLOWED_CATEGORY_SET.has(value) ? (value as Category) : undefined;
-}
+import EquipmentForm from "../EquipmentForm";
 
 type SearchParams = {
   error?: string;
@@ -30,12 +16,11 @@ export default async function NewEquipmentPage({
   const supabase = await createClient();
   const supabaseDb = supabase.schema("public");
 
-  const { data: buildingData, error: buildingError } = await supabaseDb
+  const { data: building, error: buildingError } = await supabaseDb
     .from("buildings")
     .select("id,name")
     .eq("id", params.id)
     .maybeSingle();
-  const building = buildingData;
 
   if (buildingError) {
     return (
@@ -67,8 +52,8 @@ export default async function NewEquipmentPage({
 
     const buildingId = String(formData.get("building_id") ?? "");
     const name = String(formData.get("name") ?? "").trim();
-    const equipmentType = String(formData.get("equipment_type") ?? "").trim();
-    const equipmentTypeTyped = toCategory(equipmentType);
+    const system = String(formData.get("system") ?? "").trim();
+    const kind = String(formData.get("kind") ?? "").trim();
     const manufacturer = String(formData.get("manufacturer") ?? "").trim();
     const model = String(formData.get("model") ?? "").trim();
     const serial = String(formData.get("serial") ?? "").trim();
@@ -77,18 +62,51 @@ export default async function NewEquipmentPage({
     const notes = String(formData.get("notes") ?? "").trim();
     const isActive = formData.get("is_active") === "on";
 
-    if (!buildingId || !name || !equipmentTypeTyped) {
-      redirect(
-        `/ops/buildings/${params.id}/equipment/new?error=${encodeURIComponent(
-          "Nombre y tipo son requeridos."
-        )}`
-      );
+    const errUrl = (msg: string) =>
+      `/ops/buildings/${params.id}/equipment/new?error=${encodeURIComponent(msg)}`;
+
+    if (!buildingId || !name || !system || !kind) {
+      redirect(errUrl("Nombre, sistema y tipo son requeridos."));
     }
+
+    // Datos de placa (specs JSONB) según el tipo de equipo.
+    const numOf = (k: string): number | null => {
+      const raw = formData.get(k);
+      if (raw == null || String(raw).trim() === "") return null;
+      const n = Number(raw);
+      return Number.isNaN(n) ? null : n;
+    };
+    const specs: Record<string, number | string> = {};
+    const put = (k: string, v: number | string | null) => {
+      if (v != null) specs[k] = v;
+    };
+    if (kind === "bomba") {
+      put("hp", numOf("hp"));
+      put("voltage", numOf("voltage"));
+      put("pressure_psi", numOf("pressure_psi"));
+      put("flow_gpm", numOf("flow_gpm"));
+    } else if (kind === "panel_control") {
+      const st = String(formData.get("starter_type") ?? "").trim();
+      if (st) specs.starter_type = st;
+      put("power", numOf("power"));
+      put("voltage", numOf("voltage"));
+    } else if (kind === "generador") {
+      put("kva", numOf("kva"));
+      put("kw", numOf("kw"));
+      put("current_a", numOf("current_a"));
+      put("voltage", numOf("voltage"));
+    }
+
+    // equipment_type legacy: "fire" para contra incendios, "pump" para el resto.
+    const equipmentType = system === "contra_incendios" ? "fire" : "pump";
 
     const { error } = await supabaseDb.from("equipment").insert({
       building_id: buildingId,
       name,
-      equipment_type: equipmentTypeTyped,
+      equipment_type: equipmentType,
+      system,
+      kind,
+      specs,
       manufacturer: manufacturer || null,
       model: model || null,
       serial: serial || null,
@@ -99,14 +117,12 @@ export default async function NewEquipmentPage({
     });
 
     if (error) {
-      const message =
-        error.code === "23505"
-          ? "Ya existe un equipo con ese nombre en este building."
-          : "No se pudo crear el equipo.";
       redirect(
-        `/ops/buildings/${params.id}/equipment/new?error=${encodeURIComponent(
-          message
-        )}`
+        errUrl(
+          error.code === "23505"
+            ? "Ya existe un equipo con ese nombre en este edificio."
+            : "No se pudo crear el equipo."
+        )
       );
     }
 
@@ -116,112 +132,23 @@ export default async function NewEquipmentPage({
   return (
     <div className="min-h-screen p-8">
       <div className="mb-6">
-        <Link
+        <a
           href={`/ops/buildings/${building.id}/equipment`}
           className="text-sm text-gray-500"
         >
           ← Volver a equipos
-        </Link>
+        </a>
         <h1 className="mt-2 text-2xl font-bold">Agregar equipo</h1>
         <p className="text-gray-600">{building.name}</p>
       </div>
 
-      {searchParams?.error ? (
-        <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          {decodeURIComponent(searchParams.error)}
-        </div>
-      ) : null}
-
-      <form action={createEquipment} className="max-w-xl space-y-4">
-        <input type="hidden" name="building_id" value={building.id} />
-        <div>
-          <label className="mb-1 block text-sm font-medium">Name</label>
-          <input
-            type="text"
-            name="name"
-            required
-            className="w-full rounded border px-3 py-2"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Tipo</label>
-          <select
-            name="equipment_type"
-            required
-            className="w-full rounded border px-3 py-2"
-          >
-            <option value="">Selecciona un tipo</option>
-            {EQUIPMENT_TYPE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Marca</label>
-          <input
-            type="text"
-            name="manufacturer"
-            className="w-full rounded border px-3 py-2"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Modelo</label>
-          <input
-            type="text"
-            name="model"
-            className="w-full rounded border px-3 py-2"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Serial</label>
-          <input
-            type="text"
-            name="serial"
-            className="w-full rounded border px-3 py-2"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Ubicación</label>
-          <input
-            type="text"
-            name="location"
-            className="w-full rounded border px-3 py-2"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Etiqueta</label>
-          <input
-            type="text"
-            name="tag"
-            className="w-full rounded border px-3 py-2"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Notes</label>
-          <textarea
-            name="notes"
-            rows={3}
-            className="w-full rounded border px-3 py-2"
-          />
-        </div>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" name="is_active" defaultChecked />
-          <span>Activo</span>
-        </label>
-        <div className="flex gap-3">
-          <button type="submit" className="rounded bg-black px-4 py-2 text-white">
-            Guardar
-          </button>
-          <Link
-            href={`/ops/buildings/${building.id}/equipment`}
-            className="rounded border px-4 py-2 text-gray-700"
-          >
-            Cancelar
-          </Link>
-        </div>
-      </form>
+      <EquipmentForm
+        buildingId={building.id}
+        action={createEquipment}
+        error={
+          searchParams?.error ? decodeURIComponent(searchParams.error) : undefined
+        }
+      />
     </div>
   );
 }
