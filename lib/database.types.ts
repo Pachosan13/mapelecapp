@@ -92,6 +92,9 @@ export type Database = {
           serial: string | null
           tag: string | null
           updated_at: string
+          kind: string | null
+          specs: Json
+          system: string | null
         }
         Insert: {
           building_id: string
@@ -107,6 +110,9 @@ export type Database = {
           serial?: string | null
           tag?: string | null
           updated_at?: string
+          kind?: string | null
+          specs?: Json
+          system?: string | null
         }
         Update: {
           building_id?: string
@@ -122,6 +128,9 @@ export type Database = {
           serial?: string | null
           tag?: string | null
           updated_at?: string
+          kind?: string | null
+          specs?: Json
+          system?: string | null
         }
         Relationships: [
           {

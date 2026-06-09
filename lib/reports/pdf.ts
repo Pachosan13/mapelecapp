@@ -18,6 +18,7 @@ const ZEBRA = rgb(0.969, 0.973, 0.98);
 const WHITE = rgb(1, 1, 1);
 const GREEN = rgb(0.024, 0.588, 0.412);
 const RED = rgb(0.863, 0.149, 0.149);
+const AMBER = rgb(0.66, 0.47, 0.11); // ámbar tierra — observaciones sin alarmar (informe cliente)
 
 const MARGIN = 50;
 const FOOTER_Y = 38;
@@ -188,12 +189,12 @@ function valueColor(v: PdfResponseValue): RGB {
   if (v.kind === "checkbox") {
     const t = v.value.toLowerCase();
     if (t === "sí" || t === "si") return GREEN;
-    if (t === "no") return RED;
+    if (t === "no") return AMBER;
     return MUTED; // N/A / —
   }
   const t = v.value.trim().toLowerCase();
   if (["aprobado", "ok", "bien"].includes(t)) return GREEN;
-  if (["falla", "no ok", "mal"].includes(t)) return RED;
+  if (["falla", "no ok", "mal"].includes(t)) return AMBER;
   return INK;
 }
 
@@ -421,6 +422,35 @@ function resultsTable(c: Ctx, rows: PdfResponseValue[]) {
     color: LINE,
   });
   c.y -= 14;
+}
+
+// ── Agrupa los parámetros por sección (Bombas principales, Tablero, …) ──
+function groupHeading(c: Ctx, title: string) {
+  ensure(c, 22);
+  c.page.drawRectangle({ x: MARGIN, y: c.y - 12, width: 3, height: 11, color: NAVY_500 });
+  draw(c, title, MARGIN + 10, c.y - 10, 10, c.bold, NAVY_500);
+  c.y -= 17;
+}
+
+function groupedResults(c: Ctx, rows: PdfResponseValue[]) {
+  if (!rows.length) return;
+  const groups: { name: string; rows: PdfResponseValue[] }[] = [];
+  for (const r of rows) {
+    const idx = r.label.indexOf(" - ");
+    const name = idx > 0 ? r.label.slice(0, idx).trim() : "General";
+    const cleanLabel = idx > 0 ? r.label.slice(idx + 3).trim() : r.label;
+    let g = groups.find((x) => x.name === name);
+    if (!g) {
+      g = { name, rows: [] };
+      groups.push(g);
+    }
+    g.rows.push({ ...r, label: cleanLabel });
+  }
+  for (const g of groups) {
+    groupHeading(c, g.name);
+    resultsTable(c, g.rows);
+    c.y -= 4;
+  }
 }
 
 // ── Recorrido por pisos grid ──
@@ -689,7 +719,7 @@ export async function renderServiceReportPdf(
     sectionHeading(c, section.title);
     for (const v of section.visits) {
       visitSubtitle(c, v);
-      resultsTable(c, v.rows);
+      groupedResults(c, v.rows);
       if (v.recorrido) recorridoTable(c, v.recorrido.label, v.recorrido.rows);
       await evidenceBlock(c, v);
       c.y -= 6;

@@ -4,9 +4,11 @@ import EquipmentForm from "@/components/EquipmentForm";
 
 type SearchParams = {
   error?: string;
+  saved?: string;
+  visit?: string;
 };
 
-export default async function NewEquipmentPage({
+export default async function TechNewEquipmentPage({
   params,
   searchParams,
 }: {
@@ -26,15 +28,18 @@ export default async function NewEquipmentPage({
     return (
       <div className="min-h-screen p-8">
         <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          Error cargando building: {buildingError.message}
+          Error cargando edificio: {buildingError.message}
         </div>
       </div>
     );
   }
-
   if (!building) {
     notFound();
   }
+
+  const visitId = searchParams?.visit ?? "";
+  const backHref = visitId ? `/tech/visits/${visitId}` : "/tech/today";
+  const formBase = `/tech/buildings/${params.id}/equipment/new`;
 
   async function createEquipment(formData: FormData) {
     "use server";
@@ -45,10 +50,12 @@ export default async function NewEquipmentPage({
       data: { user },
       error: authError,
     } = await supabase.auth.getUser();
-
     if (authError || !user) {
       redirect("/login");
     }
+
+    const q = (extra: string) =>
+      `${formBase}?${visitId ? `visit=${visitId}&` : ""}${extra}`;
 
     const buildingId = String(formData.get("building_id") ?? "");
     const name = String(formData.get("name") ?? "").trim();
@@ -62,14 +69,10 @@ export default async function NewEquipmentPage({
     const notes = String(formData.get("notes") ?? "").trim();
     const isActive = formData.get("is_active") === "on";
 
-    const errUrl = (msg: string) =>
-      `/ops/buildings/${params.id}/equipment/new?error=${encodeURIComponent(msg)}`;
-
     if (!buildingId || !name || !system || !kind) {
-      redirect(errUrl("Nombre, sistema y tipo son requeridos."));
+      redirect(q(`error=${encodeURIComponent("Nombre, sistema y tipo son requeridos.")}`));
     }
 
-    // Datos de placa (specs JSONB) según el tipo de equipo.
     const numOf = (k: string): number | null => {
       const raw = formData.get(k);
       if (raw == null || String(raw).trim() === "") return null;
@@ -97,7 +100,6 @@ export default async function NewEquipmentPage({
       put("voltage", numOf("voltage"));
     }
 
-    // equipment_type legacy: "fire" para contra incendios, "pump" para el resto.
     const equipmentType = system === "contra_incendios" ? "fire" : "pump";
 
     const { error } = await supabaseDb.from("equipment").insert({
@@ -118,34 +120,35 @@ export default async function NewEquipmentPage({
 
     if (error) {
       redirect(
-        errUrl(
-          error.code === "23505"
-            ? "Ya existe un equipo con ese nombre en este edificio."
-            : "No se pudo crear el equipo."
+        q(
+          `error=${encodeURIComponent(
+            error.code === "23505"
+              ? "Ya existe un equipo con ese nombre en este edificio."
+              : "No se pudo crear el equipo."
+          )}`
         )
       );
     }
 
-    redirect(`/ops/buildings/${params.id}/equipment`);
+    redirect(q("saved=1"));
   }
 
   return (
     <div className="min-h-screen p-8">
-      <div className="mb-6">
-        <a
-          href={`/ops/buildings/${building.id}/equipment`}
-          className="text-sm text-gray-500"
-        >
-          ← Volver a equipos
+      <div className="-mx-8 -mt-8 mb-6 bg-slate-900 px-8 pb-5 pt-6 text-white">
+        <a href={backHref} className="text-sm text-slate-300 hover:text-white">
+          ← Volver a la visita
         </a>
-        <h1 className="mt-2 text-2xl font-bold">Agregar equipo</h1>
-        <p className="text-gray-600">{building.name}</p>
+        <h1 className="mt-2 text-2xl font-bold">Mapear equipos</h1>
+        <p className="text-slate-300">{building.name}</p>
       </div>
 
       <EquipmentForm
         buildingId={building.id}
         action={createEquipment}
-        cancelHref={`/ops/buildings/${building.id}/equipment`}
+        cancelHref={backHref}
+        doneHref={backHref}
+        saved={searchParams?.saved === "1"}
         error={
           searchParams?.error ? decodeURIComponent(searchParams.error) : undefined
         }
