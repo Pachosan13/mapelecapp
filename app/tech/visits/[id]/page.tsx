@@ -50,6 +50,13 @@ const isBombasTemplate = (
   );
 };
 
+// Presurización de escaleras usa el mismo estilo de checklist (Aprobado/Falla/N/A)
+// pero sin la lista de equipos de bombeo.
+const isEscalerasTemplate = (templateName?: string | null) => {
+  const n = (templateName ?? "").trim().toLowerCase();
+  return n.includes("presurización de escaleras") || n.includes("presurizacion de escaleras");
+};
+
 async function handleResponses(formData: FormData) {
   "use server";
 
@@ -91,7 +98,8 @@ async function handleResponses(formData: FormData) {
 
   const isChecklistTemplate =
     isCoreChecklistTemplateId(visit.template_id) ||
-    isBombasTemplate(templateMeta?.name, templateMeta?.category);
+    isBombasTemplate(templateMeta?.name, templateMeta?.category) ||
+    isEscalerasTemplate(templateMeta?.name);
 
   const { data: templateItemsData } = visit.template_id
     ? await supabase
@@ -485,7 +493,8 @@ export default async function TechVisitPage({
 
   const isChecklistTemplate =
     isCoreChecklistTemplateId(visit.template_id) ||
-    isBombasTemplate(templateMeta?.name, templateMeta?.category);
+    isBombasTemplate(templateMeta?.name, templateMeta?.category) ||
+    isEscalerasTemplate(templateMeta?.name);
   const templateItems = templateItemsData ?? [];
   const requiredChecklistItemIds = isChecklistTemplate
     ? templateItems
