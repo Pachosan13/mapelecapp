@@ -309,12 +309,16 @@ async function handleMediaUpload(formData: FormData) {
     redirect("/unauthorized");
   }
 
+  // #7 (feedback William): la evidencia se etiqueta con el sistema al que pertenece.
+  const mediaSystem = String(formData.get("media_system") ?? "").trim() || null;
+
   for (const file of files) {
     const { error } = await uploadMedia({
       buildingId: visit.building_id,
       visitId: visit.id,
       file,
       kind: "evidence",
+      system: mediaSystem,
     });
     if (error) {
       redirect(
@@ -879,6 +883,11 @@ export default async function TechVisitPage({
                       <div className="min-w-0">
                         <p className="truncate font-medium">{media.storage_path.split("/").pop()}</p>
                         <p className="text-xs text-gray-500">
+                          {media.system ? (
+                            <span className="mr-1.5 rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-600">
+                              {SYSTEM_LABELS[media.system] ?? media.system}
+                            </span>
+                          ) : null}
                           {media.mime_type} · {(media.size_bytes / 1024 / 1024).toFixed(2)} MB
                         </p>
                       </div>

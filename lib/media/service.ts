@@ -25,6 +25,7 @@ export type MediaRow = {
   captured_at: string | null;
   created_by: string;
   created_at: string;
+  system: string | null;
 };
 
 type UploadMediaParams = {
@@ -35,6 +36,7 @@ type UploadMediaParams = {
   equipmentId?: string | null;
   kind?: MediaKind;
   capturedAt?: string | null;
+  system?: string | null;
 };
 
 type ListMediaParams = {
@@ -153,9 +155,10 @@ export async function uploadMedia(params: UploadMediaParams): Promise<{
       size_bytes: params.file.size,
       captured_at: params.capturedAt ?? null,
       created_by: user.id,
+      system: params.system ?? null,
     })
     .select(
-      "id,building_id,visit_id,service_report_id,equipment_id,kind,storage_path,mime_type,size_bytes,captured_at,created_by,created_at"
+      "id,building_id,visit_id,service_report_id,equipment_id,kind,storage_path,mime_type,size_bytes,captured_at,created_by,created_at,system"
     )
     .maybeSingle();
 
@@ -175,7 +178,7 @@ export async function listMedia(params: ListMediaParams): Promise<{
   let query = supabase
     .from("media")
     .select(
-      "id,building_id,visit_id,service_report_id,equipment_id,kind,storage_path,mime_type,size_bytes,captured_at,created_by,created_at"
+      "id,building_id,visit_id,service_report_id,equipment_id,kind,storage_path,mime_type,size_bytes,captured_at,created_by,created_at,system"
     )
     .order("created_at", { ascending: false });
 

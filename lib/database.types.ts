@@ -156,6 +156,7 @@ export type Database = {
           size_bytes: number
           storage_path: string
           visit_id: string | null
+          system: string | null
         }
         Insert: {
           building_id: string
@@ -170,6 +171,7 @@ export type Database = {
           size_bytes: number
           storage_path: string
           visit_id?: string | null
+          system?: string | null
         }
         Update: {
           building_id?: string
@@ -184,6 +186,7 @@ export type Database = {
           size_bytes?: number
           storage_path?: string
           visit_id?: string | null
+          system?: string | null
         }
         Relationships: [
           {

@@ -24,7 +24,7 @@ export default async function TechTodayPage({
   const uid = user.id;
 
   const selectFields =
-    "id,status,scheduled_for,assigned_crew_id,assigned_tech_user_id,building:buildings(id,name)";
+    "id,status,scheduled_for,assigned_crew_id,assigned_tech_user_id,building:buildings(id,name),template:visit_templates(id,name)";
 
   const { data: legacyData, error: legacyError } = await supabase
     .from("visits")
@@ -77,6 +77,7 @@ export default async function TechTodayPage({
     assigned_crew_id: string | null;
     assigned_tech_user_id: string | null;
     building: { id: string; name: string } | null;
+    template: { id: string; name: string } | null;
   }>;
 
   const formatStatus = (status?: VisitStatus | null) => {
@@ -142,6 +143,11 @@ export default async function TechTodayPage({
                   >
                     {visit.building?.name ?? "—"}
                   </div>
+                  {visit.template?.name ? (
+                    <div className="mt-0.5 text-sm font-medium text-slate-600">
+                      {visit.template.name}
+                    </div>
+                  ) : null}
                   <div className="mt-1 inline-flex items-center gap-2 text-sm text-gray-500">
                     <span
                       className={`h-2 w-2 rounded-full ${
