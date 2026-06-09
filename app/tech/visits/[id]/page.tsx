@@ -595,7 +595,22 @@ export default async function TechVisitPage({
             ))}
           </div>
         </details>
-      ) : null}
+      ) : (
+        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm font-semibold text-amber-900">
+            Este edificio aún no tiene equipos mapeados.
+          </p>
+          <p className="mt-1 text-xs text-amber-700">
+            Mapéalos una vez y quedan precargados para todas las visitas.
+          </p>
+          <a
+            href={`/tech/buildings/${visit.building_id}/equipment/new?visit=${visit.id}`}
+            className="mt-3 inline-block rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+          >
+            + Mapear equipos del edificio
+          </a>
+        </div>
+      )}
 
       {normalizedStatus === "planned" ? (
         <StartVisitButton visitId={visit.id} />

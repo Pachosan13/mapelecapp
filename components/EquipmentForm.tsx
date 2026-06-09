@@ -43,16 +43,28 @@ export default function EquipmentForm({
   buildingId,
   action,
   error,
+  cancelHref,
+  doneHref,
+  saved,
 }: {
   buildingId: string;
   action: (formData: FormData) => void;
   error?: string;
+  cancelHref: string;
+  doneHref?: string;
+  saved?: boolean;
 }) {
   const [kind, setKind] = useState("bomba");
 
   return (
     <form action={action} className="max-w-xl space-y-4">
       <input type="hidden" name="building_id" value={buildingId} />
+
+      {saved ? (
+        <div className="rounded border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+          ✅ Equipo agregado. Llena el siguiente, o toca &quot;Listo&quot; para volver.
+        </div>
+      ) : null}
 
       {error ? (
         <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -169,14 +181,16 @@ export default function EquipmentForm({
         <span>Activo</span>
       </label>
 
-      <div className="flex gap-3">
-        <button type="submit" className="rounded bg-black px-4 py-2 text-white">
-          Guardar
+      <div className="flex flex-wrap gap-3">
+        <button type="submit" className="rounded bg-slate-900 px-4 py-2 text-white">
+          Guardar equipo
         </button>
-        <Link
-          href={`/ops/buildings/${buildingId}/equipment`}
-          className="rounded border px-4 py-2 text-gray-700"
-        >
+        {doneHref ? (
+          <Link href={doneHref} className="rounded bg-slate-600 px-4 py-2 text-white">
+            Listo
+          </Link>
+        ) : null}
+        <Link href={cancelHref} className="rounded border px-4 py-2 text-gray-700">
           Cancelar
         </Link>
       </div>
