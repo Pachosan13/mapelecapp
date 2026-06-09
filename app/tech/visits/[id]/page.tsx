@@ -266,11 +266,14 @@ async function handleMediaUpload(formData: FormData) {
     redirect("/tech/today");
   }
 
-  const file = formData.get("media_file");
-  if (!(file instanceof File) || !file.size) {
+  // #5 (feedback William): permitir SUBIR VARIAS fotos a la vez (no reemplazar).
+  const files = formData
+    .getAll("media_file")
+    .filter((f): f is File => f instanceof File && f.size > 0);
+  if (!files.length) {
     redirect(
       `/tech/visits/${visitId}?media_error=${encodeURIComponent(
-        "Selecciona un archivo válido."
+        "Selecciona al menos un archivo válido."
       )}`
     );
   }
@@ -306,17 +309,18 @@ async function handleMediaUpload(formData: FormData) {
     redirect("/unauthorized");
   }
 
-  const { error } = await uploadMedia({
-    buildingId: visit.building_id,
-    visitId: visit.id,
-    file,
-    kind: "evidence",
-  });
-
-  if (error) {
-    redirect(
-      `/tech/visits/${visitId}?media_error=${encodeURIComponent(error)}`
-    );
+  for (const file of files) {
+    const { error } = await uploadMedia({
+      buildingId: visit.building_id,
+      visitId: visit.id,
+      file,
+      kind: "evidence",
+    });
+    if (error) {
+      redirect(
+        `/tech/visits/${visitId}?media_error=${encodeURIComponent(error)}`
+      );
+    }
   }
 
   redirect(`/tech/visits/${visitId}?media_saved=1`);
@@ -525,6 +529,25 @@ export default async function TechVisitPage({
     bucket.items.push(item);
   }
 
+  // #2 (feedback William): la lista de equipos solo aplica al mantenimiento de bombas,
+  // no a rociadores/incendio.
+  const showEquipment = isBombasTemplate(templateMeta?.name, templateMeta?.category);
+  // #3 (feedback William): agrupar los equipos precargados por sistema (como en el Excel).
+  const equipmentBySystem: {
+    system: string;
+    label: string;
+    items: typeof buildingEquipment;
+  }[] = [];
+  for (const eq of buildingEquipment) {
+    const sys = eq.system ?? "otro";
+    let g = equipmentBySystem.find((x) => x.system === sys);
+    if (!g) {
+      g = { system: sys, label: SYSTEM_LABELS[sys] ?? sys, items: [] };
+      equipmentBySystem.push(g);
+    }
+    g.items.push(eq);
+  }
+
   const { data: mediaRows } = await listMedia({ visitId: visit.id, limit: 50 });
   const mediaWithUrls = await Promise.all(
     (mediaRows ?? []).map(async (row) => {
@@ -573,49 +596,61 @@ export default async function TechVisitPage({
         </div>
       ) : null}
 
-      {buildingEquipment.length > 0 ? (
-        <details className="mb-6 overflow-hidden rounded-lg border border-slate-200 bg-white" open>
-          <summary className="cursor-pointer list-none bg-slate-100 px-4 py-3 font-semibold text-slate-800">
-            Equipos del edificio
-            <span className="ml-2 text-sm font-normal text-slate-500">
-              ({buildingEquipment.length} precargados)
-            </span>
-          </summary>
-          <div className="divide-y divide-slate-100 px-4 py-1">
-            {buildingEquipment.map((eq) => (
-              <div
-                key={eq.id}
-                className="flex flex-wrap items-baseline gap-x-2 py-1.5 text-sm"
-              >
-                <span className="font-medium text-slate-800">{eq.name}</span>
-                {eq.system ? (
-                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
-                    {SYSTEM_LABELS[eq.system] ?? eq.system}
-                  </span>
-                ) : null}
-                <span className="text-xs text-slate-500">
-                  {[eq.manufacturer, eq.model].filter(Boolean).join(" · ")}
-                </span>
-              </div>
-            ))}
+      {showEquipment ? (
+        buildingEquipment.length > 0 ? (
+          <details className="mb-6 overflow-hidden rounded-lg border border-slate-200 bg-white" open>
+            <summary className="cursor-pointer list-none bg-slate-100 px-4 py-3 font-semibold text-slate-800">
+              Equipos del edificio
+              <span className="ml-2 text-sm font-normal text-slate-500">
+                ({buildingEquipment.length} precargados)
+              </span>
+            </summary>
+            <div className="space-y-2 px-3 py-2">
+              {equipmentBySystem.map((grp) => (
+                <details
+                  key={grp.system}
+                  className="overflow-hidden rounded border border-slate-100"
+                >
+                  <summary className="cursor-pointer list-none bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+                    {grp.label}
+                    <span className="ml-2 text-xs font-normal text-slate-400">
+                      ({grp.items.length})
+                    </span>
+                  </summary>
+                  <div className="divide-y divide-slate-100 px-3">
+                    {grp.items.map((eq) => (
+                      <div
+                        key={eq.id}
+                        className="flex flex-wrap items-baseline gap-x-2 py-1.5 text-sm"
+                      >
+                        <span className="font-medium text-slate-800">{eq.name}</span>
+                        <span className="text-xs text-slate-500">
+                          {[eq.manufacturer, eq.model].filter(Boolean).join(" · ")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              ))}
+            </div>
+          </details>
+        ) : (
+          <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
+            <p className="text-sm font-semibold text-amber-900">
+              Este edificio aún no tiene equipos mapeados.
+            </p>
+            <p className="mt-1 text-xs text-amber-700">
+              Mapéalos una vez y quedan precargados para todas las visitas.
+            </p>
+            <a
+              href={`/tech/buildings/${visit.building_id}/equipment/new?visit=${visit.id}`}
+              className="mt-3 inline-block rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+            >
+              + Mapear equipos del edificio
+            </a>
           </div>
-        </details>
-      ) : (
-        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
-          <p className="text-sm font-semibold text-amber-900">
-            Este edificio aún no tiene equipos mapeados.
-          </p>
-          <p className="mt-1 text-xs text-amber-700">
-            Mapéalos una vez y quedan precargados para todas las visitas.
-          </p>
-          <a
-            href={`/tech/buildings/${visit.building_id}/equipment/new?visit=${visit.id}`}
-            className="mt-3 inline-block rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white"
-          >
-            + Mapear equipos del edificio
-          </a>
-        </div>
-      )}
+        )
+      ) : null}
 
       {normalizedStatus === "planned" ? (
         <StartVisitButton visitId={visit.id} />

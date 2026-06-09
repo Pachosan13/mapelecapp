@@ -10,8 +10,8 @@ export default function PhotoCaptureField({ disabled = false }: PhotoCaptureFiel
   const [fileName, setFileName] = useState("");
 
   const helperText = useMemo(() => {
-    if (!fileName) return "JPG, PNG, WEBP o PDF (máx. 10MB).";
-    return `Archivo seleccionado: ${fileName}`;
+    if (!fileName) return "Puedes seleccionar varias. JPG, PNG, WEBP o PDF (máx. 10MB c/u).";
+    return `Seleccionado: ${fileName}`;
   }, [fileName]);
 
   return (
@@ -20,12 +20,19 @@ export default function PhotoCaptureField({ disabled = false }: PhotoCaptureFiel
       <input
         type="file"
         name="media_file"
+        multiple
         accept="image/jpeg,image/png,image/webp,application/pdf"
         capture="environment"
         disabled={disabled}
         onChange={(event) => {
-          const file = event.currentTarget.files?.[0];
-          setFileName(file?.name ?? "");
+          const files = event.currentTarget.files;
+          setFileName(
+            !files || files.length === 0
+              ? ""
+              : files.length === 1
+                ? files[0].name
+                : `${files.length} archivos`
+          );
         }}
         className="block w-full rounded border px-3 py-2 text-sm file:mr-3 file:rounded file:border file:px-3 file:py-1.5"
       />
