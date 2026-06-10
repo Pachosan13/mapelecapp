@@ -207,7 +207,7 @@ export default async function ServiceReportPage({
             className="h-12 w-auto"
           />
           <div>
-            <h1 className="text-2xl font-bold">Service report del día</h1>
+            <h1 className="text-2xl font-bold">Informes de servicio (por visita)</h1>
             <p className="text-gray-600">{building.name}</p>
           </div>
         </div>
@@ -292,12 +292,9 @@ export default async function ServiceReportPage({
                     </form>
                   </>
                 ) : null}
-                <a
-                  href={`/api/reports/service-report?buildingId=${building.id}&reportDate=${reportDate}`}
-                  className="rounded border px-4 py-2 text-sm"
-                >
-                  Exportar reporte
-                </a>
+                <span className="text-xs text-gray-400 self-center">
+                  Cada visita se descarga por separado (abajo) ↓
+                </span>
               </div>
             </div>
           </div>
@@ -348,13 +345,21 @@ export default async function ServiceReportPage({
                   <div key={visit.id} className="mb-6 rounded border border-gray-100 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <p className="text-sm font-medium">
-                        Ejecución #{index + 1} · {formatPanamaDateTime(visit.completed_at)}
+                        Visita · {formatPanamaDateTime(visit.completed_at)}
                       </p>
-                      {visit.equipment_labels.length > 0 ? (
-                        <p className="text-xs text-gray-600">
-                          Equipo: {visit.equipment_labels.join(", ")}
-                        </p>
-                      ) : null}
+                      <div className="flex flex-wrap items-center gap-3">
+                        {visit.equipment_labels.length > 0 ? (
+                          <p className="text-xs text-gray-600">
+                            Equipo: {visit.equipment_labels.join(", ")}
+                          </p>
+                        ) : null}
+                        <a
+                          href={`/api/reports/service-report?visitId=${visit.id}`}
+                          className="rounded bg-gray-900 px-3 py-1.5 text-xs font-medium text-white"
+                        >
+                          Descargar informe (PDF)
+                        </a>
+                      </div>
                     </div>
 
                     <div className="mt-3 overflow-x-auto rounded border">

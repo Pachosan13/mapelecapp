@@ -281,7 +281,7 @@ export default async function OpsVisitDetailPage({
         </p>
         {canGenerateReport ? (
           <Link
-            href={`/api/reports/service-report?buildingId=${visit.building_id}&reportDate=${visit.scheduled_for}`}
+            href={`/api/reports/service-report?visitId=${visit.id}`}
             className="mt-3 inline-flex rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white"
           >
             Generar reporte (PDF)

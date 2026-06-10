@@ -140,18 +140,52 @@ export const formatResponseValue = (
   return trimmed || "—";
 };
 
+const panamaDateOf = (iso: string): string =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: PANAMA_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(iso));
+
 export async function getServiceReportData(params: {
-  buildingId: string;
-  reportDate: string;
+  buildingId?: string;
+  reportDate?: string;
+  visitId?: string;
   userId?: string | null;
 }): Promise<{ data: ServiceReportData | null; error: string | null }> {
-  const { buildingId, reportDate, userId } = params;
+  const { visitId, userId } = params;
+  let buildingId = params.buildingId ?? "";
+  let reportDate = params.reportDate ?? "";
+
+  const supabase = await createClient();
+
+  // Per-visit mode: 1 visita = 1 formulario = 1 informe. Derivamos edificio + fecha
+  // de la propia visita y luego filtramos a esa sola visita.
+  let singleVisitId: string | null = null;
+  if (visitId) {
+    const { data: v, error: vErr } = await supabase
+      .from("visits")
+      .select("id,building_id,completed_at,scheduled_for")
+      .eq("id", visitId)
+      .maybeSingle();
+    if (vErr || !v) {
+      return { data: null, error: vErr?.message ?? "No se encontró la visita." };
+    }
+    singleVisitId = v.id;
+    buildingId = v.building_id as string;
+    const ts = (v.completed_at as string | null) ?? (v.scheduled_for as string | null);
+    reportDate = ts ? panamaDateOf(ts) : reportDate;
+  }
+
+  if (!buildingId || !reportDate) {
+    return { data: null, error: "Faltan parámetros (visitId, o buildingId y reportDate)." };
+  }
+
   const range = getPanamaDayRange(reportDate);
   if (!range) {
     return { data: null, error: "Fecha inválida." };
   }
-
-  const supabase = await createClient();
   const reportSelect =
     "id,building_id,report_date,status,client_summary,internal_notes,sent_at,sent_by,created_at,updated_at,created_by,updated_by";
 
@@ -205,14 +239,25 @@ export async function getServiceReportData(params: {
     report = (fallbackReport ?? null) as ServiceReportRow | null;
   }
 
-  const { data: visitsData, error: visitsError } = await supabase
+  let visitsQuery = supabase
     .from("visits")
-    .select("id,template_id,completed_at,template:visit_templates(id,name)")
-    .eq("building_id", buildingId)
-    .eq("status", "completed")
-    .gte("completed_at", range.start)
-    .lt("completed_at", range.end)
-    .order("completed_at", { ascending: true });
+    .select("id,template_id,completed_at,template:visit_templates(id,name)");
+
+  if (singleVisitId) {
+    // Per-visit: solo esa visita (sin importar status/fecha — el técnico genera al terminar).
+    visitsQuery = visitsQuery.eq("id", singleVisitId);
+  } else {
+    visitsQuery = visitsQuery
+      .eq("building_id", buildingId)
+      .eq("status", "completed")
+      .gte("completed_at", range.start)
+      .lt("completed_at", range.end);
+  }
+
+  const { data: visitsData, error: visitsError } = await visitsQuery.order(
+    "completed_at",
+    { ascending: true }
+  );
 
   if (visitsError) {
     return { data: null, error: visitsError.message };

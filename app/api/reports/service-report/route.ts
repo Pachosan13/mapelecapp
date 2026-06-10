@@ -54,10 +54,11 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const buildingId = searchParams.get("buildingId")?.trim() ?? "";
     const reportDate = searchParams.get("reportDate")?.trim() ?? "";
+    const visitId = searchParams.get("visitId")?.trim() ?? "";
 
-    if (!buildingId || !reportDate) {
+    if (!visitId && (!buildingId || !reportDate)) {
       return NextResponse.json(
-        { error: "Faltan parámetros buildingId y reportDate." },
+        { error: "Faltan parámetros: visitId, o buildingId y reportDate." },
         { status: 400 }
       );
     }
@@ -84,11 +85,11 @@ export async function GET(request: Request) {
       return new Response("Forbidden", { status: 403 });
     }
 
-    const { data, error } = await getServiceReportData({
-      buildingId,
-      reportDate,
-      userId: user.id,
-    });
+    const { data, error } = await getServiceReportData(
+      visitId
+        ? { visitId, userId: user.id }
+        : { buildingId, reportDate, userId: user.id }
+    );
 
     if (error || !data) {
       return NextResponse.json(
@@ -97,11 +98,15 @@ export async function GET(request: Request) {
       );
     }
 
+    // building + fecha efectivos (en modo visitId se derivan de la visita).
+    const effBuildingId = data.building.id;
+    const effReportDate = data.report_date;
+
     // ── Supplemental: building meta + crew per visit ──
     const { data: buildingMeta } = await supabaseDb
       .from("buildings")
       .select("systems,address")
-      .eq("id", buildingId)
+      .eq("id", effBuildingId)
       .maybeSingle();
 
     const allVisitIds = Array.from(
@@ -130,7 +135,7 @@ export async function GET(request: Request) {
       const { data: mediaRows } = await supabase
         .from("media")
         .select("visit_id,storage_path,mime_type,size_bytes,kind")
-        .eq("building_id", buildingId)
+        .eq("building_id", effBuildingId)
         .in("visit_id", allVisitIds)
         .order("created_at", { ascending: true });
       (mediaRows ?? []).forEach((row) => {
@@ -249,7 +254,7 @@ export async function GET(request: Request) {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="informe-servicio-${reportDate}.pdf"`,
+        "Content-Disposition": `attachment; filename="informe-servicio-${effReportDate}.pdf"`,
       },
     });
   } catch (err: any) {
