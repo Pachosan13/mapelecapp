@@ -124,15 +124,24 @@ export async function GET(request: Request) {
       string,
       Array<{ storage_path: string; mime_type: string; size_bytes: number }>
     >();
+    // Firmas de recibido (kind=signature) — se estampan en el bloque de firmas, no en evidencia.
+    const signatureRows: Array<{ storage_path: string; mime_type: string }> = [];
     if (allVisitIds.length > 0) {
       const { data: mediaRows } = await supabase
         .from("media")
-        .select("visit_id,storage_path,mime_type,size_bytes")
+        .select("visit_id,storage_path,mime_type,size_bytes,kind")
         .eq("building_id", buildingId)
         .in("visit_id", allVisitIds)
         .order("created_at", { ascending: true });
       (mediaRows ?? []).forEach((row) => {
         if (!row.visit_id) return;
+        if (row.kind === "signature") {
+          signatureRows.push({
+            storage_path: row.storage_path,
+            mime_type: row.mime_type,
+          });
+          return;
+        }
         if (!mediaByVisitId.has(row.visit_id)) mediaByVisitId.set(row.visit_id, []);
         mediaByVisitId.get(row.visit_id)!.push({
           storage_path: row.storage_path,
@@ -211,6 +220,14 @@ export async function GET(request: Request) {
     const logoPath = path.join(process.cwd(), "public", "logosemco.png");
     const logoBytes = new Uint8Array(await readFile(logoPath));
 
+    // La firma más reciente del día (la última que se capturó).
+    const lastSignature = signatureRows.length
+      ? signatureRows[signatureRows.length - 1]
+      : null;
+    const signatureImage = lastSignature
+      ? await downloadImage(lastSignature.storage_path, lastSignature.mime_type)
+      : null;
+
     const pdfBytes = await renderServiceReportPdf({
       buildingName: data.building.name,
       buildingAddress: buildingMeta?.address ?? null,
@@ -225,6 +242,7 @@ export async function GET(request: Request) {
       sections,
       logoBytes,
       generatedAtLabel: formatPanamaDateTime(new Date().toISOString()),
+      signatureImage,
     });
 
     return new NextResponse(Buffer.from(pdfBytes), {

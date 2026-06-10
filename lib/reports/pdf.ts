@@ -81,6 +81,8 @@ export type ServiceReportPdfInput = {
   sections: PdfSection[];
   logoBytes: Uint8Array;
   generatedAtLabel: string;
+  /** Firma de recibido capturada en la app (se estampa sobre la línea del cliente). */
+  signatureImage?: { bytes: Uint8Array; isPng: boolean } | null;
 };
 
 // ── Layout engine ──
@@ -607,7 +609,10 @@ async function evidenceBlock(c: Ctx, v: PdfVisitBlock) {
 }
 
 // ── Signature block ──
-function signatureBlock(c: Ctx) {
+async function signatureBlock(
+  c: Ctx,
+  signatureImage?: { bytes: Uint8Array; isPng: boolean } | null
+) {
   ensure(c, 80);
   c.y -= 10;
   const w = contentWidth(c);
@@ -617,6 +622,25 @@ function signatureBlock(c: Ctx) {
     { x: MARGIN, label: "Técnico responsable" },
     { x: MARGIN + half + 40, label: "Recibido por el cliente" },
   ];
+  // Firma capturada en la app → se estampa sobre la línea del cliente.
+  if (signatureImage) {
+    try {
+      const img = signatureImage.isPng
+        ? await c.doc.embedPng(signatureImage.bytes)
+        : await c.doc.embedJpg(signatureImage.bytes);
+      const maxW = half - 10;
+      const maxH = 38;
+      const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+      c.page.drawImage(img, {
+        x: blocks[1].x + 5,
+        y: lineY + 2,
+        width: img.width * scale,
+        height: img.height * scale,
+      });
+    } catch {
+      // si la imagen no se puede embeber, el bloque queda con la línea vacía
+    }
+  }
   for (const b of blocks) {
     c.page.drawLine({
       start: { x: b.x, y: lineY },
@@ -727,7 +751,7 @@ export async function renderServiceReportPdf(
     c.y -= 6;
   }
 
-  signatureBlock(c);
+  await signatureBlock(c, input.signatureImage);
   drawFooters(c, input.generatedAtLabel);
 
   return doc.save();

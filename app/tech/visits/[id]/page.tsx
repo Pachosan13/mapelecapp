@@ -13,6 +13,7 @@ import VisitToast from "./VisitToast";
 import RecorridoTable from "./RecorridoTable";
 import CompleteVisitButton from "./CompleteVisitButton";
 import PhotoCaptureField from "./PhotoCaptureField";
+import SignaturePad from "./SignaturePad";
 import type { Database } from "@/lib/database.types";
 
 export const dynamic = "force-dynamic";
@@ -338,6 +339,94 @@ async function handleMediaUpload(formData: FormData) {
   redirect(`/tech/visits/${visitId}?media_saved=1`);
 }
 
+// Firma de recibido (estándar de los formularios SEMCO: "Recibido por / Realizado por").
+// El cliente firma en el celular del técnico; se guarda como media kind="signature".
+async function handleSignatureUpload(formData: FormData) {
+  "use server";
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    redirect("/login");
+  }
+
+  const visitId = String(formData.get("visit_id") ?? "");
+  if (!visitId) {
+    redirect("/tech/today");
+  }
+
+  const dataUrl = String(formData.get("signature_data") ?? "");
+  const signerName = String(formData.get("signature_name") ?? "").trim();
+  const b64 = dataUrl.startsWith("data:image/png;base64,")
+    ? dataUrl.slice("data:image/png;base64,".length)
+    : "";
+  if (!b64) {
+    redirect(
+      `/tech/visits/${visitId}?media_error=${encodeURIComponent(
+        "Dibuja la firma antes de guardarla."
+      )}`
+    );
+  }
+
+  const { data: visit } = await supabase
+    .from("visits")
+    .select("id,building_id,assigned_tech_user_id,assigned_crew_id,status")
+    .eq("id", visitId)
+    .maybeSingle();
+
+  if (!visit || !visit.building_id) {
+    redirect(
+      `/tech/visits/${visitId}?media_error=${encodeURIComponent(
+        "No se encontró la visita."
+      )}`
+    );
+  }
+
+  const canAccessVisit =
+    visit.assigned_tech_user_id === user.id ||
+    (visit.assigned_tech_user_id === null &&
+      Boolean(visit.assigned_crew_id) &&
+      visit.assigned_crew_id ===
+        (
+          await supabase
+            .from("profiles")
+            .select("home_crew_id")
+            .eq("user_id", user.id)
+            .maybeSingle()
+        ).data?.home_crew_id);
+
+  if (!canAccessVisit) {
+    redirect("/unauthorized");
+  }
+
+  const bytes = Buffer.from(b64, "base64");
+  const nameSlug = signerName
+    ? signerName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40)
+    : "recibido";
+  const file = new File([new Uint8Array(bytes)], `firma-${nameSlug}.png`, {
+    type: "image/png",
+  });
+
+  const { error } = await uploadMedia({
+    buildingId: visit.building_id,
+    visitId: visit.id,
+    file,
+    kind: "signature",
+  });
+
+  if (error) {
+    redirect(
+      `/tech/visits/${visitId}?media_error=${encodeURIComponent(error)}`
+    );
+  }
+
+  redirect(`/tech/visits/${visitId}?media_saved=1`);
+}
+
 async function handleMediaDelete(formData: FormData) {
   "use server";
 
@@ -562,7 +651,7 @@ export default async function TechVisitPage({
   }
 
   const { data: mediaRows } = await listMedia({ visitId: visit.id, limit: 50 });
-  const mediaWithUrls = await Promise.all(
+  const allMediaWithUrls = await Promise.all(
     (mediaRows ?? []).map(async (row) => {
       const { data: signedUrl } = await createSignedMediaUrl(row.storage_path);
       return {
@@ -571,6 +660,9 @@ export default async function TechVisitPage({
       };
     })
   );
+  // Las firmas de recibido se muestran aparte de la evidencia fotográfica.
+  const mediaWithUrls = allMediaWithUrls.filter((m) => m.kind !== "signature");
+  const signaturesWithUrls = allMediaWithUrls.filter((m) => m.kind === "signature");
 
   return (
     <div className="min-h-screen p-8">
@@ -929,6 +1021,44 @@ export default async function TechVisitPage({
                 </ul>
               )}
             </div>
+          </div>
+
+          {/* Firma de recibido — estándar SEMCO ("Recibido por") en todos los formularios */}
+          <div className="mt-4 max-w-2xl rounded border p-4">
+            {signaturesWithUrls.length > 0 ? (
+              <div className="mb-4">
+                <p className="text-sm font-medium text-gray-800">Firma de recibido ✓</p>
+                <ul className="mt-2 space-y-2">
+                  {signaturesWithUrls.map((sig) => (
+                    <li key={sig.id} className="flex flex-wrap items-center gap-3 rounded border px-3 py-2">
+                      {sig.signed_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={sig.signed_url}
+                          alt="Firma de recibido"
+                          className="h-16 w-auto rounded border bg-white"
+                        />
+                      ) : null}
+                      <span className="text-xs text-gray-500">
+                        {sig.storage_path.split("/").pop()}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {!isCompleted ? (
+              <form action={handleSignatureUpload} className="space-y-3">
+                <input type="hidden" name="visit_id" value={visit.id} />
+                <SignaturePad />
+                <button
+                  type="submit"
+                  className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+                >
+                  Guardar firma
+                </button>
+              </form>
+            ) : null}
           </div>
         </>
       ) : null}
