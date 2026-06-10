@@ -149,19 +149,14 @@ function draw(
 }
 
 function runningHeader(c: Ctx) {
-  // Slim header for continuation pages.
-  const logoDims = c.logo.scale(0.12);
-  c.page.drawImage(c.logo, {
-    x: MARGIN,
-    y: c.height - 34 - logoDims.height / 2,
-    width: logoDims.width,
-    height: logoDims.height,
-  });
+  // Slim header for continuation pages — solo texto. El logo SEMCO es vertical y
+  // a escala de header invadía el área de contenido; el logo grande va en la portada.
+  draw(c, "SEMCO", MARGIN, c.height - 30, 11, c.bold, NAVY);
   draw(
     c,
     `Informe de Servicio · ${c.buildingName}`,
-    MARGIN + logoDims.width + 12,
-    c.height - 32,
+    MARGIN + 46,
+    c.height - 29,
     8,
     c.font,
     FAINT
