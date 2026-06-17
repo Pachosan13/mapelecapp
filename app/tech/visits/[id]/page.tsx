@@ -794,7 +794,12 @@ export default async function TechVisitPage({
               const cleanLabel = _sep > 0 ? String(item.label).slice(_sep + 3) : item.label;
 
               return (
-                <div key={item.id} className="rounded border border-slate-200 p-4">
+                <div
+                  key={item.id}
+                  id={`item-row-${item.id}`}
+                  data-item-row
+                  className="rounded border border-slate-200 p-4"
+                >
                 <label className="mb-2 block text-sm font-medium">
                   {cleanLabel}
                   {item.required ? " *" : ""}

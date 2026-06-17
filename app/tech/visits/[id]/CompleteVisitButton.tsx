@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 
-const CORE_CHECKLIST_ERROR =
-  "Debes marcar todos los ítems como Aprobado, Falla o N/A";
-
 type Props = {
   enforceChecklistValidation: boolean;
   requiredChecklistItemIds: string[];
   isCompleted: boolean;
 };
+
+// Resaltado rojo para los ítems que faltan por marcar.
+const MISSING_OUTLINE = "2px solid #ef4444";
 
 export default function CompleteVisitButton({
   enforceChecklistValidation,
@@ -17,6 +17,30 @@ export default function CompleteVisitButton({
   isCompleted,
 }: Props) {
   const [uiError, setUiError] = useState<string | null>(null);
+
+  // Limpia el resaltado de un intento anterior.
+  const clearHighlights = () => {
+    document
+      .querySelectorAll<HTMLElement>("[data-missing='1']")
+      .forEach((el) => {
+        el.style.outline = "";
+        el.style.outlineOffset = "";
+        el.removeAttribute("data-missing");
+      });
+  };
+
+  // Abre TODAS las secciones plegables (<details>) que esconden el ítem.
+  // Sin esto, un ítem sin marcar dentro de una sección colapsada queda
+  // invisible y el técnico no sabe qué le falta.
+  const openAncestorSections = (el: HTMLElement | null) => {
+    let node: HTMLElement | null = el;
+    while (node) {
+      if (node.tagName === "DETAILS") {
+        (node as HTMLDetailsElement).open = true;
+      }
+      node = node.parentElement;
+    }
+  };
 
   const handleClick: React.MouseEventHandler<HTMLButtonElement> = (event) => {
     if (!enforceChecklistValidation || isCompleted) {
@@ -30,27 +54,54 @@ export default function CompleteVisitButton({
     }
 
     const formData = new FormData(form);
-    const firstMissingId = requiredChecklistItemIds.find((itemId) => {
+    const missingIds = requiredChecklistItemIds.filter((itemId) => {
       const value = formData.get(`item-${itemId}`);
       return value !== "approved" && value !== "failed" && value !== "na";
     });
 
-    if (firstMissingId != null) {
-      event.preventDefault();
-      setUiError(CORE_CHECKLIST_ERROR);
-      const firstInput = document.getElementById(`item-${firstMissingId}`);
-      if (firstInput) {
-        try {
-          firstInput.scrollIntoView({ behavior: "smooth", block: "center" });
-          (firstInput as HTMLInputElement).focus();
-        } catch {
-          // ignore
-        }
-      }
-      return;
+    if (missingIds.length === 0) {
+      clearHighlights();
+      setUiError(null);
+      return; // todo marcado → deja que el form se envíe
     }
 
-    setUiError(null);
+    event.preventDefault();
+    clearHighlights();
+
+    let firstRow: HTMLElement | null = null;
+    for (const id of missingIds) {
+      const input = document.getElementById(`item-${id}`);
+      // Abre las secciones plegables que esconden este ítem sin marcar.
+      openAncestorSections(input);
+      const row =
+        (document.getElementById(`item-row-${id}`) as HTMLElement | null) ??
+        (input?.closest<HTMLElement>("[data-item-row]") ?? null) ??
+        input;
+      if (row) {
+        row.style.outline = MISSING_OUTLINE;
+        row.style.outlineOffset = "2px";
+        row.setAttribute("data-missing", "1");
+        if (!firstRow) firstRow = row;
+      }
+    }
+
+    setUiError(
+      missingIds.length === 1
+        ? "Falta 1 ítem por marcar (Aprobado, Falla o N/A). Te llevé a él — está resaltado en rojo."
+        : `Faltan ${missingIds.length} ítems por marcar (Aprobado, Falla o N/A). Te llevé al primero — todos los que faltan están resaltados en rojo.`
+    );
+
+    if (firstRow) {
+      try {
+        firstRow.scrollIntoView({ behavior: "smooth", block: "center" });
+        const focusable = firstRow.querySelector<HTMLInputElement>(
+          "input[type='radio']"
+        );
+        focusable?.focus({ preventScroll: true });
+      } catch {
+        // ignore
+      }
+    }
   };
 
   return (
