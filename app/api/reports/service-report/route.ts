@@ -188,7 +188,7 @@ export async function GET(request: Request) {
               continue;
             }
           }
-          const value = formatResponseValue(item.item_type, response);
+          const value = formatResponseValue(item.item_type, response, item.label);
           const kind: PdfResponseValue["kind"] =
             item.item_type === "checkbox"
               ? "checkbox"

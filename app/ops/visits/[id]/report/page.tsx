@@ -29,7 +29,8 @@ const formatPanamaDateTime = (value?: string | null) => {
 
 const formatResponseValue = (
   itemType: string,
-  response?: VisitResponse
+  response?: VisitResponse,
+  label?: string | null
 ): string => {
   if (!response) {
     return "—";
@@ -38,6 +39,9 @@ const formatResponseValue = (
   if (itemType === "checkbox") {
     if (response.value_bool === null) {
       return response.value_text === "na" ? "N/A" : "—";
+    }
+    if ((label ?? "").trim().toLowerCase().endsWith("estado del foso")) {
+      return response.value_bool ? "Aprobado" : "Requiere limpieza";
     }
     return response.value_bool ? "Sí" : "No";
   }
@@ -387,7 +391,7 @@ export default async function OpsVisitReportPage({
                       ) : (
                         isRecorridoItem
                           ? fallbackText
-                          : formatResponseValue(item.item_type, response)
+                          : formatResponseValue(item.item_type, response, item.label)
                       )}
                     </td>
                   </tr>

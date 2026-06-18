@@ -58,6 +58,25 @@ const isEscalerasTemplate = (templateName?: string | null) => {
   return n.includes("presurización de escaleras") || n.includes("presurizacion de escaleras");
 };
 
+// "Estado del foso" usa opciones propias (Aprobado / Requiere limpieza) en vez de
+// Aprobado/Falla/N/A. El valor guardado sigue siendo approved/failed/na para no romper
+// validación ni almacenamiento — solo cambian las etiquetas visibles.
+const isEstadoFosoLabel = (label?: string | null) =>
+  (label ?? "").trim().toLowerCase().endsWith("estado del foso");
+
+const checklistOptions = (label?: string | null) =>
+  isEstadoFosoLabel(label)
+    ? [
+        { value: "approved", text: "Aprobado" },
+        { value: "failed", text: "Requiere limpieza" },
+        { value: "na", text: "N/A" },
+      ]
+    : [
+        { value: "approved", text: "Aprobado" },
+        { value: "failed", text: "Falla" },
+        { value: "na", text: "N/A" },
+      ];
+
 async function handleResponses(formData: FormData) {
   "use server";
 
@@ -792,6 +811,7 @@ export default async function TechVisitPage({
               const fieldName = `item-${item.id}`;
               const _sep = String(item.label ?? "").indexOf(" - ");
               const cleanLabel = _sep > 0 ? String(item.label).slice(_sep + 3) : item.label;
+              const opts = checklistOptions(item.label);
 
               return (
                 <div
@@ -809,45 +829,42 @@ export default async function TechVisitPage({
                     <div className="space-y-2">
                       <p className="text-xs text-gray-500">
                         Selecciona una opción por ítem:{" "}
-                        <span className="font-semibold">Aprobado</span>,{" "}
-                        <span className="font-semibold">Falla</span> o{" "}
-                        <span className="font-semibold">N/A</span>.
+                        {opts.map((opt, oi) => (
+                          <span key={opt.value}>
+                            {oi === 0
+                              ? ""
+                              : oi === opts.length - 1
+                              ? " o "
+                              : ", "}
+                            <span className="font-semibold">{opt.text}</span>
+                          </span>
+                        ))}
+                        .
                       </p>
                       <div className="flex flex-wrap gap-4">
-                        <label className="inline-flex items-center gap-2 text-sm">
-                          <input
-                            id={fieldName}
-                            type="radio"
-                            name={fieldName}
-                            value="approved"
-                            defaultChecked={response?.value_bool === true}
-                            disabled={isCompleted}
-                          />
-                          <span>Aprobado</span>
-                        </label>
-                        <label className="inline-flex items-center gap-2 text-sm">
-                          <input
-                            type="radio"
-                            name={fieldName}
-                            value="failed"
-                            defaultChecked={response?.value_bool === false}
-                            disabled={isCompleted}
-                          />
-                          <span>Falla</span>
-                        </label>
-                        <label className="inline-flex items-center gap-2 text-sm">
-                          <input
-                            type="radio"
-                            name={fieldName}
-                            value="na"
-                            defaultChecked={
-                              response?.value_bool === null &&
-                              response?.value_text === "na"
-                            }
-                            disabled={isCompleted}
-                          />
-                          <span>N/A</span>
-                        </label>
+                        {opts.map((opt, oi) => (
+                          <label
+                            key={opt.value}
+                            className="inline-flex items-center gap-2 text-sm"
+                          >
+                            <input
+                              id={oi === 0 ? fieldName : undefined}
+                              type="radio"
+                              name={fieldName}
+                              value={opt.value}
+                              defaultChecked={
+                                opt.value === "approved"
+                                  ? response?.value_bool === true
+                                  : opt.value === "failed"
+                                  ? response?.value_bool === false
+                                  : response?.value_bool === null &&
+                                    response?.value_text === "na"
+                              }
+                              disabled={isCompleted}
+                            />
+                            <span>{opt.text}</span>
+                          </label>
+                        ))}
                       </div>
                     </div>
                   ) : (

@@ -119,7 +119,8 @@ const PANAMA_TIME_ZONE = "America/Panama";
 
 export const formatResponseValue = (
   itemType: string,
-  response?: VisitResponse
+  response?: VisitResponse,
+  label?: string | null
 ): string => {
   if (!response) {
     return "—";
@@ -128,6 +129,10 @@ export const formatResponseValue = (
   if (itemType === "checkbox") {
     if (response.value_bool === null) {
       return response.value_text === "na" ? "N/A" : "—";
+    }
+    // "Estado del foso" usa etiquetas propias: Aprobado / Requiere limpieza.
+    if ((label ?? "").trim().toLowerCase().endsWith("estado del foso")) {
+      return response.value_bool ? "Aprobado" : "Requiere limpieza";
     }
     return response.value_bool ? "Sí" : "No";
   }

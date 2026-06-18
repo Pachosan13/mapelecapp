@@ -388,7 +388,7 @@ export default async function ServiceReportPage({
                                     {item.item_type}
                                   </td>
                                   <td className="px-4 py-3 text-gray-700">
-                                    {formatResponseValue(item.item_type, response)}
+                                    {formatResponseValue(item.item_type, response, item.label)}
                                   </td>
                                 </tr>
                               );
