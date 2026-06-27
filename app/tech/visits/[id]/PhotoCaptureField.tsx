@@ -22,7 +22,8 @@ export default function PhotoCaptureField({ disabled = false }: PhotoCaptureFiel
   const [fileName, setFileName] = useState("");
 
   const helperText = useMemo(() => {
-    if (!fileName) return "Puedes seleccionar varias. JPG, PNG, WEBP o PDF (máx. 10MB c/u).";
+    if (!fileName)
+      return "Selecciona TODAS las fotos juntas (no de una en una) y toca «Subir evidencia». JPG, PNG o iPhone/HEIC. Máx. 10MB c/u.";
     return `Seleccionado: ${fileName}`;
   }, [fileName]);
 
@@ -50,8 +51,7 @@ export default function PhotoCaptureField({ disabled = false }: PhotoCaptureFiel
         type="file"
         name="media_file"
         multiple
-        accept="image/jpeg,image/png,image/webp,application/pdf"
-        capture="environment"
+        accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,application/pdf"
         disabled={disabled}
         onChange={(event) => {
           const files = event.currentTarget.files;

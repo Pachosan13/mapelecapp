@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import convert from "heic-convert";
 
 export const MEDIA_BUCKET = "media";
 export const MAX_MEDIA_FILE_SIZE_BYTES = 10 * 1024 * 1024;
@@ -7,8 +8,34 @@ const ALLOWED_MEDIA_MIME_TYPES = new Set([
   "image/jpeg",
   "image/png",
   "image/webp",
+  "image/heic",
+  "image/heif",
   "application/pdf",
 ]);
+
+// Los iPhone capturan en HEIC/HEIF. pdf-lib solo embebe JPG/PNG, así que un HEIC
+// se guardaba pero salía "sin evidencia" en el informe. Detectamos por mime O por
+// extensión (algunos navegadores suben HEIC con type vacío).
+const isHeic = (mimeType: string, fileName: string) => {
+  const m = (mimeType ?? "").toLowerCase();
+  if (m === "image/heic" || m === "image/heif") return true;
+  return /\.(heic|heif)$/i.test(fileName ?? "");
+};
+
+// Convierte HEIC/HEIF → JPEG para que SIEMPRE se renderice en el PDF.
+// Si la conversión falla, devuelve el archivo original (al menos queda guardado).
+async function toEmbeddable(file: File): Promise<File> {
+  if (!isHeic(file.type, file.name)) return file;
+  try {
+    const input = Buffer.from(await file.arrayBuffer());
+    const out = await convert({ buffer: input, format: "JPEG", quality: 0.85 });
+    const jpegName =
+      (file.name || "foto").replace(/\.(heic|heif)$/i, "") + ".jpg";
+    return new File([new Uint8Array(out)], jpegName, { type: "image/jpeg" });
+  } catch {
+    return file;
+  }
+}
 
 export type MediaKind = "evidence" | "signature" | "document";
 
@@ -94,7 +121,10 @@ const validateUploadParams = (params: UploadMediaParams): string | null => {
   if (!params.visitId && !params.serviceReportId) {
     return "Debes asociar media a visitId o serviceReportId.";
   }
-  if (!ALLOWED_MEDIA_MIME_TYPES.has(params.file.type)) {
+  if (
+    !ALLOWED_MEDIA_MIME_TYPES.has(params.file.type) &&
+    !isHeic(params.file.type, params.file.name)
+  ) {
     return "Tipo de archivo no permitido.";
   }
   if (params.file.size > MAX_MEDIA_FILE_SIZE_BYTES) {
@@ -122,19 +152,22 @@ export async function uploadMedia(params: UploadMediaParams): Promise<{
     return { data: null, error: "Unauthorized." };
   }
 
+  // HEIC/HEIF (iPhone) → JPEG para que se renderice en el PDF.
+  const file = await toEmbeddable(params.file);
+
   const storagePath = buildStoragePath({
     buildingId: params.buildingId,
     userId: user.id,
     visitId: params.visitId,
     serviceReportId: params.serviceReportId,
-    fileName: params.file.name || "upload.bin",
-    mimeType: params.file.type,
+    fileName: file.name || "upload.bin",
+    mimeType: file.type,
   });
 
   const { error: uploadError } = await supabase.storage
     .from(MEDIA_BUCKET)
-    .upload(storagePath, params.file, {
-      contentType: params.file.type,
+    .upload(storagePath, file, {
+      contentType: file.type,
       upsert: false,
     });
 
@@ -151,8 +184,8 @@ export async function uploadMedia(params: UploadMediaParams): Promise<{
       equipment_id: params.equipmentId ?? null,
       kind: params.kind ?? "evidence",
       storage_path: storagePath,
-      mime_type: params.file.type,
-      size_bytes: params.file.size,
+      mime_type: file.type,
+      size_bytes: file.size,
       captured_at: params.capturedAt ?? null,
       created_by: user.id,
       system: params.system ?? null,

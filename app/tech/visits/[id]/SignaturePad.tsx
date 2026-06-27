@@ -77,13 +77,25 @@ export default function SignaturePad({ disabled = false }: SignaturePadProps) {
 
   return (
     <div className="space-y-2">
-      <label className="block text-sm font-medium">
-        Firma de quien recibe
-      </label>
+      <label className="block text-sm font-medium">Firma</label>
+      <div>
+        <label className="mb-1 block text-xs font-medium text-gray-600">
+          ¿Quién firma?
+        </label>
+        <select
+          name="signer_role"
+          defaultValue="cliente"
+          disabled={disabled}
+          className="block w-full rounded border px-3 py-2 text-sm"
+        >
+          <option value="cliente">Recibido por el cliente</option>
+          <option value="tecnico">Técnico responsable</option>
+        </select>
+      </div>
       <input
         type="text"
         name="signature_name"
-        placeholder="Nombre de quien recibe"
+        placeholder="Nombre de quien firma"
         disabled={disabled}
         className="block w-full rounded border px-3 py-2 text-sm"
       />

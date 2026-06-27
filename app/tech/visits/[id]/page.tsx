@@ -380,6 +380,12 @@ async function handleSignatureUpload(formData: FormData) {
 
   const dataUrl = String(formData.get("signature_data") ?? "");
   const signerName = String(formData.get("signature_name") ?? "").trim();
+  // Rol de quien firma → se guarda en media.system para estampar cada firma en su
+  // línea del PDF ("Técnico responsable" vs "Recibido por el cliente").
+  const signerRole =
+    String(formData.get("signer_role") ?? "cliente").trim() === "tecnico"
+      ? "tecnico"
+      : "cliente";
   const b64 = dataUrl.startsWith("data:image/png;base64,")
     ? dataUrl.slice("data:image/png;base64,".length)
     : "";
@@ -435,6 +441,7 @@ async function handleSignatureUpload(formData: FormData) {
     visitId: visit.id,
     file,
     kind: "signature",
+    system: signerRole,
   });
 
   if (error) {

@@ -83,6 +83,8 @@ export type ServiceReportPdfInput = {
   generatedAtLabel: string;
   /** Firma de recibido capturada en la app (se estampa sobre la línea del cliente). */
   signatureImage?: { bytes: Uint8Array; isPng: boolean } | null;
+  /** Firma del técnico capturada en la app (se estampa sobre su línea). */
+  technicianSignatureImage?: { bytes: Uint8Array; isPng: boolean } | null;
 };
 
 // ── Layout engine ──
@@ -606,6 +608,7 @@ async function evidenceBlock(c: Ctx, v: PdfVisitBlock) {
 // ── Signature block ──
 async function signatureBlock(
   c: Ctx,
+  technicianSignatureImage?: { bytes: Uint8Array; isPng: boolean } | null,
   signatureImage?: { bytes: Uint8Array; isPng: boolean } | null
 ) {
   ensure(c, 80);
@@ -613,30 +616,30 @@ async function signatureBlock(
   const w = contentWidth(c);
   const half = (w - 40) / 2;
   const lineY = c.y - 40;
+  // Cada firma capturada en la app se estampa sobre SU línea.
   const blocks = [
-    { x: MARGIN, label: "Técnico responsable" },
-    { x: MARGIN + half + 40, label: "Recibido por el cliente" },
+    { x: MARGIN, label: "Técnico responsable", image: technicianSignatureImage },
+    { x: MARGIN + half + 40, label: "Recibido por el cliente", image: signatureImage },
   ];
-  // Firma capturada en la app → se estampa sobre la línea del cliente.
-  if (signatureImage) {
-    try {
-      const img = signatureImage.isPng
-        ? await c.doc.embedPng(signatureImage.bytes)
-        : await c.doc.embedJpg(signatureImage.bytes);
-      const maxW = half - 10;
-      const maxH = 38;
-      const scale = Math.min(maxW / img.width, maxH / img.height, 1);
-      c.page.drawImage(img, {
-        x: blocks[1].x + 5,
-        y: lineY + 2,
-        width: img.width * scale,
-        height: img.height * scale,
-      });
-    } catch {
-      // si la imagen no se puede embeber, el bloque queda con la línea vacía
-    }
-  }
   for (const b of blocks) {
+    if (b.image) {
+      try {
+        const img = b.image.isPng
+          ? await c.doc.embedPng(b.image.bytes)
+          : await c.doc.embedJpg(b.image.bytes);
+        const maxW = half - 10;
+        const maxH = 38;
+        const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+        c.page.drawImage(img, {
+          x: b.x + 5,
+          y: lineY + 2,
+          width: img.width * scale,
+          height: img.height * scale,
+        });
+      } catch {
+        // si la imagen no se puede embeber, la línea queda vacía
+      }
+    }
     c.page.drawLine({
       start: { x: b.x, y: lineY },
       end: { x: b.x + half, y: lineY },
@@ -746,7 +749,7 @@ export async function renderServiceReportPdf(
     c.y -= 6;
   }
 
-  await signatureBlock(c, input.signatureImage);
+  await signatureBlock(c, input.technicianSignatureImage, input.signatureImage);
   drawFooters(c, input.generatedAtLabel);
 
   return doc.save();

@@ -130,11 +130,15 @@ export async function GET(request: Request) {
       Array<{ storage_path: string; mime_type: string; size_bytes: number }>
     >();
     // Firmas de recibido (kind=signature) — se estampan en el bloque de firmas, no en evidencia.
-    const signatureRows: Array<{ storage_path: string; mime_type: string }> = [];
+    const signatureRows: Array<{
+      storage_path: string;
+      mime_type: string;
+      system: string | null;
+    }> = [];
     if (allVisitIds.length > 0) {
       const { data: mediaRows } = await supabase
         .from("media")
-        .select("visit_id,storage_path,mime_type,size_bytes,kind")
+        .select("visit_id,storage_path,mime_type,size_bytes,kind,system")
         .eq("building_id", effBuildingId)
         .in("visit_id", allVisitIds)
         .order("created_at", { ascending: true });
@@ -144,6 +148,7 @@ export async function GET(request: Request) {
           signatureRows.push({
             storage_path: row.storage_path,
             mime_type: row.mime_type,
+            system: row.system ?? null,
           });
           return;
         }
@@ -225,12 +230,15 @@ export async function GET(request: Request) {
     const logoPath = path.join(process.cwd(), "public", "logosemco.png");
     const logoBytes = new Uint8Array(await readFile(logoPath));
 
-    // La firma más reciente del día (la última que se capturó).
-    const lastSignature = signatureRows.length
-      ? signatureRows[signatureRows.length - 1]
+    // Firma más reciente por rol. Legacy (system null) = firma de cliente.
+    const reversed = [...signatureRows].reverse();
+    const lastClientSig = reversed.find((s) => s.system !== "tecnico") ?? null;
+    const lastTechSig = reversed.find((s) => s.system === "tecnico") ?? null;
+    const signatureImage = lastClientSig
+      ? await downloadImage(lastClientSig.storage_path, lastClientSig.mime_type)
       : null;
-    const signatureImage = lastSignature
-      ? await downloadImage(lastSignature.storage_path, lastSignature.mime_type)
+    const technicianSignatureImage = lastTechSig
+      ? await downloadImage(lastTechSig.storage_path, lastTechSig.mime_type)
       : null;
 
     const pdfBytes = await renderServiceReportPdf({
@@ -248,6 +256,7 @@ export async function GET(request: Request) {
       logoBytes,
       generatedAtLabel: formatPanamaDateTime(new Date().toISOString()),
       signatureImage,
+      technicianSignatureImage,
     });
 
     return new NextResponse(Buffer.from(pdfBytes), {
