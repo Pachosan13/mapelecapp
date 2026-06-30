@@ -99,10 +99,14 @@ async function deleteBuilding(formData: FormData) {
   const { error } = await supabaseDb.from("buildings").delete().eq("id", id);
 
   if (error) {
+    // 23503 = foreign_key_violation. La única FK que bloquea borrar un edificio
+    // es visits.building_id (ON DELETE RESTRICT); equipos/fotos/informes son CASCADE.
+    const message =
+      error.code === "23503"
+        ? "Este edificio tiene visitas registradas y no se puede borrar. Elimina o reasigna sus visitas primero."
+        : "No se pudo borrar el building.";
     redirect(
-      `/ops/buildings/${id}/edit?error=${encodeURIComponent(
-        "No se pudo borrar el building."
-      )}`
+      `/ops/buildings/${id}/edit?error=${encodeURIComponent(message)}`
     );
   }
 
