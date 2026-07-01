@@ -606,6 +606,32 @@ export default async function TechVisitPage({
       ).data ?? []
     : [];
 
+  // Fotos por equipo para que el TÉCNICO les eche un vistazo durante la inspección
+  // (feedback William 1-jul). Solo lectura; el RLS nuevo deja al técnico leer media
+  // de equipo. Firmamos los URLs con la sesión del técnico.
+  const equipmentPhotos = new Map<
+    string,
+    Array<{ id: string; signed_url: string | null; label: string | null }>
+  >();
+  const equipmentIds = buildingEquipment.map((e) => e.id);
+  if (equipmentIds.length > 0) {
+    const { data: eqMedia } = await supabase
+      .from("media")
+      .select("id,equipment_id,storage_path,label,kind")
+      .in("equipment_id", equipmentIds)
+      .eq("kind", "evidence")
+      .order("created_at", { ascending: false });
+    await Promise.all(
+      (eqMedia ?? []).map(async (m) => {
+        if (!m.equipment_id) return;
+        const { data: url } = await createSignedMediaUrl(m.storage_path);
+        const arr = equipmentPhotos.get(m.equipment_id) ?? [];
+        arr.push({ id: m.id, signed_url: url, label: m.label });
+        equipmentPhotos.set(m.equipment_id, arr);
+      })
+    );
+  }
+
   const isChecklistTemplate =
     isCoreChecklistTemplateId(visit.template_id) ||
     isBombasTemplate(templateMeta?.name, templateMeta?.category) ||
@@ -749,17 +775,42 @@ export default async function TechVisitPage({
                     </span>
                   </summary>
                   <div className="divide-y divide-slate-100 px-3">
-                    {grp.items.map((eq) => (
-                      <div
-                        key={eq.id}
-                        className="flex flex-wrap items-baseline gap-x-2 py-1.5 text-sm"
-                      >
-                        <span className="font-medium text-slate-800">{eq.name}</span>
-                        <span className="text-xs text-slate-500">
-                          {[eq.manufacturer, eq.model].filter(Boolean).join(" · ")}
-                        </span>
-                      </div>
-                    ))}
+                    {grp.items.map((eq) => {
+                      const photos = equipmentPhotos.get(eq.id) ?? [];
+                      return (
+                        <div key={eq.id} className="py-1.5 text-sm">
+                          <div className="flex flex-wrap items-baseline gap-x-2">
+                            <span className="font-medium text-slate-800">{eq.name}</span>
+                            <span className="text-xs text-slate-500">
+                              {[eq.manufacturer, eq.model].filter(Boolean).join(" · ")}
+                            </span>
+                          </div>
+                          {photos.length > 0 ? (
+                            <div className="mt-1.5 flex flex-wrap gap-2">
+                              {photos.map((p) =>
+                                p.signed_url ? (
+                                  <a
+                                    key={p.id}
+                                    href={p.signed_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="block"
+                                    title={p.label ?? undefined}
+                                  >
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                      src={p.signed_url}
+                                      alt={p.label ?? "Foto del equipo"}
+                                      className="h-16 w-16 rounded border border-slate-200 object-cover"
+                                    />
+                                  </a>
+                                ) : null
+                              )}
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
                   </div>
                 </details>
               ))}
