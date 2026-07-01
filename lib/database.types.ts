@@ -157,6 +157,7 @@ export type Database = {
           storage_path: string
           visit_id: string | null
           system: string | null
+          label: string | null
         }
         Insert: {
           building_id: string
@@ -172,6 +173,7 @@ export type Database = {
           storage_path: string
           visit_id?: string | null
           system?: string | null
+          label?: string | null
         }
         Update: {
           building_id?: string
@@ -187,6 +189,7 @@ export type Database = {
           storage_path?: string
           visit_id?: string | null
           system?: string | null
+          label?: string | null
         }
         Relationships: [
           {

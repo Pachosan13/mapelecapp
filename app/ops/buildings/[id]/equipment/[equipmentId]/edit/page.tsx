@@ -1,7 +1,15 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import {
+  MEDIA_BUCKET,
+  createSignedMediaUrl,
+  listMedia,
+  uploadMedia,
+} from "@/lib/media/service";
 import type { Database } from "@/lib/database.types";
+
+export const dynamic = "force-dynamic";
 
 type Category = Database["public"]["Tables"]["equipment"]["Row"]["equipment_type"];
 
@@ -12,12 +20,27 @@ const EQUIPMENT_TYPE_OPTIONS = [
 
 const ALLOWED_CATEGORY_SET = new Set<string>(["pump", "fire"]);
 
+// Etiqueta por foto — clasifica la evidencia DENTRO del equipo (placa vs vista vs daño).
+const PHOTO_LABEL_OPTIONS = [
+  { value: "placa", label: "Placa / datos" },
+  { value: "vista_general", label: "Vista general" },
+  { value: "detalle", label: "Detalle o daño" },
+];
+const PHOTO_LABEL_MAP: Record<string, string> = {
+  placa: "Placa",
+  vista_general: "Vista general",
+  detalle: "Detalle/daño",
+};
+
 function toCategory(value: string): Category | undefined {
   return ALLOWED_CATEGORY_SET.has(value) ? (value as Category) : undefined;
 }
 
 type SearchParams = {
   error?: string;
+  media_error?: string;
+  media_saved?: string;
+  created?: string;
 };
 
 export default async function EditEquipmentPage({
@@ -142,6 +165,97 @@ export default async function EditEquipmentPage({
     redirect(`/ops/buildings/${params.id}/equipment`);
   }
 
+  // Fotos por equipo (feedback William 1-jul): subir varias, se acumulan.
+  async function handleEquipmentMediaUpload(formData: FormData) {
+    "use server";
+
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    if (authError || !user) {
+      redirect("/login");
+    }
+
+    const base = `/ops/buildings/${params.id}/equipment/${params.equipmentId}/edit`;
+    const files = formData
+      .getAll("media_file")
+      .filter((f): f is File => f instanceof File && f.size > 0);
+    if (!files.length) {
+      redirect(`${base}?media_error=${encodeURIComponent("Selecciona al menos una foto.")}`);
+    }
+
+    // Etiqueta (placa | vista_general | detalle) — se aplica a todas las fotos del lote.
+    const label = String(formData.get("media_label") ?? "").trim() || null;
+
+    for (const file of files) {
+      const { error } = await uploadMedia({
+        buildingId: params.id,
+        equipmentId: params.equipmentId,
+        file,
+        kind: "evidence",
+        label,
+      });
+      if (error) {
+        redirect(`${base}?media_error=${encodeURIComponent(error)}`);
+      }
+    }
+
+    redirect(`${base}?media_saved=1`);
+  }
+
+  async function handleEquipmentMediaDelete(formData: FormData) {
+    "use server";
+
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    if (authError || !user) {
+      redirect("/login");
+    }
+
+    const base = `/ops/buildings/${params.id}/equipment/${params.equipmentId}/edit`;
+    const mediaId = String(formData.get("media_id") ?? "");
+    if (!mediaId) {
+      redirect(base);
+    }
+
+    const { data: mediaRow } = await supabase
+      .from("media")
+      .select("id,storage_path,equipment_id")
+      .eq("id", mediaId)
+      .eq("equipment_id", params.equipmentId)
+      .maybeSingle();
+    if (!mediaRow) {
+      redirect(`${base}?media_error=${encodeURIComponent("No se encontró la foto.")}`);
+    }
+
+    await supabase.storage.from(MEDIA_BUCKET).remove([mediaRow.storage_path]);
+    const { error: deleteError } = await supabase
+      .from("media")
+      .delete()
+      .eq("id", mediaId);
+    if (deleteError) {
+      redirect(`${base}?media_error=${encodeURIComponent(deleteError.message)}`);
+    }
+
+    redirect(`${base}?media_saved=1`);
+  }
+
+  const { data: mediaRows } = await listMedia({
+    equipmentId: params.equipmentId,
+    limit: 50,
+  });
+  const photos = await Promise.all(
+    (mediaRows ?? []).map(async (row) => {
+      const { data: signedUrl } = await createSignedMediaUrl(row.storage_path);
+      return { ...row, signed_url: signedUrl };
+    })
+  );
+
   return (
     <div className="min-h-screen p-8">
       <div className="mb-6">
@@ -158,6 +272,13 @@ export default async function EditEquipmentPage({
       {searchParams?.error ? (
         <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {decodeURIComponent(searchParams.error)}
+        </div>
+      ) : null}
+
+      {searchParams?.created ? (
+        <div className="mb-4 rounded border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+          Equipo creado ✅ Ahora súbele las fotos abajo (placa, tablero, vista
+          general…).
         </div>
       ) : null}
 
@@ -260,6 +381,112 @@ export default async function EditEquipmentPage({
           </Link>
         </div>
       </form>
+
+      {/* Fotos del equipo — feedback William (1-jul): foto por equipo, se acumulan */}
+      <div className="mt-8 max-w-xl border-t pt-6">
+        <h2 className="text-lg font-semibold">Fotos del equipo</h2>
+        <p className="mt-1 text-sm text-gray-500">
+          Sube fotos de este equipo (bomba, tablero, placa…). Se acumulan aquí.
+          JPG, PNG o iPhone. Máx. 10MB c/u.
+        </p>
+
+        {searchParams?.media_error ? (
+          <div className="mt-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {decodeURIComponent(searchParams.media_error)}
+          </div>
+        ) : null}
+        {searchParams?.media_saved ? (
+          <div className="mt-3 rounded border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+            Fotos guardadas ✅
+          </div>
+        ) : null}
+
+        <form
+          action={handleEquipmentMediaUpload}
+          encType="multipart/form-data"
+          className="mt-4 space-y-3"
+        >
+          <select
+            name="media_label"
+            className="block w-full rounded border px-3 py-2 text-sm"
+          >
+            <option value="">Etiqueta (opcional): ¿qué es esta foto?</option>
+            {PHOTO_LABEL_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <input
+            type="file"
+            name="media_file"
+            multiple
+            accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,application/pdf"
+            className="block w-full rounded border px-3 py-2 text-sm file:mr-3 file:rounded file:border file:px-3 file:py-1.5"
+          />
+          <p className="text-xs text-gray-500">
+            Selecciona TODAS las fotos juntas (no de una en una) y toca «Subir fotos».
+          </p>
+          <button
+            type="submit"
+            className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+          >
+            Subir fotos
+          </button>
+        </form>
+
+        <div className="mt-5">
+          {photos.length === 0 ? (
+            <p className="text-sm text-gray-500">Sin fotos todavía.</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {photos.map((photo) => (
+                <div key={photo.id} className="overflow-hidden rounded border">
+                  {photo.signed_url ? (
+                    photo.mime_type === "application/pdf" ? (
+                      <a
+                        href={photo.signed_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex h-32 items-center justify-center bg-slate-50 text-sm text-slate-600"
+                      >
+                        Ver PDF
+                      </a>
+                    ) : (
+                      <a href={photo.signed_url} target="_blank" rel="noreferrer">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={photo.signed_url}
+                          alt="Foto del equipo"
+                          className="h-32 w-full object-cover"
+                        />
+                      </a>
+                    )
+                  ) : (
+                    <div className="flex h-32 items-center justify-center bg-slate-50 text-xs text-slate-400">
+                      (sin vista previa)
+                    </div>
+                  )}
+                  {photo.label ? (
+                    <div className="border-t px-2 py-1 text-center text-[11px] font-medium text-slate-600">
+                      {PHOTO_LABEL_MAP[photo.label] ?? photo.label}
+                    </div>
+                  ) : null}
+                  <form action={handleEquipmentMediaDelete} className="border-t">
+                    <input type="hidden" name="media_id" value={photo.id} />
+                    <button
+                      type="submit"
+                      className="w-full px-2 py-1.5 text-xs text-red-700 hover:bg-red-50"
+                    >
+                      Eliminar
+                    </button>
+                  </form>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

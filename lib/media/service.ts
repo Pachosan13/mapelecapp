@@ -53,6 +53,7 @@ export type MediaRow = {
   created_by: string;
   created_at: string;
   system: string | null;
+  label: string | null;
 };
 
 type UploadMediaParams = {
@@ -64,12 +65,14 @@ type UploadMediaParams = {
   kind?: MediaKind;
   capturedAt?: string | null;
   system?: string | null;
+  label?: string | null;
 };
 
 type ListMediaParams = {
   buildingId?: string;
   visitId?: string;
   serviceReportId?: string;
+  equipmentId?: string;
   limit?: number;
 };
 
@@ -90,6 +93,7 @@ const buildStoragePath = (params: {
   userId: string;
   visitId?: string | null;
   serviceReportId?: string | null;
+  equipmentId?: string | null;
   fileName: string;
   mimeType: string;
 }) => {
@@ -99,6 +103,9 @@ const buildStoragePath = (params: {
   const serviceReportId = params.serviceReportId
     ? sanitizePathSegment(params.serviceReportId)
     : null;
+  const equipmentId = params.equipmentId
+    ? sanitizePathSegment(params.equipmentId)
+    : null;
   const extension = getExtension(params.fileName, params.mimeType);
   const randomName = `${Date.now()}-${crypto.randomUUID()}.${extension}`;
 
@@ -107,6 +114,9 @@ const buildStoragePath = (params: {
   }
   if (serviceReportId) {
     return `${buildingId}/service-reports/${serviceReportId}/${userId}/${randomName}`;
+  }
+  if (equipmentId) {
+    return `${buildingId}/equipment/${equipmentId}/${userId}/${randomName}`;
   }
   return `${buildingId}/misc/${userId}/${randomName}`;
 };
@@ -118,8 +128,8 @@ const validateUploadParams = (params: UploadMediaParams): string | null => {
   if (!params.file) {
     return "Archivo requerido.";
   }
-  if (!params.visitId && !params.serviceReportId) {
-    return "Debes asociar media a visitId o serviceReportId.";
+  if (!params.visitId && !params.serviceReportId && !params.equipmentId) {
+    return "Debes asociar media a visitId, serviceReportId o equipmentId.";
   }
   if (
     !ALLOWED_MEDIA_MIME_TYPES.has(params.file.type) &&
@@ -160,6 +170,7 @@ export async function uploadMedia(params: UploadMediaParams): Promise<{
     userId: user.id,
     visitId: params.visitId,
     serviceReportId: params.serviceReportId,
+    equipmentId: params.equipmentId,
     fileName: file.name || "upload.bin",
     mimeType: file.type,
   });
@@ -189,9 +200,10 @@ export async function uploadMedia(params: UploadMediaParams): Promise<{
       captured_at: params.capturedAt ?? null,
       created_by: user.id,
       system: params.system ?? null,
+      label: params.label ?? null,
     })
     .select(
-      "id,building_id,visit_id,service_report_id,equipment_id,kind,storage_path,mime_type,size_bytes,captured_at,created_by,created_at,system"
+      "id,building_id,visit_id,service_report_id,equipment_id,kind,storage_path,mime_type,size_bytes,captured_at,created_by,created_at,system,label"
     )
     .maybeSingle();
 
@@ -211,7 +223,7 @@ export async function listMedia(params: ListMediaParams): Promise<{
   let query = supabase
     .from("media")
     .select(
-      "id,building_id,visit_id,service_report_id,equipment_id,kind,storage_path,mime_type,size_bytes,captured_at,created_by,created_at,system"
+      "id,building_id,visit_id,service_report_id,equipment_id,kind,storage_path,mime_type,size_bytes,captured_at,created_by,created_at,system,label"
     )
     .order("created_at", { ascending: false });
 
@@ -220,6 +232,7 @@ export async function listMedia(params: ListMediaParams): Promise<{
   if (params.serviceReportId) {
     query = query.eq("service_report_id", params.serviceReportId);
   }
+  if (params.equipmentId) query = query.eq("equipment_id", params.equipmentId);
   if (typeof params.limit === "number" && params.limit > 0) {
     query = query.limit(params.limit);
   }

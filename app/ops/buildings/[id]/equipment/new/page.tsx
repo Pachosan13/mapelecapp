@@ -100,7 +100,7 @@ export default async function NewEquipmentPage({
     // equipment_type legacy: "fire" para contra incendios, "pump" para el resto.
     const equipmentType = system === "contra_incendios" ? "fire" : "pump";
 
-    const { error } = await supabaseDb.from("equipment").insert({
+    const { data: created, error } = await supabaseDb.from("equipment").insert({
       building_id: buildingId,
       name,
       equipment_type: equipmentType,
@@ -114,7 +114,7 @@ export default async function NewEquipmentPage({
       tag: tag || null,
       is_active: isActive,
       notes: notes || null,
-    });
+    }).select("id").maybeSingle();
 
     if (error) {
       redirect(
@@ -126,6 +126,13 @@ export default async function NewEquipmentPage({
       );
     }
 
+    // Cae DIRECTO en la ficha del equipo nuevo para subirle las fotos
+    // (feedback William: "que en ese mapeo suban la foto"). Fallback a la lista.
+    if (created?.id) {
+      redirect(
+        `/ops/buildings/${params.id}/equipment/${created.id}/edit?created=1`
+      );
+    }
     redirect(`/ops/buildings/${params.id}/equipment`);
   }
 
