@@ -77,6 +77,46 @@ const checklistOptions = (label?: string | null) =>
         { value: "na", text: "N/A" },
       ];
 
+// Filtro dinámico por edificio (feedback William 1-jul): el checklist de bombas solo
+// debe mostrar las secciones cuyos sistemas el edificio realmente tiene, según la
+// precarga de equipos (tabla `equipment.system`). Mapa grupo-de-checklist → sistemas
+// que lo activan, derivado de la precarga real (GreenWood). Los grupos NO listados
+// aquí (Datos generales, Tablero, Entrega, Observaciones, Autorizado por) son
+// administrativos/generales y SIEMPRE se muestran.
+const GROUP_TO_SYSTEMS: Record<string, string[]> = {
+  "Bombas principales": ["transferencia_agua_potable"],
+  "Bomba reforzadora 1": ["reforzador_agua_potable"],
+  "Bomba reforzadora 2": ["reforzador_agua_potable"],
+  "Bomba reforzadora 3": ["reforzador_agua_potable"],
+  "Bomba Jockey": ["contra_incendios"],
+  "Bomba contra incendio": ["contra_incendios"],
+  "Bombas sumergibles": [
+    "achique_freatico",
+    "achique_elevador",
+    "achique_pluvial",
+    "sanitario",
+  ],
+  "Planta electrica": ["planta_diesel"],
+};
+
+// Nombre del grupo = prefijo del label antes del primer " - " (los ítems se llaman
+// "Bombas principales - Voltaje L1-L2 (V)"). Sin " - " → "Datos generales".
+const groupOf = (label: string) => {
+  const i = label.indexOf(" - ");
+  return i > 0 ? label.slice(0, i).trim() : "Datos generales";
+};
+
+// ¿El grupo aplica al edificio? General/administrativo → siempre. Mapeado a sistemas →
+// solo si el edificio tiene equipos de al menos uno de esos sistemas.
+const groupAppliesToBuilding = (
+  groupName: string,
+  buildingSystems: Set<string>
+) => {
+  const systems = GROUP_TO_SYSTEMS[groupName];
+  if (!systems) return true;
+  return systems.some((s) => buildingSystems.has(s));
+};
+
 async function handleResponses(formData: FormData) {
   "use server";
 
@@ -100,7 +140,7 @@ async function handleResponses(formData: FormData) {
 
   const { data: visit } = await supabase
     .from("visits")
-    .select("id,template_id,assigned_tech_user_id,status")
+    .select("id,template_id,assigned_tech_user_id,status,building_id")
     .eq("id", visitId)
     .maybeSingle();
 
@@ -129,8 +169,32 @@ async function handleResponses(formData: FormData) {
         .order("sort_order", { ascending: true })
     : { data: [] as TemplateItem[] };
 
+  // Sistemas que el edificio realmente tiene (precarga). Se usa para descartar los
+  // ítems de secciones que no aplican: no se validan ni se guardan, así el técnico no
+  // queda trancado por secciones ocultas y el PDF (que se arma de las respuestas) las
+  // omite solo. Fallback: sin equipos precargados → no se filtra (se procesa todo).
+  const buildingSystems = new Set<string>();
+  if (visit.building_id) {
+    const { data: buildingEquipmentRows } = await supabase
+      .from("equipment")
+      .select("system")
+      .eq("building_id", visit.building_id)
+      .eq("is_active", true);
+    (buildingEquipmentRows ?? []).forEach((e) => {
+      if (e.system) buildingSystems.add(e.system);
+    });
+  }
+  const applyBuildingFilter =
+    isBombasTemplate(templateMeta?.name, templateMeta?.category) &&
+    buildingSystems.size > 0;
+  const scopedItems = applyBuildingFilter
+    ? (templateItemsData ?? []).filter((item) =>
+        groupAppliesToBuilding(groupOf(String(item.label ?? "")), buildingSystems)
+      )
+    : templateItemsData ?? [];
+
   const errors: string[] = [];
-  const responses = (templateItemsData ?? []).map((item) => {
+  const responses = scopedItems.map((item) => {
       const fieldKey = `item-${item.id}`;
       const itemType = String(item.item_type ?? "");
       const required = Boolean(item.required);
@@ -637,9 +701,25 @@ export default async function TechVisitPage({
     isBombasTemplate(templateMeta?.name, templateMeta?.category) ||
     isEscalerasTemplate(templateMeta?.name);
   const templateItems = templateItemsData ?? [];
+
+  // Filtro dinámico por edificio (feedback William 1-jul): el checklist de bombas solo
+  // muestra las secciones cuyos sistemas el edificio tiene precargados. Debe coincidir
+  // con el filtro del server action `handleResponses`. Fallback: edificio sin equipos
+  // precargados → se muestra todo (comportamiento previo, no rompe edificios sin levantamiento).
+  const buildingSystems = new Set(
+    buildingEquipment.map((e) => e.system).filter(Boolean) as string[]
+  );
+  const applyBuildingFilter =
+    isBombasTemplate(templateMeta?.name, templateMeta?.category) &&
+    buildingSystems.size > 0;
+  const itemInScope = (item: (typeof templateItems)[number]) =>
+    !applyBuildingFilter ||
+    groupAppliesToBuilding(groupOf(String(item.label ?? "")), buildingSystems);
+
   const requiredChecklistItemIds = isChecklistTemplate
     ? templateItems
         .filter((i) => i.item_type === "checkbox")
+        .filter(itemInScope)
         .map((i) => i.id)
     : [];
 
@@ -668,12 +748,9 @@ export default async function TechVisitPage({
     sanitario: "Sanitario",
     planta_diesel: "Planta diésel",
   };
-  const groupOf = (label: string) => {
-    const i = label.indexOf(" - ");
-    return i > 0 ? label.slice(0, i).trim() : "Datos generales";
-  };
   const itemGroups: { name: string; items: typeof templateItems }[] = [];
   for (const item of templateItems) {
+    if (!itemInScope(item)) continue;
     const g = groupOf(String(item.label ?? ""));
     let bucket = itemGroups.find((x) => x.name === g);
     if (!bucket) {
