@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getAllProfiles } from "@/lib/profiles/queries";
 import { getCrewsWithDisplay } from "@/lib/crews/withMembers";
 import CrewAssignments from "./CrewAssignments";
+import CreateCrewForm from "./CreateCrewForm";
 
 export default async function StaffPage() {
   const supabase = (await createClient()).schema("public");
@@ -45,6 +46,8 @@ export default async function StaffPage() {
           Error cargando equipos. Intenta de nuevo.
         </div>
       ) : null}
+
+      <CreateCrewForm />
 
       <CrewAssignments crews={crews} techs={techProfiles} />
     </div>
