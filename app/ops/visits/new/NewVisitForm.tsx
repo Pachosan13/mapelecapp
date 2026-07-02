@@ -186,13 +186,15 @@ export default function NewVisitForm({
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium">Asignar a</label>
+          <label className="mb-1 block text-sm font-medium">
+            Asignar a cuadrilla
+          </label>
           <select
             name="assigned_crew_id"
             required
             className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-gray-300 focus:outline-none"
           >
-            <option value="">Selecciona técnico responsable</option>
+            <option value="">Selecciona una cuadrilla</option>
             {crews.map((crew) => (
               <option key={crew.id} value={crew.id}>
                 {formatCrewLabel(crew)}

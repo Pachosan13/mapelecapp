@@ -88,7 +88,7 @@ export default async function OpsDailyBoardPage({
     techs.map((t) => [t.user_id, { full_name: t.full_name }])
   );
   const crewDisplayById = new Map(
-    crews.map((c) => [c.id, { leader: c.leader, helper: c.helper }])
+    crews.map((c) => [c.id, { name: c.name, leader: c.leader, helper: c.helper }])
   );
   const hasError = Boolean(crewsResult.error || techsResult.error || visitsResult.error);
 

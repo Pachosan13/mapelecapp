@@ -121,7 +121,7 @@ export default async function OpsVisitsPage({
     (techOptions ?? []).map((t) => [t.user_id, { full_name: t.full_name }])
   );
   const crewDisplayById = new Map(
-    crewsWithDisplay.map((c) => [c.id, { leader: c.leader, helper: c.helper }])
+    crewsWithDisplay.map((c) => [c.id, { name: c.name, leader: c.leader, helper: c.helper }])
   );
 
   const hasError =
