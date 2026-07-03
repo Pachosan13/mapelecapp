@@ -9,6 +9,7 @@ import {
   uploadMedia,
 } from "@/lib/media/service";
 import StartVisitButton from "./StartVisitButton";
+import AutosaveManager from "./AutosaveManager";
 import VisitToast from "./VisitToast";
 import RecorridoTable from "./RecorridoTable";
 import CompleteVisitButton from "./CompleteVisitButton";
@@ -917,8 +918,13 @@ export default async function TechVisitPage({
 
       {canShowForm ? (
         <>
-          <form action={handleResponses} className="space-y-4 max-w-2xl">
+          <form id="visit-form" action={handleResponses} className="space-y-4 max-w-2xl">
             <input type="hidden" name="visit_id" value={visit.id} />
+            <AutosaveManager
+              visitId={visit.id}
+              formId="visit-form"
+              enabled={!isCompleted}
+            />
             {templateItems.length === 0 ? (
               <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                 No se pudieron cargar items del formulario (RLS o formulario vacío).
