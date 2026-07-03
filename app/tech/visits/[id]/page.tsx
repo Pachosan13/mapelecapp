@@ -141,11 +141,25 @@ async function handleResponses(formData: FormData) {
 
   const { data: visit } = await supabase
     .from("visits")
-    .select("id,template_id,assigned_tech_user_id,status,building_id")
+    .select("id,template_id,assigned_tech_user_id,assigned_crew_id,status,building_id")
     .eq("id", visitId)
     .maybeSingle();
 
-  if (!visit || visit.assigned_tech_user_id !== user.id) {
+  // Acceso por CUADRILLA: el técnico asignado O cualquiera de la cuadrilla
+  // asignada puede guardar/completar (aunque otro haya reclamado la visita).
+  const canAccessVisit =
+    visit?.assigned_tech_user_id === user.id ||
+    (Boolean(visit?.assigned_crew_id) &&
+      visit?.assigned_crew_id ===
+        (
+          await supabase
+            .from("profiles")
+            .select("home_crew_id")
+            .eq("user_id", user.id)
+            .maybeSingle()
+        ).data?.home_crew_id);
+
+  if (!visit || !canAccessVisit) {
     redirect("/unauthorized");
   }
 
@@ -387,8 +401,7 @@ async function handleMediaUpload(formData: FormData) {
 
   const canAccessVisit =
     visit.assigned_tech_user_id === user.id ||
-    (visit.assigned_tech_user_id === null &&
-      Boolean(visit.assigned_crew_id) &&
+    (Boolean(visit.assigned_crew_id) &&
       visit.assigned_crew_id ===
         (
           await supabase
@@ -478,8 +491,7 @@ async function handleSignatureUpload(formData: FormData) {
 
   const canAccessVisit =
     visit.assigned_tech_user_id === user.id ||
-    (visit.assigned_tech_user_id === null &&
-      Boolean(visit.assigned_crew_id) &&
+    (Boolean(visit.assigned_crew_id) &&
       visit.assigned_crew_id ===
         (
           await supabase
@@ -615,8 +627,7 @@ export default async function TechVisitPage({
 
   const canAccessVisit =
     visit?.assigned_tech_user_id === user.id ||
-    (visit?.assigned_tech_user_id === null &&
-      Boolean(visit?.assigned_crew_id) &&
+    (Boolean(visit?.assigned_crew_id) &&
       visit?.assigned_crew_id === user.home_crew_id);
 
   if (!visit || !canAccessVisit) {
