@@ -1,5 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { getPanamaDayRange } from "@/lib/dates/panama";
+import {
+  buildBuildingScope,
+  itemAppliesToBuilding,
+} from "@/lib/bombas/checklistFilter";
 
 type TemplateItem = {
   id: string;
@@ -327,9 +331,37 @@ export async function getServiceReportData(params: {
     })
   );
 
+  // Alcance del edificio para filtrar el checklist de bombas en el PDF IGUAL que en la app:
+  // se ocultan las secciones/unidades que el edificio no tiene (foso elevador, reforzadora/
+  // principal inexistente, etc.). Sin equipos precargados → no se filtra (se muestra todo).
+  const { data: buildingEquipmentRows } = await supabase
+    .from("equipment")
+    .select("system,kind")
+    .eq("building_id", buildingId)
+    .eq("is_active", true);
+  const buildingScope = buildBuildingScope(buildingEquipmentRows ?? []);
+  const applyBombasFilter = buildingScope.systems.size > 0;
+  const bombasTemplateIds = new Set(
+    visits
+      .filter((visit) => {
+        const n = (visit.template?.name ?? "").trim().toLowerCase();
+        return n === "mantenimiento – bombas" || n === "mantenimiento - bombas";
+      })
+      .map((visit) => visit.template_id)
+      .filter(Boolean) as string[]
+  );
+
   const templateItemsByTemplateId = new Map<string, TemplateItem[]>();
   templateItems.forEach((item) => {
     if (!item.template_id) return;
+    // Filtra las secciones/unidades ausentes en el edificio (solo plantilla de bombas).
+    if (
+      applyBombasFilter &&
+      bombasTemplateIds.has(item.template_id) &&
+      !itemAppliesToBuilding(item.label ?? "", buildingScope)
+    ) {
+      return;
+    }
     if (!templateItemsByTemplateId.has(item.template_id)) {
       templateItemsByTemplateId.set(item.template_id, []);
     }
