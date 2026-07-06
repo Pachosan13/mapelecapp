@@ -97,11 +97,18 @@ export const itemAppliesToBuilding = (label: string, scope: BuildingScope) => {
     return refUnit <= count;
   }
 
-  // Sumergibles: solo los subtipos cuyo sistema esté presente. Subtipo desconocido → mostrar.
+  // Sumergibles: solo los subtipos cuyo sistema esté presente, y dentro de cada subtipo,
+  // solo tantas unidades como bombas tenga el edificio. El 3er segmento es la unidad
+  // ("Sistema pluvial - Pluvial 2 - ...", "Foso elevador - Bomba 1 - ..."). Si no trae
+  // número (ej. "Sanitario", "Estado del foso") → ítem compartido, se muestra igual.
   if (group === "Bombas sumergibles") {
     const sys = SUBMERSIBLE_SUBTYPE_TO_SYSTEM[subtypeOf(label)];
     if (!sys) return true;
-    return scope.systems.has(sys);
+    if (!scope.systems.has(sys)) return false;
+    const parts = label.split(" - ");
+    const unitMatch = (parts[2] ?? "").trim().match(/(\d+)$/);
+    if (!unitMatch) return true;
+    return Number(unitMatch[1]) <= (scope.pumpCounts.get(sys) ?? 0);
   }
 
   // Resto: general/administrativo → siempre; gatillado por sistema → presencia del sistema.
