@@ -54,6 +54,25 @@ export default function NewVisitForm({
   const [buildingId, setBuildingId] = useState("");
   const onValueChange = (value: string) => setBuildingId(value);
 
+  // Buscador de building (feedback William 6-jul): antes era un <select> y había
+  // que bajar hasta encontrarlo. Ahora se escribe para filtrar, como en edificios.
+  const [buildingQuery, setBuildingQuery] = useState("");
+  const [buildingOpen, setBuildingOpen] = useState(false);
+
+  const filteredBuildings = useMemo(() => {
+    const q = buildingQuery.trim().toLowerCase();
+    if (!q) return buildings;
+    return buildings.filter((building) =>
+      building.name.toLowerCase().includes(q)
+    );
+  }, [buildings, buildingQuery]);
+
+  const pickBuilding = (building: BuildingOption) => {
+    onValueChange(building.id);
+    setBuildingQuery(building.name);
+    setBuildingOpen(false);
+  };
+
   const selectedBuilding = useMemo(
     () => buildings.find((building) => building.id === buildingId) ?? null,
     [buildingId, buildings]
@@ -88,20 +107,47 @@ export default function NewVisitForm({
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium">Building</label>
-          <select
-            name="building_id"
-            required
-            value={buildingId}
-            onChange={(event) => onValueChange(event.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-gray-300 focus:outline-none"
-          >
-            <option value="">Selecciona un building</option>
-            {buildings.map((building) => (
-              <option key={building.id} value={building.id}>
-                {building.name}
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <input type="hidden" name="building_id" value={buildingId} />
+            <input
+              type="text"
+              autoComplete="off"
+              placeholder="Busca o selecciona un building…"
+              value={buildingQuery}
+              onChange={(event) => {
+                setBuildingQuery(event.target.value);
+                setBuildingId("");
+                setBuildingOpen(true);
+              }}
+              onFocus={() => setBuildingOpen(true)}
+              onBlur={() => setTimeout(() => setBuildingOpen(false), 120)}
+              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-gray-300 focus:outline-none"
+            />
+            {buildingOpen ? (
+              <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white py-1 text-sm shadow-lg">
+                {filteredBuildings.length > 0 ? (
+                  filteredBuildings.map((building) => (
+                    <li key={building.id}>
+                      <button
+                        type="button"
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          pickBuilding(building);
+                        }}
+                        className={`block w-full px-3 py-2 text-left hover:bg-gray-100 ${
+                          building.id === buildingId ? "bg-gray-50 font-medium" : ""
+                        }`}
+                      >
+                        {building.name}
+                      </button>
+                    </li>
+                  ))
+                ) : (
+                  <li className="px-3 py-2 text-gray-400">Sin resultados</li>
+                )}
+              </ul>
+            ) : null}
+          </div>
         </div>
         {buildingId ? (
           <div>

@@ -95,6 +95,7 @@ export type Database = {
           kind: string | null
           specs: Json
           system: string | null
+          sort_order: number | null
         }
         Insert: {
           building_id: string
@@ -113,6 +114,7 @@ export type Database = {
           kind?: string | null
           specs?: Json
           system?: string | null
+          sort_order?: number | null
         }
         Update: {
           building_id?: string
@@ -131,6 +133,7 @@ export type Database = {
           kind?: string | null
           specs?: Json
           system?: string | null
+          sort_order?: number | null
         }
         Relationships: [
           {
