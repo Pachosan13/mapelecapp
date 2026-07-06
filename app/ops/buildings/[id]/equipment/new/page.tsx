@@ -100,6 +100,16 @@ export default async function NewEquipmentPage({
     // equipment_type legacy: "fire" para contra incendios, "pump" para el resto.
     const equipmentType = system === "contra_incendios" ? "fire" : "pump";
 
+    // Los equipos nuevos entran al FINAL del inventario del edificio (max+10).
+    const { data: lastRow } = await supabaseDb
+      .from("equipment")
+      .select("sort_order")
+      .eq("building_id", buildingId)
+      .order("sort_order", { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle();
+    const nextSortOrder = (lastRow?.sort_order ?? 0) + 10;
+
     const { data: created, error } = await supabaseDb.from("equipment").insert({
       building_id: buildingId,
       name,
@@ -114,6 +124,7 @@ export default async function NewEquipmentPage({
       tag: tag || null,
       is_active: isActive,
       notes: notes || null,
+      sort_order: nextSortOrder,
     }).select("id").maybeSingle();
 
     if (error) {

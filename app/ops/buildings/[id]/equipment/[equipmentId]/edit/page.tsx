@@ -8,6 +8,7 @@ import {
   uploadMedia,
 } from "@/lib/media/service";
 import type { Database } from "@/lib/database.types";
+import DeleteEquipmentButton from "./DeleteEquipmentButton";
 
 export const dynamic = "force-dynamic";
 
@@ -155,6 +156,46 @@ export default async function EditEquipmentPage({
         error.code === "23505"
           ? "Ya existe un equipo con ese nombre en este building."
           : "No se pudo actualizar el equipo.";
+      redirect(
+        `/ops/buildings/${params.id}/equipment/${params.equipmentId}/edit?error=${encodeURIComponent(
+          message
+        )}`
+      );
+    }
+
+    redirect(`/ops/buildings/${params.id}/equipment`);
+  }
+
+  async function deleteEquipment(formData: FormData) {
+    "use server";
+
+    const supabase = await createClient();
+    const supabaseDb = supabase.schema("public");
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      redirect("/login");
+    }
+
+    const id = String(formData.get("id") ?? "");
+    const buildingId = String(formData.get("building_id") ?? "");
+
+    const { error } = await supabaseDb
+      .from("equipment")
+      .delete()
+      .eq("id", id)
+      .eq("building_id", buildingId);
+
+    if (error) {
+      // Las FK a equipment (fotos, respuestas) son ON DELETE SET NULL, así que
+      // 23503 no debería pasar; se maneja por seguridad.
+      const message =
+        error.code === "23503"
+          ? "Este equipo tiene registros asociados y no se puede borrar."
+          : "No se pudo borrar el equipo.";
       redirect(
         `/ops/buildings/${params.id}/equipment/${params.equipmentId}/edit?error=${encodeURIComponent(
           message
@@ -381,6 +422,20 @@ export default async function EditEquipmentPage({
           </Link>
         </div>
       </form>
+
+      {/* Eliminar equipo — feedback William (6-jul): borrar un equipo mal agregado */}
+      <div className="mt-8 max-w-xl border-t border-red-200 pt-6">
+        <h2 className="text-lg font-semibold text-red-700">Eliminar equipo</h2>
+        <p className="mt-1 text-sm text-gray-500">
+          Quita este equipo del inventario del edificio. Esta acción no se puede
+          deshacer.
+        </p>
+        <form action={deleteEquipment} className="mt-4">
+          <input type="hidden" name="id" value={equipment.id} />
+          <input type="hidden" name="building_id" value={building.id} />
+          <DeleteEquipmentButton className="rounded border border-red-300 bg-red-50 px-4 py-2 text-red-700 hover:bg-red-100" />
+        </form>
+      </div>
 
       {/* Fotos del equipo — feedback William (1-jul): foto por equipo, se acumulan */}
       <div className="mt-8 max-w-xl border-t pt-6">
