@@ -1,6 +1,7 @@
  "use client";
 
- import { useMemo, useState } from "react";
+ import { useEffect, useMemo, useRef, useState } from "react";
+ import { enqueue, pending } from "@/lib/offline/outbox";
 
  type RecorridoRowDraft = {
    piso: string;
@@ -96,15 +97,37 @@
    itemId,
    defaultValue,
    disabled,
+   visitId,
  }: {
    itemId: string;
    defaultValue?: string | null;
    disabled?: boolean;
+   /** cuando viene, la tabla persiste offline al outbox (durable + resync) */
+   visitId?: string;
  }) {
-   const [rows, setRows] = useState<RecorridoRowDraft[]>(
-     parseInitialRows(defaultValue)
-   );
+   // Hidratar desde el outbox: si hay un valor pendiente (no sincronizado) para este
+   // ítem, gana sobre el defaultValue del server — así el recorrido sobrevive a una
+   // recarga en un sótano. Si no, usa lo que vino del server.
+   const initialRows = useMemo(() => {
+     if (visitId) {
+       try {
+         const p = pending(visitId).find(
+           (e) => e.payload.kind === "response" && `item-${e.payload.itemId}` === `item-${itemId}`
+         );
+         const raw = p && p.payload.kind === "response" ? p.payload.valueText : null;
+         if (typeof raw === "string" && raw.length > 0) return parseInitialRows(raw);
+       } catch {
+         /* outbox no disponible: caer al defaultValue */
+       }
+     }
+     return parseInitialRows(defaultValue);
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, []);
+
+   const [rows, setRows] = useState<RecorridoRowDraft[]>(initialRows);
    const [floorCount, setFloorCount] = useState<string>(String(DEFAULT_FLOOR_COUNT));
+   // Solo persistimos tras una edición REAL del usuario (no en el montaje/hidratación).
+   const touched = useRef(false);
 
    const serialized = useMemo(() => {
      const normalized: RecorridoRowValue[] = rows.map((row) => ({
@@ -122,7 +145,19 @@
      return JSON.stringify(normalized);
    }, [rows]);
 
+   // Autosave DURABLE del recorrido: cada cambio se guarda al outbox (localStorage),
+   // debounced. El AutosaveManager de la visita lo sube y re-sincroniza al reconectar.
+   // Sin visitId (o completada) no persiste — se comporta como antes.
+   useEffect(() => {
+     if (!visitId || disabled || !touched.current) return;
+     const t = window.setTimeout(() => {
+       enqueue(visitId, { kind: "response", itemId, valueText: serialized });
+     }, 800);
+     return () => window.clearTimeout(t);
+   }, [serialized, visitId, disabled, itemId]);
+
    const updateRow = (index: number, patch: Partial<RecorridoRowDraft>) => {
+     touched.current = true;
      setRows((prev) =>
        prev.map((row, rowIndex) =>
          rowIndex === index ? { ...row, ...patch } : row
@@ -131,16 +166,19 @@
    };
 
    const addRow = () => {
+     touched.current = true;
      setRows((prev) => [...prev, emptyRow()]);
    };
 
    const handleGenerateRows = () => {
      const count = parseInt(floorCount, 10);
      if (!count || count < 1 || count > 200) return;
+     touched.current = true;
      setRows(generateDefaultRows(count));
    };
 
    const removeRow = (index: number) => {
+     touched.current = true;
      setRows((prev) => prev.filter((_, rowIndex) => rowIndex !== index));
    };
 
