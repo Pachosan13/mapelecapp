@@ -19,7 +19,7 @@ import AutosaveManager from "./AutosaveManager";
 import VisitToast from "./VisitToast";
 import RecorridoTable from "./RecorridoTable";
 import CompleteVisitButton from "./CompleteVisitButton";
-import PhotoCaptureField from "./PhotoCaptureField";
+import OfflinePhotoCapture from "./OfflinePhotoCapture";
 import SignaturePad from "./SignaturePad";
 import type { Database } from "@/lib/database.types";
 
@@ -318,87 +318,6 @@ async function handleResponses(formData: FormData) {
   }
 
   redirect(`/tech/visits/${visitId}?saved=1`);
-}
-
-async function handleMediaUpload(formData: FormData) {
-  "use server";
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    redirect("/login");
-  }
-
-  const visitId = String(formData.get("visit_id") ?? "");
-  if (!visitId) {
-    redirect("/tech/today");
-  }
-
-  // #5 (feedback William): permitir SUBIR VARIAS fotos a la vez (no reemplazar).
-  const files = formData
-    .getAll("media_file")
-    .filter((f): f is File => f instanceof File && f.size > 0);
-  if (!files.length) {
-    redirect(
-      `/tech/visits/${visitId}?media_error=${encodeURIComponent(
-        "Selecciona al menos un archivo válido."
-      )}`
-    );
-  }
-
-  const { data: visit } = await supabase
-    .from("visits")
-    .select("id,building_id,assigned_tech_user_id,assigned_crew_id,status")
-    .eq("id", visitId)
-    .maybeSingle();
-
-  if (!visit || !visit.building_id) {
-    redirect(
-      `/tech/visits/${visitId}?media_error=${encodeURIComponent(
-        "No se encontró la visita."
-      )}`
-    );
-  }
-
-  const canAccessVisit =
-    visit.assigned_tech_user_id === user.id ||
-    (Boolean(visit.assigned_crew_id) &&
-      visit.assigned_crew_id ===
-        (
-          await supabase
-            .from("profiles")
-            .select("home_crew_id")
-            .eq("user_id", user.id)
-            .maybeSingle()
-        ).data?.home_crew_id);
-
-  if (!canAccessVisit) {
-    redirect("/unauthorized");
-  }
-
-  // #7 (feedback William): la evidencia se etiqueta con el sistema al que pertenece.
-  const mediaSystem = String(formData.get("media_system") ?? "").trim() || null;
-
-  for (const file of files) {
-    const { error } = await uploadMedia({
-      buildingId: visit.building_id,
-      visitId: visit.id,
-      file,
-      kind: "evidence",
-      system: mediaSystem,
-    });
-    if (error) {
-      redirect(
-        `/tech/visits/${visitId}?media_error=${encodeURIComponent(error)}`
-      );
-    }
-  }
-
-  redirect(`/tech/visits/${visitId}?media_saved=1`);
 }
 
 // Firma de recibido (estándar de los formularios SEMCO: "Recibido por / Realizado por").
@@ -1027,6 +946,7 @@ export default async function TechVisitPage({
                       itemId={item.id}
                       defaultValue={response?.value_text ?? ""}
                       disabled={isCompleted}
+                      visitId={visit.id}
                     />
                   ) : (
                     <textarea
@@ -1091,21 +1011,7 @@ export default async function TechVisitPage({
           </form>
 
           <div className="mt-4 max-w-2xl rounded border p-4">
-            <form
-              action={handleMediaUpload}
-              encType="multipart/form-data"
-              className="space-y-3"
-            >
-              <input type="hidden" name="visit_id" value={visit.id} />
-              <PhotoCaptureField disabled={isCompleted} />
-              <button
-                type="submit"
-                disabled={isCompleted}
-                className="rounded border px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Subir evidencia
-              </button>
-            </form>
+            <OfflinePhotoCapture visitId={visit.id} disabled={isCompleted} />
 
             <div className="mt-4">
               <p className="text-sm font-medium text-gray-800">Evidencia subida</p>
