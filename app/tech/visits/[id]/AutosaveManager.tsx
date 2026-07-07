@@ -2,6 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { autosaveResponse } from "./autosave";
+import {
+  enqueue,
+  resolve,
+  pending,
+  pendingCount,
+  type OutboxEntry,
+  type OutboxPayload,
+} from "@/lib/offline/outbox";
 
 type Props = {
   visitId: string;
@@ -11,32 +19,31 @@ type Props = {
   enabled: boolean;
 };
 
-type FieldPayload =
-  | { kind: "notes"; notes: string }
-  | {
-      kind: "response";
-      itemId: string;
-      valueText?: string | null;
-      valueNumber?: number | null;
-      valueBool?: boolean | null;
-    };
+type FieldPayload = OutboxPayload;
 
 const DEBOUNCE_TEXT = 1200; // texto/número: espera a que deje de escribir
 const DEBOUNCE_CHOICE = 250; // radio/checkbox: casi inmediato
+const RESYNC_INTERVAL = 15000; // reintento periódico de la cola offline (ms)
 
 /**
- * Autosave silencioso del formulario del técnico.
+ * Autosave DURABLE del formulario del técnico (offline-first).
  *
- * Se engancha al <form> por delegación de eventos (input/change/blur), así no
- * hay que reescribir cada campo. Cada cambio se persiste solo (debounced), y se
- * hace flush inmediato en blur del campo y cuando la pestaña se oculta
- * (visibilitychange) — que es justo el caso "el técnico se va a hacer otra cosa".
+ * Antes: cada cambio se mandaba directo al server (server action). En sótanos/fosos
+ * sin señal la llamada fallaba y la respuesta se PERDÍA — no quedaba nada local.
+ *
+ * Ahora: cada cambio se guarda PRIMERO en el equipo (outbox en localStorage, que
+ * sobrevive recarga y cierre de app) y recién después se intenta subir. Si no hay
+ * señal, queda en la cola y se re-sincroniza solo cuando vuelve la conexión
+ * (evento `online`), al reintento periódico, o al volver a abrir la visita.
+ * Al montar, rehidrata el formulario con lo pendiente para que el técnico VEA lo
+ * que ya respondió aunque el server nunca lo haya recibido.
  */
 export default function AutosaveManager({ visitId, formId, enabled }: Props) {
-  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">(
-    "idle"
-  );
+  const [status, setStatus] = useState<
+    "idle" | "saving" | "saved" | "offline" | "error"
+  >("idle");
   const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [pendingN, setPendingN] = useState(0);
   const timers = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
@@ -44,7 +51,17 @@ export default function AutosaveManager({ visitId, formId, enabled }: Props) {
     const form = document.getElementById(formId) as HTMLFormElement | null;
     if (!form) return;
 
-    const extract = (el: HTMLInputElement | HTMLTextAreaElement): FieldPayload | null => {
+    const timersMap = timers.current; // estable; capturado para el cleanup
+    let disposed = false;
+    const isOffline = () =>
+      typeof navigator !== "undefined" && navigator.onLine === false;
+    const refreshPending = () => {
+      if (!disposed) setPendingN(pendingCount(visitId));
+    };
+
+    const extract = (
+      el: HTMLInputElement | HTMLTextAreaElement
+    ): FieldPayload | null => {
       const name = el.name;
       if (!name) return null;
       if (name === "notes") return { kind: "notes", notes: el.value };
@@ -76,24 +93,111 @@ export default function AutosaveManager({ visitId, formId, enabled }: Props) {
       return { kind: "response", itemId, valueText: el.value };
     };
 
-    let disposed = false;
-    const flush = async (payload: FieldPayload) => {
-      setStatus("saving");
-      try {
-        const res = await autosaveResponse({ visitId, ...payload });
-        if (disposed) return;
-        if (res.ok) {
-          setSavedAt(res.at ? new Date(res.at) : new Date());
-          setStatus("saved");
-        } else {
-          setStatus("error");
-        }
-      } catch {
-        if (!disposed) setStatus("error");
+    // Aplica un valor pendiente (no sincronizado) de vuelta al formulario. Sirve
+    // para que, tras recargar en un sótano, el técnico VEA lo que ya respondió.
+    const applyEntry = (entry: OutboxEntry) => {
+      const p = entry.payload;
+      if (p.kind === "notes") {
+        const el = form.elements.namedItem("notes") as HTMLTextAreaElement | null;
+        if (el) el.value = p.notes;
+        return;
+      }
+      const node = form.elements.namedItem(`item-${p.itemId}`);
+      if (!node) return;
+      if (node instanceof RadioNodeList) {
+        let target: string | null = null;
+        if (p.valueBool === true) target = "approved";
+        else if (p.valueBool === false) target = "failed";
+        else if (p.valueText === "na") target = "na";
+        Array.from(node).forEach((n) => {
+          const inp = n as HTMLInputElement;
+          inp.checked = target !== null && inp.value === target;
+        });
+        return;
+      }
+      const el = node as HTMLInputElement | HTMLTextAreaElement;
+      const type = (el as HTMLInputElement).type;
+      if (type === "checkbox") {
+        (el as HTMLInputElement).checked = p.valueBool === true;
+      } else if (type === "number") {
+        el.value =
+          p.valueNumber === null || p.valueNumber === undefined
+            ? ""
+            : String(p.valueNumber);
+      } else {
+        el.value = p.valueText ?? "";
       }
     };
 
-    const schedule = (el: HTMLInputElement | HTMLTextAreaElement, delay: number) => {
+    // Intenta subir UNA entrada. true = el server la aceptó (y se saca de la cola).
+    const trySend = async (entry: OutboxEntry): Promise<boolean> => {
+      try {
+        const res = await autosaveResponse({ visitId, ...entry.payload });
+        if (res.ok) {
+          resolve(entry.key);
+          return true;
+        }
+        return false;
+      } catch {
+        return false;
+      }
+    };
+
+    // Guarda durable (síncrono) y dispara el intento de subida.
+    const capture = (payload: FieldPayload) => {
+      const entry = enqueue(visitId, payload); // DURABLE primero — nunca se pierde
+      refreshPending();
+      void drainOne(entry);
+    };
+
+    const drainOne = async (entry: OutboxEntry) => {
+      if (isOffline()) {
+        if (!disposed) setStatus("offline");
+        return;
+      }
+      if (!disposed) setStatus("saving");
+      const ok = await trySend(entry);
+      if (disposed) return;
+      refreshPending();
+      if (ok) {
+        setSavedAt(new Date());
+        setStatus(pendingCount(visitId) > 0 ? "offline" : "saved");
+      } else {
+        setStatus(isOffline() ? "offline" : "error");
+      }
+    };
+
+    // Reintenta TODA la cola de esta visita (al volver la señal, al montar, y periódico).
+    const drainAll = async () => {
+      const items = pending(visitId);
+      if (items.length === 0) return;
+      if (isOffline()) {
+        if (!disposed) setStatus("offline");
+        return;
+      }
+      if (!disposed) setStatus("saving");
+      for (const entry of items) {
+        // eslint-disable-next-line no-await-in-loop
+        const ok = await trySend(entry);
+        if (disposed) return;
+        if (!ok && isOffline()) break; // se cayó la señal a mitad: dejar el resto en cola
+      }
+      refreshPending();
+      if (!disposed) {
+        const left = pendingCount(visitId);
+        if (left === 0) {
+          setSavedAt(new Date());
+          setStatus("saved");
+        } else {
+          setStatus(isOffline() ? "offline" : "error");
+        }
+      }
+    };
+
+    const schedule = (
+      el: HTMLInputElement | HTMLTextAreaElement,
+      delay: number
+    ) => {
       const payload = extract(el);
       if (!payload) return;
       const key = el.name;
@@ -101,12 +205,13 @@ export default function AutosaveManager({ visitId, formId, enabled }: Props) {
       if (existing) window.clearTimeout(existing);
       const t = window.setTimeout(() => {
         timers.current.delete(key);
-        void flush(payload);
+        capture(payload);
       }, delay);
       timers.current.set(key, t);
     };
 
-    const flushNow = (el: HTMLInputElement | HTMLTextAreaElement) => {
+    // Captura inmediata y durable (cancela el debounce pendiente del campo).
+    const captureNow = (el: HTMLInputElement | HTMLTextAreaElement) => {
       const key = el.name;
       const existing = timers.current.get(key);
       if (existing) {
@@ -114,7 +219,7 @@ export default function AutosaveManager({ visitId, formId, enabled }: Props) {
         timers.current.delete(key);
       }
       const payload = extract(el);
-      if (payload) void flush(payload);
+      if (payload) capture(payload);
     };
 
     const onInput = (e: Event) => {
@@ -131,37 +236,57 @@ export default function AutosaveManager({ visitId, formId, enabled }: Props) {
     const onBlur = (e: FocusEvent) => {
       const el = e.target as HTMLInputElement | HTMLTextAreaElement;
       if (!el?.name) return;
-      flushNow(el);
+      captureNow(el);
     };
-    const onVisibility = () => {
-      if (document.visibilityState !== "hidden") return;
-      // El técnico se va a otra cosa: flush inmediato de todo lo pendiente.
-      const pending = Array.from(timers.current.keys());
+
+    // Vuelca a durable TODO lo que esté en debounce. Se llama cuando el técnico se
+    // va a otra cosa o el sistema puede matar la app (justo el caso del sótano).
+    const flushPendingTimers = () => {
+      const names = Array.from(timers.current.keys());
       timers.current.forEach((t) => window.clearTimeout(t));
       timers.current.clear();
-      for (const name of pending) {
+      for (const name of names) {
         const el = form.elements.namedItem(name) as
           | HTMLInputElement
           | HTMLTextAreaElement
           | RadioNodeList
           | null;
         if (!el) continue;
-        // RadioNodeList (grupo de radios): tomar el chequeado
         if (el instanceof RadioNodeList) {
           const checked = Array.from(el).find(
             (n) => (n as HTMLInputElement).checked
           ) as HTMLInputElement | undefined;
-          if (checked) flushNow(checked);
+          if (checked) captureNow(checked);
         } else {
-          flushNow(el);
+          captureNow(el);
         }
       }
     };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flushPendingTimers();
+    };
+    const onPageHide = () => flushPendingTimers();
+    const onOnline = () => {
+      void drainAll();
+    };
+
+    // Al montar: rehidratar con lo pendiente (sobrevivió a la recarga) y drenar cola.
+    const items = pending(visitId);
+    for (const entry of items) applyEntry(entry);
+    refreshPending();
+    if (items.length > 0) setStatus(isOffline() ? "offline" : "saving");
+    void drainAll();
 
     form.addEventListener("input", onInput, true);
     form.addEventListener("change", onChange, true);
     form.addEventListener("blur", onBlur, true);
     document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("online", onOnline);
+    const interval = window.setInterval(() => {
+      if (!isOffline()) void drainAll();
+    }, RESYNC_INTERVAL);
 
     return () => {
       disposed = true;
@@ -169,8 +294,11 @@ export default function AutosaveManager({ visitId, formId, enabled }: Props) {
       form.removeEventListener("change", onChange, true);
       form.removeEventListener("blur", onBlur, true);
       document.removeEventListener("visibilitychange", onVisibility);
-      timers.current.forEach((t) => window.clearTimeout(t));
-      timers.current.clear();
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("online", onOnline);
+      window.clearInterval(interval);
+      timersMap.forEach((t) => window.clearTimeout(t));
+      timersMap.clear();
     };
   }, [visitId, formId, enabled]);
 
@@ -179,8 +307,12 @@ export default function AutosaveManager({ visitId, formId, enabled }: Props) {
   const label =
     status === "saving"
       ? "Guardando…"
+      : status === "offline"
+      ? `Sin señal — guardado en el equipo${
+          pendingN > 0 ? ` (${pendingN} por subir)` : ""
+        }`
       : status === "error"
-      ? "Error al guardar (dale «Guardar»)"
+      ? `Reintentando…${pendingN > 0 ? ` (${pendingN} por subir)` : ""}`
       : status === "saved"
       ? `Guardado ✓${
           savedAt
@@ -194,8 +326,10 @@ export default function AutosaveManager({ visitId, formId, enabled }: Props) {
       : "Autoguardado activo";
 
   const tone =
-    status === "error"
-      ? "border-red-300 bg-red-50 text-red-700"
+    status === "offline"
+      ? "border-amber-300 bg-amber-50 text-amber-800"
+      : status === "error"
+      ? "border-amber-300 bg-amber-50 text-amber-800"
       : status === "saving"
       ? "border-amber-300 bg-amber-50 text-amber-700"
       : "border-emerald-300 bg-emerald-50 text-emerald-700";

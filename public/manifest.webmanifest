@@ -1,0 +1,25 @@
+{
+  "name": "SEMCO — Mantenimiento",
+  "short_name": "SEMCO",
+  "description": "Sistema de gestión de mantenimiento preventivo",
+  "start_url": "/tech/today",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/logosemco.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logosemco.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
