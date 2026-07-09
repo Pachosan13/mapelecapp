@@ -9,6 +9,7 @@ import {
 } from "@/lib/media/service";
 import type { Database } from "@/lib/database.types";
 import DeleteEquipmentButton from "./DeleteEquipmentButton";
+import EquipmentPhotoUpload from "./EquipmentPhotoUpload";
 
 export const dynamic = "force-dynamic";
 
@@ -456,39 +457,10 @@ export default async function EditEquipmentPage({
           </div>
         ) : null}
 
-        <form
+        <EquipmentPhotoUpload
           action={handleEquipmentMediaUpload}
-          encType="multipart/form-data"
-          className="mt-4 space-y-3"
-        >
-          <select
-            name="media_label"
-            className="block w-full rounded border px-3 py-2 text-sm"
-          >
-            <option value="">Etiqueta (opcional): ¿qué es esta foto?</option>
-            {PHOTO_LABEL_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-          <input
-            type="file"
-            name="media_file"
-            multiple
-            accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,application/pdf"
-            className="block w-full rounded border px-3 py-2 text-sm file:mr-3 file:rounded file:border file:px-3 file:py-1.5"
-          />
-          <p className="text-xs text-gray-500">
-            Selecciona TODAS las fotos juntas (no de una en una) y toca «Subir fotos».
-          </p>
-          <button
-            type="submit"
-            className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white"
-          >
-            Subir fotos
-          </button>
-        </form>
+          labelOptions={PHOTO_LABEL_OPTIONS}
+        />
 
         <div className="mt-5">
           {photos.length === 0 ? (
