@@ -734,6 +734,18 @@ export default async function TechVisitPage({
               </span>
             </summary>
             <div className="space-y-2 px-3 py-2">
+              <a
+                href={`/tech/buildings/${visit.building_id}/equipment?visit=${visit.id}`}
+                className="mb-1 flex items-center justify-between rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2.5 text-sm font-semibold text-cyan-800"
+              >
+                <span className="flex items-center gap-2">
+                  <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
+                    <path d="M4 7h3l1.5-2h7L17 7h3a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V8a1 1 0 011-1zm8 3a3.5 3.5 0 100 7 3.5 3.5 0 000-7z" />
+                  </svg>
+                  Ver inventario de fotos por equipo
+                </span>
+                <span className="text-cyan-400">›</span>
+              </a>
               {equipmentBySystem.map((grp) => (
                 <details
                   key={grp.system}
