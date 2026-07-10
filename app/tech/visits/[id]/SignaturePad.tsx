@@ -1,17 +1,41 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
+import type { SignerRole } from "@/lib/media/service";
 
 type SignaturePadProps = {
   disabled?: boolean;
+  /** Roles que YA tienen firma en esta visita. Firmar de nuevo la reemplaza. */
+  signedRoles?: SignerRole[];
 };
+
+// El botón vive dentro del <form> para poder leer useFormStatus: en 4G de campo
+// el submit tarda, y sin bloquearlo el técnico lo aprieta otra vez. Así nacieron
+// las 30 firmas duplicadas que encontramos el 10-jul.
+function SubmitSignature({ hasInk }: { hasInk: boolean }) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending || !hasInk}
+      className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {pending ? "Guardando firma…" : "Guardar firma"}
+    </button>
+  );
+}
 
 // Pad de firma (feedback SEMCO): el cliente firma de recibido en el celular del
 // técnico, igual que la línea "Recibido por" de los formularios originales.
-export default function SignaturePad({ disabled = false }: SignaturePadProps) {
+export default function SignaturePad({
+  disabled = false,
+  signedRoles = [],
+}: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const hiddenRef = useRef<HTMLInputElement | null>(null);
   const [hasInk, setHasInk] = useState(false);
+  const [role, setRole] = useState<SignerRole>("cliente");
   const drawing = useRef(false);
 
   useEffect(() => {
@@ -75,6 +99,8 @@ export default function SignaturePad({ disabled = false }: SignaturePadProps) {
     setHasInk(false);
   };
 
+  const alreadySigned = signedRoles.includes(role);
+
   return (
     <div className="space-y-2">
       <label className="block text-sm font-medium">Firma</label>
@@ -84,7 +110,8 @@ export default function SignaturePad({ disabled = false }: SignaturePadProps) {
         </label>
         <select
           name="signer_role"
-          defaultValue="cliente"
+          value={role}
+          onChange={(e) => setRole(e.target.value as SignerRole)}
           disabled={disabled}
           className="block w-full rounded border px-3 py-2 text-sm"
         >
@@ -92,6 +119,12 @@ export default function SignaturePad({ disabled = false }: SignaturePadProps) {
           <option value="tecnico">Técnico responsable</option>
         </select>
       </div>
+      {alreadySigned ? (
+        <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          Ya hay una firma guardada para este rol. Si firmas de nuevo,{" "}
+          <strong>se reemplaza</strong> — no se agrega otra.
+        </p>
+      ) : null}
       <input
         type="text"
         name="signature_name"
@@ -121,6 +154,7 @@ export default function SignaturePad({ disabled = false }: SignaturePadProps) {
           Limpiar
         </button>
       </div>
+      <SubmitSignature hasInk={hasInk} />
     </div>
   );
 }
