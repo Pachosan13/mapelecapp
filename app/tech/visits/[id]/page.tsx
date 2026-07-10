@@ -14,6 +14,7 @@ import {
   createSignedMediaUrl,
   listMedia,
   uploadMedia,
+  type SignerRole,
 } from "@/lib/media/service";
 import StartVisitButton from "./StartVisitButton";
 import AutosaveManager from "./AutosaveManager";
@@ -343,9 +344,10 @@ async function handleSignatureUpload(formData: FormData) {
 
   const dataUrl = String(formData.get("signature_data") ?? "");
   const signerName = String(formData.get("signature_name") ?? "").trim();
-  // Rol de quien firma → se guarda en media.system para estampar cada firma en su
-  // línea del PDF ("Técnico responsable" vs "Recibido por el cliente").
-  const signerRole =
+  // Rol de quien firma → media.signer_role. Estampa cada firma en su línea del
+  // PDF ("Técnico responsable" vs "Recibido por el cliente"). NO va en
+  // media.system: ese campo es el sistema de la evidencia.
+  const signerRole: SignerRole =
     String(formData.get("signer_role") ?? "cliente").trim() === "tecnico"
       ? "tecnico"
       : "cliente";
@@ -403,7 +405,7 @@ async function handleSignatureUpload(formData: FormData) {
     visitId: visit.id,
     file,
     kind: "signature",
-    system: signerRole,
+    signerRole,
   });
 
   if (error) {

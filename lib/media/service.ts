@@ -39,6 +39,9 @@ async function toEmbeddable(file: File): Promise<File> {
 
 export type MediaKind = "evidence" | "signature" | "document";
 
+/** Solo aplica a kind="signature". La evidencia lleva `system`, no rol. */
+export type SignerRole = "cliente" | "tecnico";
+
 export type MediaRow = {
   id: string;
   building_id: string;
@@ -54,6 +57,7 @@ export type MediaRow = {
   created_at: string;
   system: string | null;
   label: string | null;
+  signer_role: SignerRole | null;
 };
 
 type UploadMediaParams = {
@@ -66,6 +70,7 @@ type UploadMediaParams = {
   capturedAt?: string | null;
   system?: string | null;
   label?: string | null;
+  signerRole?: SignerRole | null;
 };
 
 type ListMediaParams = {
@@ -201,9 +206,10 @@ export async function uploadMedia(params: UploadMediaParams): Promise<{
       created_by: user.id,
       system: params.system ?? null,
       label: params.label ?? null,
+      signer_role: params.signerRole ?? null,
     })
     .select(
-      "id,building_id,visit_id,service_report_id,equipment_id,kind,storage_path,mime_type,size_bytes,captured_at,created_by,created_at,system,label"
+      "id,building_id,visit_id,service_report_id,equipment_id,kind,storage_path,mime_type,size_bytes,captured_at,created_by,created_at,system,label,signer_role"
     )
     .maybeSingle();
 
@@ -223,7 +229,7 @@ export async function listMedia(params: ListMediaParams): Promise<{
   let query = supabase
     .from("media")
     .select(
-      "id,building_id,visit_id,service_report_id,equipment_id,kind,storage_path,mime_type,size_bytes,captured_at,created_by,created_at,system,label"
+      "id,building_id,visit_id,service_report_id,equipment_id,kind,storage_path,mime_type,size_bytes,captured_at,created_by,created_at,system,label,signer_role"
     )
     .order("created_at", { ascending: false });
 

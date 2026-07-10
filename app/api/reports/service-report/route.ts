@@ -133,12 +133,12 @@ export async function GET(request: Request) {
     const signatureRows: Array<{
       storage_path: string;
       mime_type: string;
-      system: string | null;
+      signerRole: string | null;
     }> = [];
     if (allVisitIds.length > 0) {
       const { data: mediaRows } = await supabase
         .from("media")
-        .select("visit_id,storage_path,mime_type,size_bytes,kind,system")
+        .select("visit_id,storage_path,mime_type,size_bytes,kind,system,signer_role")
         .eq("building_id", effBuildingId)
         .in("visit_id", allVisitIds)
         .order("created_at", { ascending: true });
@@ -148,7 +148,9 @@ export async function GET(request: Request) {
           signatureRows.push({
             storage_path: row.storage_path,
             mime_type: row.mime_type,
-            system: row.system ?? null,
+            // Firmas viejas (o escritas por un deploy anterior a signer_role)
+            // llevan el rol en `system`. Se leen los dos formatos.
+            signerRole: row.signer_role ?? row.system ?? null,
           });
           return;
         }
@@ -230,10 +232,10 @@ export async function GET(request: Request) {
     const logoPath = path.join(process.cwd(), "public", "logosemco.png");
     const logoBytes = new Uint8Array(await readFile(logoPath));
 
-    // Firma más reciente por rol. Legacy (system null) = firma de cliente.
+    // Firma más reciente por rol. Legacy (rol nulo) = firma de cliente.
     const reversed = [...signatureRows].reverse();
-    const lastClientSig = reversed.find((s) => s.system !== "tecnico") ?? null;
-    const lastTechSig = reversed.find((s) => s.system === "tecnico") ?? null;
+    const lastClientSig = reversed.find((s) => s.signerRole !== "tecnico") ?? null;
+    const lastTechSig = reversed.find((s) => s.signerRole === "tecnico") ?? null;
     const signatureImage = lastClientSig
       ? await downloadImage(lastClientSig.storage_path, lastClientSig.mime_type)
       : null;
