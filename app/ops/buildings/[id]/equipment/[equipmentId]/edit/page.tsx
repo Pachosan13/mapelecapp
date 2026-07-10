@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { requireRole } from "@/lib/auth/requireRole";
 import { createClient } from "@/lib/supabase/server";
 import {
   MEDIA_BUCKET,
@@ -170,25 +171,20 @@ export default async function EditEquipmentPage({
   async function deleteEquipment(formData: FormData) {
     "use server";
 
+    await requireRole(["ops_manager", "director"]);
+
     const supabase = await createClient();
     const supabaseDb = supabase.schema("public");
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      redirect("/login");
-    }
 
     const id = String(formData.get("id") ?? "");
     const buildingId = String(formData.get("building_id") ?? "");
 
-    const { error } = await supabaseDb
+    const { data: deleted, error } = await supabaseDb
       .from("equipment")
       .delete()
       .eq("id", id)
-      .eq("building_id", buildingId);
+      .eq("building_id", buildingId)
+      .select("id");
 
     if (error) {
       // Las FK a equipment (fotos, respuestas) son ON DELETE SET NULL, así que
@@ -200,6 +196,16 @@ export default async function EditEquipmentPage({
       redirect(
         `/ops/buildings/${params.id}/equipment/${params.equipmentId}/edit?error=${encodeURIComponent(
           message
+        )}`
+      );
+    }
+
+    // Un DELETE negado por RLS no lanza error: devuelve cero filas. Sin este
+    // chequeo la redirección de éxito mentiría y el equipo seguiría ahí.
+    if (!deleted?.length) {
+      redirect(
+        `/ops/buildings/${params.id}/equipment/${params.equipmentId}/edit?error=${encodeURIComponent(
+          "No se pudo borrar el equipo: no existe o no tienes permiso."
         )}`
       );
     }
@@ -250,14 +256,9 @@ export default async function EditEquipmentPage({
   async function handleEquipmentMediaDelete(formData: FormData) {
     "use server";
 
+    await requireRole(["ops_manager", "director"]);
+
     const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-    if (authError || !user) {
-      redirect("/login");
-    }
 
     const base = `/ops/buildings/${params.id}/equipment/${params.equipmentId}/edit`;
     const mediaId = String(formData.get("media_id") ?? "");
@@ -275,14 +276,23 @@ export default async function EditEquipmentPage({
       redirect(`${base}?media_error=${encodeURIComponent("No se encontró la foto.")}`);
     }
 
-    await supabase.storage.from(MEDIA_BUCKET).remove([mediaRow.storage_path]);
-    const { error: deleteError } = await supabase
+    // La fila primero: es la que RLS protege. Si el objeto se borrara antes y el
+    // DELETE resultara negado, el archivo se perdería con la fila aún apuntándolo.
+    const { data: deleted, error: deleteError } = await supabase
       .from("media")
       .delete()
-      .eq("id", mediaId);
+      .eq("id", mediaId)
+      .select("id");
     if (deleteError) {
       redirect(`${base}?media_error=${encodeURIComponent(deleteError.message)}`);
     }
+    if (!deleted?.length) {
+      redirect(
+        `${base}?media_error=${encodeURIComponent("No tienes permiso para borrar esta foto.")}`
+      );
+    }
+
+    await supabase.storage.from(MEDIA_BUCKET).remove([mediaRow.storage_path]);
 
     redirect(`${base}?media_saved=1`);
   }

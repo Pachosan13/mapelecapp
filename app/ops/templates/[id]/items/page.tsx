@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { requireRole } from "@/lib/auth/requireRole";
 import { createClient } from "@/lib/supabase/server";
 
 type SearchParams = {
@@ -116,15 +117,9 @@ async function updateItem(formData: FormData) {
 async function deleteItem(formData: FormData) {
   "use server";
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  await requireRole(["ops_manager", "director"]);
 
-  if (authError || !user) {
-    redirect("/login");
-  }
+  const supabase = await createClient();
 
   const templateId = String(formData.get("template_id") ?? "");
   const itemId = String(formData.get("item_id") ?? "");
@@ -137,12 +132,25 @@ async function deleteItem(formData: FormData) {
     );
   }
 
-  const { error } = await supabase.from("template_items").delete().eq("id", itemId);
+  const { data: deleted, error } = await supabase
+    .from("template_items")
+    .delete()
+    .eq("id", itemId)
+    .select("id");
 
   if (error) {
     redirect(
       `/ops/templates/${templateId}/items?error=${encodeURIComponent(
         "No se pudo borrar el item."
+      )}`
+    );
+  }
+
+  // Un DELETE negado por RLS devuelve cero filas sin error.
+  if (!deleted?.length) {
+    redirect(
+      `/ops/templates/${templateId}/items?error=${encodeURIComponent(
+        "No se pudo borrar el item: no existe o no tienes permiso."
       )}`
     );
   }

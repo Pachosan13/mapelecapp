@@ -43,3 +43,6 @@ Clients/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# scratch del CLI de Supabase — no versionar
+supabase/.temp/
