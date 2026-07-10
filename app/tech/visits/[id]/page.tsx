@@ -33,6 +33,7 @@ type SearchParams = {
   saved?: string;
   media_error?: string;
   media_saved?: string;
+  signature_saved?: string;
 };
 
 type TemplateItem = Pick<
@@ -400,6 +401,16 @@ async function handleSignatureUpload(formData: FormData) {
     type: "image/png",
   });
 
+  // Una firma por rol y por visita: la nueva REEMPLAZA a la anterior.
+  // Antes se acumulaban (30 duplicados en prod al 10-jul) porque el pad no daba
+  // señal de guardado y el técnico volvía a firmar.
+  const { data: previas } = await supabase
+    .from("media")
+    .select("id,storage_path")
+    .eq("visit_id", visit.id)
+    .eq("kind", "signature")
+    .eq("signer_role", signerRole);
+
   const { error } = await uploadMedia({
     buildingId: visit.building_id,
     visitId: visit.id,
@@ -414,7 +425,19 @@ async function handleSignatureUpload(formData: FormData) {
     );
   }
 
-  redirect(`/tech/visits/${visitId}?media_saved=1`);
+  // Se borran DESPUÉS de que la nueva quedó guardada: si el borrado falla, hay
+  // una firma de más (recuperable), no ninguna.
+  if (previas?.length) {
+    await supabase
+      .from("media")
+      .delete()
+      .in("id", previas.map((p) => p.id));
+    await supabase.storage
+      .from(MEDIA_BUCKET)
+      .remove(previas.map((p) => p.storage_path));
+  }
+
+  redirect(`/tech/visits/${visitId}?signature_saved=1`);
 }
 
 async function handleMediaDelete(formData: FormData) {
@@ -637,6 +660,7 @@ export default async function TechVisitPage({
     normalizedStatus === "in_progress" || normalizedStatus === "completed";
   const isSaved = searchParams?.saved === "1";
   const isMediaSaved = searchParams?.media_saved === "1";
+  const isSignatureSaved = searchParams?.signature_saved === "1";
   const buildingName = buildingRow?.name ?? "Edificio";
   const templateName = templateMeta?.name ?? "Formulario";
 
@@ -696,6 +720,16 @@ export default async function TechVisitPage({
   // Las firmas de recibido se muestran aparte de la evidencia fotográfica.
   const mediaWithUrls = allMediaWithUrls.filter((m) => m.kind !== "signature");
   const signaturesWithUrls = allMediaWithUrls.filter((m) => m.kind === "signature");
+  const signedRoles = Array.from(
+    new Set(
+      signaturesWithUrls
+        .map((s) => s.signer_role)
+        .filter((r): r is SignerRole => r === "cliente" || r === "tecnico")
+    )
+  );
+  // Identidad de las firmas actuales. Al reemplazar una, cambia el id → cambia
+  // la clave → el pad se remonta limpio.
+  const signatureFormKey = signaturesWithUrls.map((s) => s.id).join("|") || "vacio";
 
   return (
     <div className="min-h-screen p-8">
@@ -731,6 +765,11 @@ export default async function TechVisitPage({
       {isMediaSaved ? (
         <div className="mb-4 rounded border border-green-200 bg-green-50 p-3 text-sm text-green-700">
           Evidencia guardada ✅
+        </div>
+      ) : null}
+      {isSignatureSaved ? (
+        <div className="mb-4 rounded border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+          Firma guardada ✅ — no hace falta firmar de nuevo.
         </div>
       ) : null}
 
@@ -1115,13 +1154,10 @@ export default async function TechVisitPage({
             {!isCompleted ? (
               <form action={handleSignatureUpload} className="space-y-3">
                 <input type="hidden" name="visit_id" value={visit.id} />
-                <SignaturePad />
-                <button
-                  type="submit"
-                  className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white"
-                >
-                  Guardar firma
-                </button>
+                {/* El `key` cambia cuando cambian las firmas guardadas → el pad
+                    se remonta y el lienzo queda limpio. Sin esto el trazo sigue
+                    dibujado tras guardar y el técnico cree que no se guardó. */}
+                <SignaturePad key={signatureFormKey} signedRoles={signedRoles} />
               </form>
             ) : null}
           </div>
