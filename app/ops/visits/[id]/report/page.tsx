@@ -1,13 +1,77 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth/requireRole";
 import { isRecorridoPorPisosItem } from "@/lib/reports/serviceReport";
 import {
   buildBuildingScope,
   isBombasTemplate,
   itemAppliesToBuilding,
 } from "@/lib/bombas/checklistFilter";
-import { createSignedMediaUrl, listMedia } from "@/lib/media/service";
+import {
+  MEDIA_BUCKET,
+  createSignedMediaUrl,
+  listMedia,
+} from "@/lib/media/service";
 import type { Database } from "@/lib/database.types";
+
+// Borrado de evidencia por el gerente: para quitar fotos duplicadas o de otro proyecto
+// ANTES de enviar el informe al cliente, sin depender de editar el PDF a mano.
+// RLS deja borrar media a ops_manager/director; aquí además exigimos ese rol.
+async function handleOpsMediaDelete(formData: FormData) {
+  "use server";
+
+  await requireRole(["ops_manager", "director"]);
+
+  const supabase = await createClient();
+  const visitId = String(formData.get("visit_id") ?? "");
+  const mediaId = String(formData.get("media_id") ?? "");
+  const reportHref = `/ops/visits/${visitId}/report`;
+  if (!visitId || !mediaId) {
+    redirect("/ops/visits");
+  }
+
+  const { data: mediaRow, error: readError } = await supabase
+    .from("media")
+    .select("id,visit_id,storage_path")
+    .eq("id", mediaId)
+    .eq("visit_id", visitId)
+    .maybeSingle();
+
+  if (readError || !mediaRow) {
+    redirect(
+      `${reportHref}?media_error=${encodeURIComponent(
+        "No se encontró la evidencia."
+      )}`
+    );
+  }
+
+  // La fila primero (RLS valida el permiso); si negara, no tocamos el archivo.
+  const { data: deleted, error: dbDeleteError } = await supabase
+    .from("media")
+    .delete()
+    .eq("id", mediaId)
+    .select("id");
+
+  if (dbDeleteError) {
+    redirect(
+      `${reportHref}?media_error=${encodeURIComponent(dbDeleteError.message)}`
+    );
+  }
+  if (!deleted?.length) {
+    redirect(
+      `${reportHref}?media_error=${encodeURIComponent(
+        "No tienes permiso para borrar esta evidencia."
+      )}`
+    );
+  }
+
+  await supabase.storage.from(MEDIA_BUCKET).remove([mediaRow!.storage_path]);
+
+  revalidatePath(reportHref);
+  redirect(`${reportHref}?media_deleted=1`);
+}
 
 type TemplateItem = Pick<
   Database["public"]["Tables"]["template_items"]["Row"],
@@ -118,8 +182,10 @@ const parseRecorridoRows = (value?: string | null): RecorridoRow[] | null => {
 
 export default async function OpsVisitReportPage({
   params,
+  searchParams,
 }: {
   params: { id: string };
+  searchParams?: { media_deleted?: string; media_error?: string };
 }) {
   const supabase = (await createClient()).schema("public");
 
@@ -280,7 +346,24 @@ export default async function OpsVisitReportPage({
       </div>
 
       <div className="mb-6 rounded border p-4">
-        <div className="mb-2 text-sm font-semibold text-gray-700">Evidencia</div>
+        <div className="mb-2 flex items-center justify-between">
+          <div className="text-sm font-semibold text-gray-700">Evidencia</div>
+          {mediaWithUrls.length > 0 ? (
+            <span className="text-xs text-gray-400">
+              Elimina fotos duplicadas o de otro proyecto antes de enviar al cliente
+            </span>
+          ) : null}
+        </div>
+        {searchParams?.media_deleted ? (
+          <div className="mb-3 rounded border border-green-100 bg-green-50/70 px-3 py-2 text-xs font-medium text-green-800">
+            Foto eliminada ✅
+          </div>
+        ) : null}
+        {searchParams?.media_error ? (
+          <div className="mb-3 rounded border border-red-100 bg-red-50/70 px-3 py-2 text-xs text-red-700">
+            {searchParams.media_error}
+          </div>
+        ) : null}
         {mediaWithUrls.length === 0 ? (
           <p className="text-sm text-gray-500">Sin evidencia para esta visita.</p>
         ) : (
@@ -294,20 +377,33 @@ export default async function OpsVisitReportPage({
                   <p className="truncate font-medium">{media.storage_path.split("/").pop()}</p>
                   <p className="text-xs text-gray-500">
                     {media.mime_type} · {(media.size_bytes / 1024 / 1024).toFixed(2)} MB
+                    {media.kind === "signature" ? " · firma" : ""}
                   </p>
                 </div>
-                {media.signed_url ? (
-                  <a
-                    href={media.signed_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded border px-3 py-1.5 text-xs"
-                  >
-                    Ver archivo
-                  </a>
-                ) : (
-                  <span className="text-xs text-gray-400">Sin enlace</span>
-                )}
+                <div className="flex items-center gap-2">
+                  {media.signed_url ? (
+                    <a
+                      href={media.signed_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded border px-3 py-1.5 text-xs"
+                    >
+                      Ver archivo
+                    </a>
+                  ) : (
+                    <span className="text-xs text-gray-400">Sin enlace</span>
+                  )}
+                  <form action={handleOpsMediaDelete}>
+                    <input type="hidden" name="visit_id" value={visit.id} />
+                    <input type="hidden" name="media_id" value={media.id} />
+                    <button
+                      type="submit"
+                      className="rounded border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+                    >
+                      Eliminar
+                    </button>
+                  </form>
+                </div>
               </li>
             ))}
           </ul>
