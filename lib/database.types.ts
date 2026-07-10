@@ -161,6 +161,7 @@ export type Database = {
           visit_id: string | null
           system: string | null
           label: string | null
+          signer_role: string | null
         }
         Insert: {
           building_id: string
@@ -177,6 +178,7 @@ export type Database = {
           visit_id?: string | null
           system?: string | null
           label?: string | null
+          signer_role?: string | null
         }
         Update: {
           building_id?: string
@@ -193,6 +195,7 @@ export type Database = {
           visit_id?: string | null
           system?: string | null
           label?: string | null
+          signer_role?: string | null
         }
         Relationships: [
           {
