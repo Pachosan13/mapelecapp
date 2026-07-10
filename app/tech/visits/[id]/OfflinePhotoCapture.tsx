@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   addPhoto,
@@ -37,6 +38,7 @@ export default function OfflinePhotoCapture({
   visitId: string;
   disabled?: boolean;
 }) {
+  const router = useRouter();
   const [system, setSystem] = useState("");
   const [photos, setPhotos] = useState<QueuedPhoto[]>([]);
   const urls = useRef<Map<string, string>>(new Map());
@@ -69,6 +71,7 @@ export default function OfflinePhotoCapture({
     if (flushing.current) return;
     if (typeof navigator !== "undefined" && navigator.onLine === false) return;
     flushing.current = true;
+    let uploaded = 0;
     try {
       const list = await listPhotos(visitId).catch(() => [] as QueuedPhoto[]);
       for (const p of list) {
@@ -80,6 +83,7 @@ export default function OfflinePhotoCapture({
           const res = await fetch("/api/tech/media", { method: "POST", body: fd });
           if (res.ok) {
             await removePhoto(p.id);
+            uploaded++;
           } else if (res.status >= 400 && res.status < 500 && res.status !== 408) {
             // Error de validación/permiso (no de red): quitar para no reintentar
             // en bucle una foto que el server nunca va a aceptar.
@@ -95,8 +99,13 @@ export default function OfflinePhotoCapture({
       flushing.current = false;
       await refresh();
       forceRerender((n) => n + 1);
+      // La lista "Evidencia subida" la pinta el server component al cargar la
+      // página. Sin esto, la foto sale de la cola local al subirse y no entra
+      // en esa lista hasta recargar: el técnico ve el hueco y cree que se
+      // perdió. Solo refrescamos si algo subió, para no recargar en cada tick.
+      if (uploaded > 0) router.refresh();
     }
-  }, [visitId, refresh]);
+  }, [visitId, refresh, router]);
 
   useEffect(() => {
     void refresh().then(() => void flush());
