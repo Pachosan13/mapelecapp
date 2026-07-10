@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { requireRole } from "@/lib/auth/requireRole";
 import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import { isCoreChecklistTemplateId } from "@/lib/constants/coreChecklist";
 import {
@@ -417,15 +418,9 @@ async function handleSignatureUpload(formData: FormData) {
 async function handleMediaDelete(formData: FormData) {
   "use server";
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  await requireRole(["tech"]);
 
-  if (authError || !user) {
-    redirect("/login");
-  }
+  const supabase = await createClient();
 
   const visitId = String(formData.get("visit_id") ?? "");
   const mediaId = String(formData.get("media_id") ?? "");
@@ -448,6 +443,32 @@ async function handleMediaDelete(formData: FormData) {
     );
   }
 
+  // La fila primero: RLS solo deja al tech borrar su propia foto. Si el objeto
+  // se borrara antes, la foto de un compañero se perdería del bucket aunque el
+  // DELETE de la fila resultara negado.
+  const { data: deleted, error: dbDeleteError } = await supabase
+    .from("media")
+    .delete()
+    .eq("id", mediaId)
+    .select("id");
+
+  if (dbDeleteError) {
+    redirect(
+      `/tech/visits/${visitId}?media_error=${encodeURIComponent(
+        dbDeleteError.message
+      )}`
+    );
+  }
+
+  // Cero filas = RLS negó el borrado (la foto la subió otro tech), sin error.
+  if (!deleted?.length) {
+    redirect(
+      `/tech/visits/${visitId}?media_error=${encodeURIComponent(
+        "Solo puedes borrar las fotos que tú subiste."
+      )}`
+    );
+  }
+
   const { error: storageDeleteError } = await supabase.storage
     .from(MEDIA_BUCKET)
     .remove([mediaRow.storage_path]);
@@ -456,19 +477,6 @@ async function handleMediaDelete(formData: FormData) {
     redirect(
       `/tech/visits/${visitId}?media_error=${encodeURIComponent(
         storageDeleteError.message
-      )}`
-    );
-  }
-
-  const { error: dbDeleteError } = await supabase
-    .from("media")
-    .delete()
-    .eq("id", mediaId);
-
-  if (dbDeleteError) {
-    redirect(
-      `/tech/visits/${visitId}?media_error=${encodeURIComponent(
-        dbDeleteError.message
       )}`
     );
   }

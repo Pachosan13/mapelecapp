@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { requireRole } from "@/lib/auth/requireRole";
 import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import { getBuildingById } from "@/lib/buildings/queries";
 import type { Database } from "@/lib/database.types";
@@ -83,20 +84,18 @@ async function updateBuilding(formData: FormData) {
 async function deleteBuilding(formData: FormData) {
   "use server";
 
+  await requireRole(["ops_manager", "director"]);
+
   const supabase = await createClient();
   const supabaseDb = supabase.schema("public");
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    redirect("/login");
-  }
 
   const id = String(formData.get("id") ?? "");
 
-  const { error } = await supabaseDb.from("buildings").delete().eq("id", id);
+  const { data: deleted, error } = await supabaseDb
+    .from("buildings")
+    .delete()
+    .eq("id", id)
+    .select("id");
 
   if (error) {
     // 23503 = foreign_key_violation. La única FK que bloquea borrar un edificio
@@ -107,6 +106,15 @@ async function deleteBuilding(formData: FormData) {
         : "No se pudo borrar el building.";
     redirect(
       `/ops/buildings/${id}/edit?error=${encodeURIComponent(message)}`
+    );
+  }
+
+  // Un DELETE negado por RLS devuelve cero filas sin error.
+  if (!deleted?.length) {
+    redirect(
+      `/ops/buildings/${id}/edit?error=${encodeURIComponent(
+        "No se pudo borrar el building: no existe o no tienes permiso."
+      )}`
     );
   }
 
