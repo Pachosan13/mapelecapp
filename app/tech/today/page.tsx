@@ -163,12 +163,15 @@ export default async function TechTodayPage({
                     {formatStatus(visit.status)}
                   </div>
                 </div>
-                <Link
+                {/* Navegación completa (no <Link>): fuerza un request de documento
+                    que el service worker cachea, así la visita abre incluso sin señal
+                    si el técnico ya la abrió antes online. */}
+                <a
                   href={`/tech/visits/${visit.id}`}
                   className="text-sm font-medium text-gray-700 hover:text-gray-900"
                 >
                   Abrir →
-                </Link>
+                </a>
               </div>
             ))}
           </div>

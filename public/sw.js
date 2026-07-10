@@ -13,7 +13,7 @@
  *    (Offline fallan y el outbox se encarga; nunca servimos una mutación desde caché.)
  */
 
-const VERSION = "semco-v1";
+const VERSION = "semco-v2";
 const STATIC_CACHE = `semco-static-${VERSION}`;
 const PAGES_CACHE = `semco-pages-${VERSION}`;
 const OFFLINE_URL = "/offline.html";
@@ -60,11 +60,23 @@ self.addEventListener("fetch", (event) => {
       (async () => {
         try {
           const fresh = await fetch(request);
-          const cache = await caches.open(PAGES_CACHE);
-          cache.put(request, fresh.clone());
+          // Solo cachear la página REAL: no rebotes a /login ni respuestas no-OK.
+          // Si cacheáramos el login, offline mostraríamos el login en vez de la visita.
+          const finalUrl = new URL(fresh.url || request.url, self.location.origin);
+          const cacheable =
+            fresh.ok &&
+            fresh.status === 200 &&
+            !fresh.redirected &&
+            finalUrl.pathname !== "/login";
+          if (cacheable) {
+            const cache = await caches.open(PAGES_CACHE);
+            cache.put(request, fresh.clone());
+          }
           return fresh;
         } catch {
-          const cached = await caches.match(request);
+          // ignoreVary: Next agrega cabeceras Vary (RSC, Next-Router-*) que harían
+          // fallar el match aunque la página SÍ esté cacheada. La ignoramos.
+          const cached = await caches.match(request, { ignoreVary: true });
           if (cached) return cached;
           const offline = await caches.match(OFFLINE_URL);
           return offline || Response.error();
@@ -87,7 +99,7 @@ self.addEventListener("fetch", (event) => {
   if (isStaticAsset) {
     event.respondWith(
       (async () => {
-        const cached = await caches.match(request);
+        const cached = await caches.match(request, { ignoreVary: true });
         if (cached) return cached;
         try {
           const fresh = await fetch(request);
@@ -105,4 +117,35 @@ self.addEventListener("fetch", (event) => {
   }
 
   // 3) Resto (RSC payloads, APIs GET, etc.): no interceptar → red directa.
+});
+
+// Precalentado de páginas: el cliente (online) nos pide guardar los documentos que el
+// técnico va a necesitar sin señal (la visita actual y /tech/today). Así, si sale del
+// app y vuelve a entrar en un sótano, la navegación cae a esta copia y puede continuar.
+self.addEventListener("message", (event) => {
+  const data = event.data;
+  if (!data || data.type !== "WARM_PAGES" || !Array.isArray(data.urls)) return;
+  event.waitUntil(
+    (async () => {
+      const cache = await caches.open(PAGES_CACHE);
+      await Promise.all(
+        data.urls.map(async (u) => {
+          try {
+            const res = await fetch(u, { credentials: "same-origin" });
+            const finalUrl = new URL(res.url || u, self.location.origin);
+            if (
+              res.ok &&
+              res.status === 200 &&
+              !res.redirected &&
+              finalUrl.pathname !== "/login"
+            ) {
+              await cache.put(new Request(u), res.clone());
+            }
+          } catch {
+            // sin señal o error: no pasa nada, se intentará de nuevo al reabrir online.
+          }
+        })
+      );
+    })()
+  );
 });

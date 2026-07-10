@@ -55,6 +55,18 @@
         Se subirán solas apenas recuperes señal. No pierdes nada.
       </p>
       <button onclick="location.reload()">Reintentar</button>
+      <button onclick="history.back()" style="background:#334155">
+        Volver a la visita
+      </button>
     </div>
+    <script>
+      // Recupera solo cuando vuelve la señal, sin que el técnico tenga que hacer nada.
+      window.addEventListener("online", function () {
+        location.reload();
+      });
+      setInterval(function () {
+        if (navigator.onLine) location.reload();
+      }, 4000);
+    </script>
   </body>
 </html>

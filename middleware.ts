@@ -54,9 +54,18 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  type AuthErrLike = { status?: number; name?: string; message?: string };
+  let user: Awaited<
+    ReturnType<typeof supabase.auth.getUser>
+  >["data"]["user"] = null;
+  let authError: AuthErrLike | null = null;
+  try {
+    const res = await supabase.auth.getUser();
+    user = res.data.user;
+    authError = res.error;
+  } catch (e) {
+    authError = e as AuthErrLike;
+  }
 
   const pathname = request.nextUrl.pathname;
   const isAuthenticated = !!user;
@@ -82,6 +91,24 @@ export async function middleware(request: NextRequest) {
 
   // Protected routes - require authentication
   if (!user) {
+    // Señal débil en campo (sótano/foso): getUser() valida el token contra el servidor
+    // de Auth por RED. Si esa llamada falla por conexión —no porque el token sea
+    // inválido— NO botamos al técnico al login mientras traiga su cookie de sesión.
+    // La página revalida server-side; una sesión de verdad expirada (401/400) sí cae.
+    const isNetworkError =
+      !!authError &&
+      (authError.status === undefined ||
+        authError.status >= 500 ||
+        /fetch|network|retry|timeout/i.test(
+          `${authError.name ?? ""} ${authError.message ?? ""}`
+        ));
+    const hasAuthCookie = request.cookies
+      .getAll()
+      .some((c) => /auth-token/.test(c.name));
+    if (isNetworkError && hasAuthCookie) {
+      return response;
+    }
+
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
     return NextResponse.redirect(redirectUrl);

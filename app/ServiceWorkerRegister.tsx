@@ -14,21 +14,51 @@ export default function ServiceWorkerRegister() {
     if (!("serviceWorker" in navigator)) return;
     if (process.env.NODE_ENV !== "production") return;
 
-    const register = () => {
-      navigator.serviceWorker.register("/sw.js").catch(() => {
-        // Registro fallido (p. ej. modo privado): la app sigue funcionando online.
-      });
+    // Precalentar en el SW los documentos que el técnico necesitará sin señal:
+    // la página actual y /tech/today (el arranque del PWA). Así, si sale del app y
+    // vuelve a entrar en un sótano, la navegación cae a la copia cacheada y continúa.
+    const warm = async () => {
+      try {
+        if (!navigator.onLine) return;
+        const path = window.location.pathname;
+        if (!path.startsWith("/tech") && !path.startsWith("/ops")) return;
+        const reg = await navigator.serviceWorker.ready;
+        const active = reg.active;
+        if (!active) return;
+        const urls = [window.location.pathname + window.location.search];
+        if (path.startsWith("/tech") && !urls.includes("/tech/today")) {
+          urls.push("/tech/today");
+        }
+        active.postMessage({ type: "WARM_PAGES", urls });
+      } catch {
+        // best-effort: si falla, la navegación network-first igual cachea al cargar.
+      }
     };
+
+    const register = () => {
+      navigator.serviceWorker
+        .register("/sw.js")
+        .then(() => warm())
+        .catch(() => {
+          // Registro fallido (p. ej. modo privado): la app sigue funcionando online.
+        });
+    };
+
+    // Reintentar el precalentado cuando vuelve la señal.
+    window.addEventListener("online", warm);
 
     // Si el 'load' YA ocurrió antes de montar este efecto, el listener nunca
     // dispararía → registrar de una. Si no, esperar al load para no competir
     // con la carga inicial.
     if (document.readyState === "complete") {
       register();
-      return;
+    } else {
+      window.addEventListener("load", register, { once: true });
     }
-    window.addEventListener("load", register, { once: true });
-    return () => window.removeEventListener("load", register);
+    return () => {
+      window.removeEventListener("load", register);
+      window.removeEventListener("online", warm);
+    };
   }, []);
 
   return null;
