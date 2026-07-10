@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import EquipmentForm from "@/components/EquipmentForm";
+import { buildSpecs, equipmentTypeFor } from "@/lib/equipment/specs";
 
 type SearchParams = {
   error?: string;
@@ -73,34 +74,8 @@ export default async function TechNewEquipmentPage({
       redirect(q(`error=${encodeURIComponent("Nombre, sistema y tipo son requeridos.")}`));
     }
 
-    const numOf = (k: string): number | null => {
-      const raw = formData.get(k);
-      if (raw == null || String(raw).trim() === "") return null;
-      const n = Number(raw);
-      return Number.isNaN(n) ? null : n;
-    };
-    const specs: Record<string, number | string> = {};
-    const put = (k: string, v: number | string | null) => {
-      if (v != null) specs[k] = v;
-    };
-    if (kind === "bomba") {
-      put("hp", numOf("hp"));
-      put("voltage", numOf("voltage"));
-      put("pressure_psi", numOf("pressure_psi"));
-      put("flow_gpm", numOf("flow_gpm"));
-    } else if (kind === "panel_control") {
-      const st = String(formData.get("starter_type") ?? "").trim();
-      if (st) specs.starter_type = st;
-      put("power", numOf("power"));
-      put("voltage", numOf("voltage"));
-    } else if (kind === "generador") {
-      put("kva", numOf("kva"));
-      put("kw", numOf("kw"));
-      put("current_a", numOf("current_a"));
-      put("voltage", numOf("voltage"));
-    }
-
-    const equipmentType = system === "contra_incendios" ? "fire" : "pump";
+    const specs = buildSpecs(formData, kind);
+    const equipmentType = equipmentTypeFor(system);
 
     // Los equipos nuevos entran al FINAL del inventario del edificio (max+10).
     const { data: lastRow } = await supabaseDb

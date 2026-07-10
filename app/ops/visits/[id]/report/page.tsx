@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { isRecorridoPorPisosItem } from "@/lib/reports/serviceReport";
+import {
+  buildBuildingScope,
+  isBombasTemplate,
+  itemAppliesToBuilding,
+} from "@/lib/bombas/checklistFilter";
 import { createSignedMediaUrl, listMedia } from "@/lib/media/service";
 import type { Database } from "@/lib/database.types";
 
@@ -138,7 +143,7 @@ export default async function OpsVisitReportPage({
     );
   }
 
-  const { data: templateItems } =
+  const { data: allTemplateItems } =
     visit.template_id
       ? await supabase
           .from("template_items")
@@ -146,6 +151,34 @@ export default async function OpsVisitReportPage({
           .eq("template_id", visit.template_id)
           .order("sort_order", { ascending: true })
       : { data: [] };
+
+  const { data: templateMeta } = visit.template_id
+    ? await supabase
+        .from("visit_templates")
+        .select("name,category")
+        .eq("id", visit.template_id)
+        .maybeSingle()
+    : { data: null };
+
+  // Mismo filtro que ve el técnico y que sale en el PDF: el gerente no debe leer una pared
+  // de "—" de secciones que el edificio no tiene (Jockey, Tablero, Planta…).
+  // Sin equipos precargados → no se filtra.
+  const { data: buildingEquipmentRows } = visit.building_id
+    ? await supabase
+        .from("equipment")
+        .select("name,system,kind")
+        .eq("building_id", visit.building_id)
+        .eq("is_active", true)
+    : { data: [] };
+  const buildingScope = buildBuildingScope(buildingEquipmentRows ?? []);
+  const applyBuildingFilter =
+    isBombasTemplate(templateMeta?.name, templateMeta?.category) &&
+    buildingScope.systems.size > 0;
+  const templateItems = applyBuildingFilter
+    ? (allTemplateItems ?? []).filter((item) =>
+        itemAppliesToBuilding(String(item.label ?? ""), buildingScope)
+      )
+    : allTemplateItems ?? [];
 
   const { data: responses } = await supabase
     .from("visit_responses")
@@ -180,10 +213,18 @@ export default async function OpsVisitReportPage({
     }
   });
 
-  const buildingName = "Building";
-  const templateName = visit.template_id
-    ? `Template ${visit.template_id.slice(0, 8)}`
-    : "Formulario";
+  const { data: buildingRow } = visit.building_id
+    ? await supabase
+        .from("buildings")
+        .select("name")
+        .eq("id", visit.building_id)
+        .maybeSingle()
+    : { data: null };
+
+  const buildingName = buildingRow?.name?.trim() || "Building";
+  const templateName =
+    templateMeta?.name?.trim() ||
+    (visit.template_id ? `Template ${visit.template_id.slice(0, 8)}` : "Formulario");
   const buildingHref = visit.building_id
     ? `/ops/buildings/${visit.building_id}/history`
     : "/ops/buildings";

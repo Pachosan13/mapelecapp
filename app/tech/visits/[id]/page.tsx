@@ -7,6 +7,8 @@ import {
   groupOf,
   buildBuildingScope,
   itemAppliesToBuilding,
+  isBombasTemplate,
+  EMPTY_SCOPE,
   type BuildingScope,
 } from "@/lib/bombas/checklistFilter";
 import {
@@ -47,19 +49,6 @@ type VisitLatestResponse = Pick<
 
 const isRecorridoPorPisosLabel = (label?: string | null) =>
   (label ?? "").trim().toLowerCase().startsWith("recorrido por pisos");
-
-const isBombasTemplate = (
-  templateName?: string | null,
-  templateCategory?: string | null
-) => {
-  const normalizedName = (templateName ?? "").trim().toLowerCase();
-  const normalizedCategory = (templateCategory ?? "").trim().toLowerCase();
-  return (
-    normalizedName === "mantenimiento – bombas" ||
-    normalizedName === "mantenimiento - bombas" ||
-    normalizedCategory === "bombas"
-  );
-};
 
 // Presurización de escaleras usa el mismo estilo de checklist (Aprobado/Falla/N/A)
 // pero sin la lista de equipos de bombeo.
@@ -158,11 +147,11 @@ async function handleResponses(formData: FormData) {
   // para descartar los ítems de secciones/unidades que no aplican: no se validan ni se
   // guardan, así el técnico no queda trancado por secciones ocultas y el PDF (que se arma
   // de las respuestas) las omite solo. Fallback: sin equipos precargados → no se filtra.
-  let buildingScope: BuildingScope = { systems: new Set(), pumpCounts: new Map() };
+  let buildingScope: BuildingScope = EMPTY_SCOPE;
   if (visit.building_id) {
     const { data: buildingEquipmentRows } = await supabase
       .from("equipment")
-      .select("system,kind")
+      .select("name,system,kind")
       .eq("building_id", visit.building_id)
       .eq("is_active", true);
     buildingScope = buildBuildingScope(buildingEquipmentRows ?? []);
@@ -980,6 +969,10 @@ export default async function TechVisitPage({
                   <div className="flex items-center gap-2">
                     <input
                       type="number"
+                      // Voltajes, amperajes y presiones se miden con decimales (208.5 V,
+                      // 12.3 A). Sin step="any" el navegador rechaza la coma decimal.
+                      step="any"
+                      inputMode="decimal"
                       name={fieldName}
                       defaultValue={
                         response?.value_number !== null &&

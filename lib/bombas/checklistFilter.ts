@@ -1,22 +1,58 @@
 // Filtro dinámico del checklist de bombas por edificio (feedback William 1-jul / ONIX 5-jul).
 // El formato de bombas debe reflejar el inventario REAL del edificio, no una plantilla fija.
-// Se apoya en la precarga de equipos (tabla `equipment`, columnas `system` y `kind`):
+// Se apoya en la precarga de equipos (tabla `equipment`, columnas `name`, `system`, `kind`):
 //   - Bombas principales y reforzadoras → una unidad "Bomba N" por cada bomba (kind='bomba')
 //     del sistema; se ocultan las unidades sobrantes de la plantilla.
 //   - Bombas sumergibles → solo los SUBTIPOS (Foso elevador / Sistema pluvial / Sistema
 //     sanitario / freático) cuyo sistema esté precargado.
-//   - Grupos gatillados por presencia de sistema (Jockey, contra incendio, planta).
-//   - Grupos generales/administrativos (Datos generales, Tablero, Entrega) → SIEMPRE.
+//   - Grupos gatillados por la EXISTENCIA del equipo (Tablero, Jockey, contra incendio, planta).
+//   - Grupos generales/administrativos (Datos generales, Entrega) → SIEMPRE.
 //
 // ⚠️ Fuente ÚNICA de la lógica: la usan el render + el guardado (app/tech/visits/[id]/page.tsx)
 // Y el PDF (lib/reports/serviceReport.ts). No duplicar; editar solo aquí.
 
-// Grupos que solo se muestran si el edificio tiene AL MENOS un equipo de esos sistemas
-// (sin conteo por unidad). Los grupos por-unidad se resuelven aparte en itemAppliesToBuilding.
-const GROUP_TO_SYSTEMS: Record<string, string[]> = {
-  "Bomba Jockey": ["contra_incendios"],
-  "Bomba contra incendio": ["contra_incendios"],
-  "Planta electrica": ["planta_diesel"],
+// Fila mínima de `equipment` que el filtro necesita. `name` es obligatorio: sin él no se
+// distingue una bomba jockey de una bomba normal, ni se detecta un panel mal tipado.
+// Si un consumidor no lo trae en su `select`, TypeScript lo rechaza aquí.
+export type EquipmentRow = {
+  name: string | null;
+  system: string | null;
+  kind?: string | null;
+};
+
+// ¿Es la plantilla "Mantenimiento – Bombas"? Único lugar donde se decide: lo consultan el
+// render del técnico, el PDF y el reporte de ops. Antes vivía duplicado en cada uno.
+export const isBombasTemplate = (
+  templateName?: string | null,
+  templateCategory?: string | null
+) => {
+  const name = (templateName ?? "").trim().toLowerCase();
+  const category = (templateCategory ?? "").trim().toLowerCase();
+  return (
+    name === "mantenimiento – bombas" || // guion largo
+    name === "mantenimiento - bombas" || // guion corto
+    category === "bombas"
+  );
+};
+
+export type EquipmentClass = "panel" | "jockey" | "generador" | "bomba";
+
+/**
+ * Clasifica un equipo para decidir qué grupos del checklist activa.
+ *
+ * `kind` es la fuente de verdad, pero el inventario trae paneles guardados como
+ * kind='bomba' (ej. "Panel de Control de Bomba Contra Incendios" en Evergreen Torre A).
+ * Contarlos como bombas infla las unidades y activa grupos que el edificio no tiene,
+ * así que un nombre que empieza por "Panel" gana sobre un kind dudoso.
+ *
+ * El orden importa: "Panel de Control de la Bomba Jockey" es un panel, no una jockey.
+ */
+export const classifyEquipment = (row: EquipmentRow): EquipmentClass => {
+  const name = (row.name ?? "").trim();
+  if (row.kind === "generador") return "generador";
+  if (row.kind === "panel_control" || /^panel\b/i.test(name)) return "panel";
+  if (/\bjockey\b/i.test(name)) return "jockey";
+  return "bomba";
 };
 
 // Subtipo de sumergible (2º segmento del label) → sistema que lo activa. Ej.:
@@ -54,30 +90,72 @@ const reforzadoraUnitOf = (groupName: string) => {
   return m ? Number(m[1]) : null;
 };
 
-// Alcance del edificio derivado de la precarga: sistemas presentes + nº de BOMBAS
-// (kind='bomba', excluye paneles/generadores) por sistema.
+// Alcance del edificio derivado de la precarga: sistemas presentes, nº de BOMBAS reales por
+// sistema (excluye paneles, jockeys y generadores) y presencia de cada equipo gatillo.
 export type BuildingScope = {
   systems: Set<string>;
   pumpCounts: Map<string, number>;
+  hasPanel: boolean;
+  hasJockey: boolean;
+  hasFirePump: boolean;
+  hasGenerator: boolean;
 };
 
-export const buildBuildingScope = (
-  rows: Array<{ system: string | null; kind?: string | null }>
-): BuildingScope => {
+// Alcance vacío = "no filtrar". Los consumidores lo usan en vez de construirlo a mano,
+// así agregar un campo a BuildingScope no obliga a tocar cada call site.
+export const EMPTY_SCOPE: BuildingScope = {
+  systems: new Set(),
+  pumpCounts: new Map(),
+  hasPanel: false,
+  hasJockey: false,
+  hasFirePump: false,
+  hasGenerator: false,
+};
+
+export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
   const systems = new Set<string>();
   const pumpCounts = new Map<string, number>();
+  let hasPanel = false;
+  let hasJockey = false;
+  let hasFirePump = false;
+  let hasGenerator = false;
+
   for (const r of rows) {
     if (!r.system) continue;
     systems.add(r.system);
-    if (r.kind === "bomba") {
-      pumpCounts.set(r.system, (pumpCounts.get(r.system) ?? 0) + 1);
+
+    switch (classifyEquipment(r)) {
+      case "panel":
+        hasPanel = true;
+        break;
+      case "jockey":
+        hasJockey = true;
+        break;
+      case "generador":
+        hasGenerator = true;
+        break;
+      case "bomba":
+        pumpCounts.set(r.system, (pumpCounts.get(r.system) ?? 0) + 1);
+        if (r.system === "contra_incendios") hasFirePump = true;
+        break;
     }
   }
-  return { systems, pumpCounts };
+
+  return { systems, pumpCounts, hasPanel, hasJockey, hasFirePump, hasGenerator };
+};
+
+// Grupos que dependen de que el edificio TENGA ese equipo, no de que tenga el sistema.
+// Un edificio con bomba contra incendios no normada (sin panel, sin jockey) ya no arrastra
+// las secciones de Tablero ni de Jockey. — pregunta de William, 10-jul.
+const GROUP_TO_REQUIREMENT: Record<string, (s: BuildingScope) => boolean> = {
+  Tablero: (s) => s.hasPanel,
+  "Bomba Jockey": (s) => s.hasJockey,
+  "Bomba contra incendio": (s) => s.hasFirePump,
+  "Planta electrica": (s) => s.hasGenerator,
 };
 
 // ¿Este ítem aplica al edificio? Combina conteo por unidad (principales/reforzadoras),
-// filtro por subtipo (sumergibles) y presencia de sistema (resto). Debe usarse igual en el
+// filtro por subtipo (sumergibles) y presencia del equipo (resto). Debe usarse igual en el
 // render, el guardado y el PDF para que no se desincronicen.
 export const itemAppliesToBuilding = (label: string, scope: BuildingScope) => {
   const group = groupOf(label);
@@ -111,8 +189,7 @@ export const itemAppliesToBuilding = (label: string, scope: BuildingScope) => {
     return Number(unitMatch[1]) <= (scope.pumpCounts.get(sys) ?? 0);
   }
 
-  // Resto: general/administrativo → siempre; gatillado por sistema → presencia del sistema.
-  const systems = GROUP_TO_SYSTEMS[group];
-  if (!systems) return true;
-  return systems.some((s) => scope.systems.has(s));
+  // Resto: gatillado por equipo → presencia real; general/administrativo → siempre.
+  const requirement = GROUP_TO_REQUIREMENT[group];
+  return requirement ? requirement(scope) : true;
 };

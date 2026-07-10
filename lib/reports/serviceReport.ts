@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getPanamaDayRange } from "@/lib/dates/panama";
 import {
   buildBuildingScope,
+  isBombasTemplate,
   itemAppliesToBuilding,
 } from "@/lib/bombas/checklistFilter";
 
@@ -332,21 +333,19 @@ export async function getServiceReportData(params: {
   );
 
   // Alcance del edificio para filtrar el checklist de bombas en el PDF IGUAL que en la app:
-  // se ocultan las secciones/unidades que el edificio no tiene (foso elevador, reforzadora/
-  // principal inexistente, etc.). Sin equipos precargados → no se filtra (se muestra todo).
+  // se ocultan las secciones que el edificio no tiene (foso elevador, reforzadora/principal
+  // inexistente, Tablero sin panel, Jockey sin jockey, etc.). `name` es obligatorio: distingue
+  // la jockey y detecta paneles mal tipados. Sin equipos precargados → no se filtra.
   const { data: buildingEquipmentRows } = await supabase
     .from("equipment")
-    .select("system,kind")
+    .select("name,system,kind")
     .eq("building_id", buildingId)
     .eq("is_active", true);
   const buildingScope = buildBuildingScope(buildingEquipmentRows ?? []);
   const applyBombasFilter = buildingScope.systems.size > 0;
   const bombasTemplateIds = new Set(
     visits
-      .filter((visit) => {
-        const n = (visit.template?.name ?? "").trim().toLowerCase();
-        return n === "mantenimiento – bombas" || n === "mantenimiento - bombas";
-      })
+      .filter((visit) => isBombasTemplate(visit.template?.name))
       .map((visit) => visit.template_id)
       .filter(Boolean) as string[]
   );

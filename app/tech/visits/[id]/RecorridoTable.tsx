@@ -250,6 +250,8 @@
                  <td className="px-3 py-2">
                    <input
                      type="number"
+                     step="any"
+                     inputMode="decimal"
                      value={row.presion_entrada}
                      onChange={(event) =>
                        updateRow(index, { presion_entrada: event.target.value })
@@ -261,6 +263,8 @@
                  <td className="px-3 py-2">
                    <input
                      type="number"
+                     step="any"
+                     inputMode="decimal"
                      value={row.presion_salida}
                      onChange={(event) =>
                        updateRow(index, { presion_salida: event.target.value })

@@ -8,20 +8,12 @@ import {
   listMedia,
   uploadMedia,
 } from "@/lib/media/service";
-import type { Database } from "@/lib/database.types";
+import { buildSpecs, equipmentTypeFor } from "@/lib/equipment/specs";
+import EquipmentForm from "@/components/EquipmentForm";
 import DeleteEquipmentButton from "./DeleteEquipmentButton";
 import EquipmentPhotoUpload from "./EquipmentPhotoUpload";
 
 export const dynamic = "force-dynamic";
-
-type Category = Database["public"]["Tables"]["equipment"]["Row"]["equipment_type"];
-
-const EQUIPMENT_TYPE_OPTIONS = [
-  { value: "pump", label: "Bombas" },
-  { value: "fire", label: "Incendio" },
-];
-
-const ALLOWED_CATEGORY_SET = new Set<string>(["pump", "fire"]);
 
 // Etiqueta por foto — clasifica la evidencia DENTRO del equipo (placa vs vista vs daño).
 const PHOTO_LABEL_OPTIONS = [
@@ -34,10 +26,6 @@ const PHOTO_LABEL_MAP: Record<string, string> = {
   vista_general: "Vista general",
   detalle: "Detalle/daño",
 };
-
-function toCategory(value: string): Category | undefined {
-  return ALLOWED_CATEGORY_SET.has(value) ? (value as Category) : undefined;
-}
 
 type SearchParams = {
   error?: string;
@@ -59,7 +47,7 @@ export default async function EditEquipmentPage({
   const { data: equipmentData, error: equipmentError } = await supabaseDb
     .from("equipment")
     .select(
-      "id,building_id,name,equipment_type,is_active,manufacturer,model,serial,location,tag,notes"
+      "id,building_id,name,equipment_type,system,kind,specs,is_active,manufacturer,model,serial,location,tag,notes"
     )
     .eq("id", params.equipmentId)
     .eq("building_id", params.id)
@@ -118,8 +106,8 @@ export default async function EditEquipmentPage({
     const id = String(formData.get("id") ?? "");
     const buildingId = String(formData.get("building_id") ?? "");
     const name = String(formData.get("name") ?? "").trim();
-    const equipmentType = String(formData.get("equipment_type") ?? "").trim();
-    const equipmentTypeTyped = toCategory(equipmentType);
+    const system = String(formData.get("system") ?? "").trim();
+    const kind = String(formData.get("kind") ?? "").trim();
     const manufacturer = String(formData.get("manufacturer") ?? "").trim();
     const model = String(formData.get("model") ?? "").trim();
     const serial = String(formData.get("serial") ?? "").trim();
@@ -128,19 +116,26 @@ export default async function EditEquipmentPage({
     const notes = String(formData.get("notes") ?? "").trim();
     const isActive = formData.get("is_active") === "on";
 
-    if (!id || !buildingId || !name || !equipmentTypeTyped) {
+    if (!id || !buildingId || !name || !system || !kind) {
       redirect(
         `/ops/buildings/${params.id}/equipment/${params.equipmentId}/edit?error=${encodeURIComponent(
-          "Nombre y tipo son requeridos."
+          "Nombre, sistema y tipo son requeridos."
         )}`
       );
     }
+
+    // specs se reemplaza, no se mezcla: al cambiar el tipo, los datos de placa
+    // del tipo viejo (ej. GPM de una bomba) no aplican al nuevo.
+    const specs = buildSpecs(formData, kind);
 
     const { error } = await supabaseDb
       .from("equipment")
       .update({
         name,
-        equipment_type: equipmentTypeTyped,
+        equipment_type: equipmentTypeFor(system),
+        system,
+        kind,
+        specs,
         manufacturer: manufacturer || null,
         model: model || null,
         serial: serial || null,
@@ -334,105 +329,26 @@ export default async function EditEquipmentPage({
         </div>
       ) : null}
 
-      <form action={updateEquipment} className="max-w-xl space-y-4">
-        <input type="hidden" name="id" value={equipment.id} />
-        <input type="hidden" name="building_id" value={building.id} />
-        <div>
-          <label className="mb-1 block text-sm font-medium">Name</label>
-          <input
-            type="text"
-            name="name"
-            required
-            defaultValue={equipment.name}
-            className="w-full rounded border px-3 py-2"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Tipo</label>
-          <select
-            name="equipment_type"
-            required
-            defaultValue={equipment.equipment_type}
-            className="w-full rounded border px-3 py-2"
-          >
-            <option value="">Selecciona un tipo</option>
-            {EQUIPMENT_TYPE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Marca</label>
-          <input
-            type="text"
-            name="manufacturer"
-            defaultValue={equipment.manufacturer ?? ""}
-            className="w-full rounded border px-3 py-2"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Modelo</label>
-          <input
-            type="text"
-            name="model"
-            defaultValue={equipment.model ?? ""}
-            className="w-full rounded border px-3 py-2"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Serial</label>
-          <input
-            type="text"
-            name="serial"
-            defaultValue={equipment.serial ?? ""}
-            className="w-full rounded border px-3 py-2"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Ubicación</label>
-          <input
-            type="text"
-            name="location"
-            defaultValue={equipment.location ?? ""}
-            className="w-full rounded border px-3 py-2"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Etiqueta</label>
-          <input
-            type="text"
-            name="tag"
-            defaultValue={equipment.tag ?? ""}
-            className="w-full rounded border px-3 py-2"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Notes</label>
-          <textarea
-            name="notes"
-            rows={3}
-            defaultValue={equipment.notes ?? ""}
-            className="w-full rounded border px-3 py-2"
-          />
-        </div>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" name="is_active" defaultChecked={equipment.is_active} />
-          <span>Activo</span>
-        </label>
-        <div className="flex gap-3">
-          <button type="submit" className="rounded bg-black px-4 py-2 text-white">
-            Guardar
-          </button>
-          <Link
-            href={`/ops/buildings/${building.id}/equipment`}
-            className="rounded border px-4 py-2 text-gray-700"
-          >
-            Cancelar
-          </Link>
-        </div>
-      </form>
+      <EquipmentForm
+        buildingId={building.id}
+        equipmentId={equipment.id}
+        action={updateEquipment}
+        cancelHref={`/ops/buildings/${building.id}/equipment`}
+        submitLabel="Guardar cambios"
+        defaults={{
+          name: equipment.name,
+          system: equipment.system ?? "",
+          kind: equipment.kind ?? "",
+          manufacturer: equipment.manufacturer ?? "",
+          model: equipment.model ?? "",
+          serial: equipment.serial ?? "",
+          location: equipment.location ?? "",
+          tag: equipment.tag ?? "",
+          notes: equipment.notes ?? "",
+          isActive: equipment.is_active,
+          specs: (equipment.specs ?? {}) as Record<string, unknown>,
+        }}
+      />
 
       {/* Eliminar equipo — feedback William (6-jul): borrar un equipo mal agregado */}
       <div className="mt-8 max-w-xl border-t border-red-200 pt-6">

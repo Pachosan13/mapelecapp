@@ -6,6 +6,9 @@
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
+    // Los tests corren con el runner nativo de Node (`npm test`), que exige la
+    // extensión .ts explícita en los imports. Seguro aquí porque noEmit está activo.
+    "allowImportingTsExtensions": true,
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",
