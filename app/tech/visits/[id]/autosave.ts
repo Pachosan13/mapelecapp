@@ -58,9 +58,15 @@ export async function autosaveResponse(
     value_bool:
       payload.valueBool === undefined ? null : payload.valueBool,
     created_by: user.id,
+    // Token determinístico por (visita, ítem): reintentar el mismo campo con señal
+    // débil cae SIEMPRE en la misma fila (upsert), en vez de duplicar. Un cambio de
+    // valor del mismo campo actualiza esa fila. Resultado: una fila por campo.
+    client_token: `${payload.visitId}:${payload.itemId}`,
   };
 
-  const { error } = await supabase.from("visit_responses").insert(row);
+  const { error } = await supabase
+    .from("visit_responses")
+    .upsert(row, { onConflict: "client_token" });
   if (error) return { ok: false, error: error.message };
   return { ok: true, at: new Date().toISOString() };
 }

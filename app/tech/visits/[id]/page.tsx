@@ -256,7 +256,15 @@ async function handleResponses(formData: FormData) {
   }
 
   if (action === "save" || action === "complete") {
-    const { error: insertError } = await supabase.from("visit_responses").insert(responses);
+    // Mismo token determinístico que el autosave: "Guardar"/"Completar" caen en la
+    // misma fila por campo (upsert), sin duplicar respuestas ya guardadas.
+    const tokenedResponses = responses.map((r) => ({
+      ...r,
+      client_token: `${r.visit_id}:${r.item_id}`,
+    }));
+    const { error: insertError } = await supabase
+      .from("visit_responses")
+      .upsert(tokenedResponses, { onConflict: "client_token" });
 
     if (insertError) {
       console.error(insertError);
