@@ -35,6 +35,18 @@ export const isBombasTemplate = (
   );
 };
 
+// Sistemas de bomba contra incendios. Una bomba no normada se inspecciona igual que
+// una normada (voltajes, presiones); lo que cambia es la clasificación/etiqueta, no
+// el mantenimiento base. Los ítems de panel/jockey ya se filtran por su cuenta.
+// Fuente ÚNICA — la usan el filtro del checklist y equipmentTypeFor (equipment_type=fire).
+export const FIRE_SYSTEMS = new Set<string>([
+  "contra_incendios",
+  "contra_incendios_no_normada",
+]);
+
+export const isFireSystem = (system: string | null | undefined): boolean =>
+  system != null && FIRE_SYSTEMS.has(system);
+
 export type EquipmentClass = "panel" | "jockey" | "generador" | "bomba";
 
 /**
@@ -97,7 +109,8 @@ export type BuildingScope = {
   pumpCounts: Map<string, number>;
   hasPanel: boolean;
   hasJockey: boolean;
-  hasFirePump: boolean;
+  hasFirePump: boolean; // bomba contra incendios NORMADA (NFPA)
+  hasFireNoNormada: boolean; // bomba contra incendios NO normada (checklist propio)
   hasGenerator: boolean;
 };
 
@@ -109,6 +122,7 @@ export const EMPTY_SCOPE: BuildingScope = {
   hasPanel: false,
   hasJockey: false,
   hasFirePump: false,
+  hasFireNoNormada: false,
   hasGenerator: false,
 };
 
@@ -118,6 +132,7 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
   let hasPanel = false;
   let hasJockey = false;
   let hasFirePump = false;
+  let hasFireNoNormada = false;
   let hasGenerator = false;
 
   for (const r of rows) {
@@ -136,12 +151,22 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
         break;
       case "bomba":
         pumpCounts.set(r.system, (pumpCounts.get(r.system) ?? 0) + 1);
+        // Normada y no normada tienen secciones de checklist distintas.
         if (r.system === "contra_incendios") hasFirePump = true;
+        if (r.system === "contra_incendios_no_normada") hasFireNoNormada = true;
         break;
     }
   }
 
-  return { systems, pumpCounts, hasPanel, hasJockey, hasFirePump, hasGenerator };
+  return {
+    systems,
+    pumpCounts,
+    hasPanel,
+    hasJockey,
+    hasFirePump,
+    hasFireNoNormada,
+    hasGenerator,
+  };
 };
 
 // Grupos que dependen de que el edificio TENGA ese equipo, no de que tenga el sistema.
@@ -151,6 +176,7 @@ const GROUP_TO_REQUIREMENT: Record<string, (s: BuildingScope) => boolean> = {
   Tablero: (s) => s.hasPanel,
   "Bomba Jockey": (s) => s.hasJockey,
   "Bomba contra incendio": (s) => s.hasFirePump,
+  "Bomba contra incendio (no normada)": (s) => s.hasFireNoNormada,
   "Planta electrica": (s) => s.hasGenerator,
 };
 

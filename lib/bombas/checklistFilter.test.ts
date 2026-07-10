@@ -125,6 +125,36 @@ describe("grupo Bomba contra incendio", () => {
   });
 });
 
+describe("bomba contra incendios NO normada", () => {
+  const seccionPropia = "Bomba contra incendio (no normada) - Voltaje";
+  const seccionNFPA = "Bomba contra incendio - Voltaje L1-L2";
+  const tablero = "Tablero - Luces piloto ok";
+  const jockey = "Bomba Jockey - Presión de arranque";
+  const rowNoNormada = [bomba("Bomba CI sin norma", "contra_incendios_no_normada")];
+
+  it("activa su sección propia (checklist tipo reforzadora sin tanque)", () => {
+    assert.equal(applies(seccionPropia, rowNoNormada), true);
+  });
+
+  it("NO activa la sección NFPA (tiene otro protocolo)", () => {
+    assert.equal(applies(seccionNFPA, rowNoNormada), false);
+  });
+
+  it("una bomba NORMADA no activa la sección de la no normada, y viceversa", () => {
+    const normada = [bomba("Bomba CI", "contra_incendios")];
+    assert.equal(applies(seccionPropia, normada), false);
+    assert.equal(applies(seccionNFPA, normada), true);
+  });
+
+  it("sin panel no arrastra Tablero (el caso exacto de William)", () => {
+    assert.equal(applies(tablero, rowNoNormada), false);
+  });
+
+  it("sin jockey no arrastra la sección Jockey", () => {
+    assert.equal(applies(jockey, rowNoNormada), false);
+  });
+});
+
 describe("grupo Planta electrica", () => {
   const label = "Planta electrica - Baterias ok";
 

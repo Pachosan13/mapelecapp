@@ -659,6 +659,7 @@ export default async function TechVisitPage({
     transferencia_agua_potable: "Transferencia agua potable",
     reforzador_agua_potable: "Reforzador agua potable",
     contra_incendios: "Contra incendios (NFPA)",
+    contra_incendios_no_normada: "Contra incendios (no normada)",
     achique_freatico: "Achique freático",
     achique_elevador: "Achique elevador",
     achique_pluvial: "Achique pluvial",

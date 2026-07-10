@@ -1,4 +1,5 @@
 import type { Database } from "@/lib/database.types";
+import { isFireSystem } from "../bombas/checklistFilter.ts";
 
 type Category = Database["public"]["Tables"]["equipment"]["Row"]["equipment_type"];
 
@@ -39,7 +40,7 @@ export function buildSpecs(formData: FormData, kind: string): Record<string, num
   return specs;
 }
 
-/** equipment_type legacy: "fire" para contra incendios, "pump" para el resto. */
+/** equipment_type legacy: "fire" para contra incendios (normada o no), "pump" para el resto. */
 export function equipmentTypeFor(system: string): Category {
-  return (system === "contra_incendios" ? "fire" : "pump") as Category;
+  return (isFireSystem(system) ? "fire" : "pump") as Category;
 }
