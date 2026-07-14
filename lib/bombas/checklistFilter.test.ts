@@ -165,6 +165,26 @@ describe("grupo Planta electrica", () => {
   it("se oculta si no hay generador", () => {
     assert.equal(applies(label, [bomba("Bomba Contra Incendios", "contra_incendios")]), false);
   });
+
+  // Regresión (bug William, Belview Towers 300, 13-jul): el template de prod trae el grupo
+  // con acento ("Planta eléctrica") ADEMÁS de sin acento. Antes del norm() la variante
+  // acentuada no casaba su requisito y la sección se mostraba SIEMPRE, aunque el edificio
+  // no tuviera generador — y editar equipos no la quitaba nunca.
+  const labelAccent = "Planta eléctrica - Baterías ok";
+
+  it("la grafía ACENTUADA también se oculta si no hay generador", () => {
+    assert.equal(
+      applies(labelAccent, [bomba("Bomba Contra Incendios", "contra_incendios")]),
+      false
+    );
+  });
+
+  it("la grafía ACENTUADA se muestra si hay generador", () => {
+    assert.equal(
+      applies(labelAccent, [generador("Planta de Emergencia", "planta_diesel")]),
+      true
+    );
+  });
 });
 
 describe("conteo de bombas por unidad", () => {
