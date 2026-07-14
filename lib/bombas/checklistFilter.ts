@@ -123,7 +123,13 @@ const reforzadoraUnitOf = (groupName: string) => {
 export type BuildingScope = {
   systems: Set<string>;
   pumpCounts: Map<string, number>;
-  hasPanel: boolean;
+  // Cada tablero del formulario se gatilla por el panel de SU sistema (feedback William
+  // 14-jul): antes bastaba "hay panel" para una sola sección "Tablero"; ahora cada sistema
+  // con panel muestra el suyo (principales, reforzador, contra incendios, jockey).
+  hasPrincipalesPanel: boolean; // panel del sistema de transferencia (bombas principales)
+  hasReforzadorPanel: boolean; // panel del sistema reforzador de presión
+  hasBciPanel: boolean; // panel de la bomba principal contra incendios (NFPA, normada)
+  hasJockeyPanel: boolean; // panel de la bomba jockey (dentro de contra incendios normado)
   hasJockey: boolean;
   hasFirePump: boolean; // bomba contra incendios NORMADA (NFPA)
   hasFireNoNormada: boolean; // bomba contra incendios NO normada (checklist propio)
@@ -135,7 +141,10 @@ export type BuildingScope = {
 export const EMPTY_SCOPE: BuildingScope = {
   systems: new Set(),
   pumpCounts: new Map(),
-  hasPanel: false,
+  hasPrincipalesPanel: false,
+  hasReforzadorPanel: false,
+  hasBciPanel: false,
+  hasJockeyPanel: false,
   hasJockey: false,
   hasFirePump: false,
   hasFireNoNormada: false,
@@ -145,7 +154,10 @@ export const EMPTY_SCOPE: BuildingScope = {
 export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
   const systems = new Set<string>();
   const pumpCounts = new Map<string, number>();
-  let hasPanel = false;
+  let hasPrincipalesPanel = false;
+  let hasReforzadorPanel = false;
+  let hasBciPanel = false;
+  let hasJockeyPanel = false;
   let hasJockey = false;
   let hasFirePump = false;
   let hasFireNoNormada = false;
@@ -156,9 +168,19 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
     systems.add(r.system);
 
     switch (classifyEquipment(r)) {
-      case "panel":
-        hasPanel = true;
+      case "panel": {
+        // El panel gatilla el tablero de su sistema. Dentro de contra incendios normado
+        // hay dos: el de la bomba principal y el de la jockey — se distinguen por el nombre
+        // (mismo criterio que classifyEquipment usa para no confundir panel con jockey).
+        const nm = norm(r.name ?? "");
+        if (r.system === "reforzador_agua_potable") hasReforzadorPanel = true;
+        else if (r.system === "transferencia_agua_potable") hasPrincipalesPanel = true;
+        else if (r.system === "contra_incendios") {
+          if (/\bjockey\b/.test(nm)) hasJockeyPanel = true;
+          else hasBciPanel = true;
+        }
         break;
+      }
       case "jockey":
         hasJockey = true;
         break;
@@ -177,7 +199,10 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
   return {
     systems,
     pumpCounts,
-    hasPanel,
+    hasPrincipalesPanel,
+    hasReforzadorPanel,
+    hasBciPanel,
+    hasJockeyPanel,
     hasJockey,
     hasFirePump,
     hasFireNoNormada,
@@ -189,7 +214,13 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
 // Un edificio con bomba contra incendios no normada (sin panel, sin jockey) ya no arrastra
 // las secciones de Tablero ni de Jockey. — pregunta de William, 10-jul.
 const GROUP_TO_REQUIREMENT: Record<string, (s: BuildingScope) => boolean> = {
-  Tablero: (s) => s.hasPanel,
+  // "Tablero" (histórico) = el panel de bombas principales. Los demás tableros por sistema
+  // se agregaron 14-jul (feedback William): reforzador con su tablero, y en contra incendios
+  // normado el de la bomba principal y el de la jockey, cada uno gatillado por su panel.
+  Tablero: (s) => s.hasPrincipalesPanel,
+  "Tablero reforzador": (s) => s.hasReforzadorPanel,
+  "Panel contra incendios": (s) => s.hasBciPanel,
+  "Panel jockey": (s) => s.hasJockeyPanel,
   "Bomba Jockey": (s) => s.hasJockey,
   "Bomba contra incendio": (s) => s.hasFirePump,
   "Bomba contra incendio (no normada)": (s) => s.hasFireNoNormada,

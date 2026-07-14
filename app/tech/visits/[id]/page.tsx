@@ -63,6 +63,12 @@ const isEscalerasTemplate = (templateName?: string | null) => {
 const isEstadoFosoLabel = (label?: string | null) =>
   (label ?? "").trim().toLowerCase().endsWith("estado del foso");
 
+// "Estado general del panel" (paneles de control BCI/Jockey) usa Bueno/Regular/Malo en vez
+// de Aprobado/Falla/N/A. Se guarda igual (approved/failed/na → value_bool true/false/null)
+// para no romper validación ni almacenamiento; solo cambian las etiquetas visibles.
+const isEstadoGeneralPanelLabel = (label?: string | null) =>
+  (label ?? "").trim().toLowerCase().endsWith("estado general del panel");
+
 const checklistOptions = (label?: string | null) =>
   isEstadoFosoLabel(label)
     ? [
@@ -70,11 +76,28 @@ const checklistOptions = (label?: string | null) =>
         { value: "failed", text: "Requiere limpieza" },
         { value: "na", text: "N/A" },
       ]
-    : [
-        { value: "approved", text: "Aprobado" },
-        { value: "failed", text: "Falla" },
-        { value: "na", text: "N/A" },
-      ];
+    : isEstadoGeneralPanelLabel(label)
+      ? [
+          { value: "approved", text: "Bueno" },
+          { value: "na", text: "Regular" },
+          { value: "failed", text: "Malo" },
+        ]
+      : [
+          { value: "approved", text: "Aprobado" },
+          { value: "failed", text: "Falla" },
+          { value: "na", text: "N/A" },
+        ];
+
+// Nombres bonitos de los encabezados de sección del checklist. La clave es el prefijo
+// interno del label (el grupo); el valor es lo que ve el técnico. Los paneles de control se
+// muestran por sistema (feedback William 14-jul) sin tener que renombrar labels en la base.
+const GROUP_DISPLAY: Record<string, string> = {
+  Tablero: "Panel de Control - Bombas Principales",
+  "Tablero reforzador": "Panel de Control - Sistema Reforzador",
+  "Panel contra incendios": "Panel de la Bomba Principal Contra Incendios",
+  "Panel jockey": "Panel de la Bomba Jockey",
+};
+const groupDisplayName = (name: string) => GROUP_DISPLAY[name] ?? name;
 
 
 async function handleResponses(formData: FormData) {
@@ -892,7 +915,7 @@ export default async function TechVisitPage({
                 className="overflow-hidden rounded-lg border border-slate-200 bg-white"
               >
                 <summary className="cursor-pointer list-none bg-slate-800 px-4 py-3 font-semibold text-white">
-                  {group.name}
+                  {groupDisplayName(group.name)}
                   <span className="ml-2 text-sm font-normal text-slate-300">
                     ({group.items.length})
                   </span>

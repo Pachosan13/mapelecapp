@@ -106,6 +106,13 @@ const formatResponseValue = (
   }
 
   if (itemType === "checkbox") {
+    // "Estado general del panel" usa Bueno/Regular/Malo (approved/na/failed). Va antes del
+    // chequeo de null porque "Regular" ES el estado na y no debe leerse como "N/A".
+    if ((label ?? "").trim().toLowerCase().endsWith("estado general del panel")) {
+      if (response.value_bool === true) return "Bueno";
+      if (response.value_bool === false) return "Malo";
+      return response.value_text === "na" ? "Regular" : "—";
+    }
     if (response.value_bool === null) {
       return response.value_text === "na" ? "N/A" : "—";
     }

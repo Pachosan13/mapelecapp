@@ -70,23 +70,91 @@ describe("classifyEquipment", () => {
   });
 });
 
-describe("grupo Tablero", () => {
+describe("Panel de Control - Bombas Principales (grupo Tablero)", () => {
   const label = "Tablero - Luces piloto ok";
 
-  it("se muestra si el edificio tiene panel", () => {
-    assert.equal(applies(label, [panel("Panel de Control", "contra_incendios")]), true);
-  });
-
-  it("se muestra si el panel está mal tipado como bomba", () => {
+  it("se muestra si el sistema de transferencia tiene panel", () => {
     assert.equal(
-      applies(label, [bomba("Panel de Control de Bomba Contra Incendios", "contra_incendios")]),
+      applies(label, [panel("Panel de Control de Bombas Principales", "transferencia_agua_potable")]),
       true
     );
   });
 
+  it("se muestra aunque el panel esté mal tipado como bomba", () => {
+    assert.equal(
+      applies(label, [bomba("Panel de Control de Bombas Principales", "transferencia_agua_potable")]),
+      true
+    );
+  });
+
+  it("NO se muestra si el único panel es de otro sistema (contra incendios)", () => {
+    // Modelo por-sistema (14-jul): el tablero de principales lo gatilla SU panel, no cualquiera.
+    assert.equal(
+      applies(label, [panel("Panel de Control de Bomba Contra Incendios", "contra_incendios")]),
+      false
+    );
+  });
+
   it("se oculta en una bomba contra incendios no normada, sin panel", () => {
-    // La pregunta de William: bomba contra incendios sin panel → sin sección de Tablero.
+    assert.equal(
+      applies(label, [bomba("Bomba Contra Incendios", "contra_incendios_no_normada")]),
+      false
+    );
+  });
+});
+
+describe("Panel de Control - Sistema Reforzador (grupo Tablero reforzador)", () => {
+  const label = "Tablero reforzador - Supervisor de voltaje";
+
+  it("se muestra si el reforzador tiene panel (ej. ELMARE 5000)", () => {
+    assert.equal(
+      applies(label, [panel("Panel de Control de Bombas Reforzadoras", "reforzador_agua_potable")]),
+      true
+    );
+  });
+
+  it("NO se muestra si el reforzador es solo contactor+térmica sin panel (ej. Belview 100)", () => {
+    assert.equal(applies(label, [bomba("Bomba Reforzadora #1", "reforzador_agua_potable")]), false);
+  });
+});
+
+describe("Panel de la Bomba Principal Contra Incendios (grupo Panel contra incendios)", () => {
+  const label = "Panel contra incendios - Selector en AUTO";
+
+  it("se muestra si hay panel BCI (no jockey) en contra incendios", () => {
+    assert.equal(
+      applies(label, [panel("Panel de Control de Bomba Contra Incendios", "contra_incendios")]),
+      true
+    );
+  });
+
+  it("NO se muestra si el único panel del sistema es el de la jockey", () => {
+    assert.equal(
+      applies(label, [panel("Panel de Control de la Bomba Jockey", "contra_incendios")]),
+      false
+    );
+  });
+
+  it("NO se muestra sin panel (solo la bomba)", () => {
     assert.equal(applies(label, [bomba("Bomba Contra Incendios", "contra_incendios")]), false);
+  });
+});
+
+describe("Panel de la Bomba Jockey (grupo Panel jockey)", () => {
+  const label = "Panel jockey - Contactor en buen estado";
+
+  it("se muestra si hay panel de la jockey", () => {
+    assert.equal(
+      applies(label, [panel("Panel de Control de la Bomba Jockey", "contra_incendios")]),
+      true
+    );
+  });
+
+  it("NO se muestra si el único panel es el de la bomba principal contra incendios", () => {
+    assert.equal(
+      applies(label, [panel("Panel de Control de Bomba Contra Incendios", "contra_incendios")]),
+      false
+    );
   });
 });
 

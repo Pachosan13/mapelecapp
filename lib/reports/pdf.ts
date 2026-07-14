@@ -431,6 +431,16 @@ function groupHeading(c: Ctx, title: string) {
   c.y -= 17;
 }
 
+// Nombres bonitos de sección en el PDF del cliente. La clave es el prefijo interno del
+// label (grupo); los tableros por sistema se muestran como "Panel de Control - …" sin
+// renombrar labels en la base. Debe coincidir con GROUP_DISPLAY del formulario del técnico.
+const PDF_GROUP_DISPLAY: Record<string, string> = {
+  Tablero: "Panel de Control - Bombas Principales",
+  "Tablero reforzador": "Panel de Control - Sistema Reforzador",
+  "Panel contra incendios": "Panel de la Bomba Principal Contra Incendios",
+  "Panel jockey": "Panel de la Bomba Jockey",
+};
+
 function groupedResults(c: Ctx, rows: PdfResponseValue[]) {
   if (!rows.length) return;
   const groups: { name: string; rows: PdfResponseValue[] }[] = [];
@@ -446,7 +456,7 @@ function groupedResults(c: Ctx, rows: PdfResponseValue[]) {
     g.rows.push({ ...r, label: cleanLabel });
   }
   for (const g of groups) {
-    groupHeading(c, g.name);
+    groupHeading(c, PDF_GROUP_DISPLAY[g.name] ?? g.name);
     resultsTable(c, g.rows);
     c.y -= 4;
   }
