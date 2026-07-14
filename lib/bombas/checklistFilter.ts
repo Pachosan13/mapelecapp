@@ -20,6 +20,14 @@ export type EquipmentRow = {
   kind?: string | null;
 };
 
+// Normaliza texto para comparar grupos/subtipos sin que un acento o una mayúscula
+// descuadre el filtro. El template real de prod trae AMBAS grafías del mismo grupo
+// ("Planta electrica" Y "Planta eléctrica") como grupos distintos — sin esto la variante
+// acentuada nunca casa su requisito y la sección se muestra aunque el edificio no tenga
+// el equipo (bug reportado por William, Belview Towers 300, 13-jul-2026).
+const norm = (s: string) =>
+  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+
 // ¿Es la plantilla "Mantenimiento – Bombas"? Único lugar donde se decide: lo consultan el
 // render del técnico, el PDF y el reporte de ops. Antes vivía duplicado en cada uno.
 export const isBombasTemplate = (
@@ -77,6 +85,14 @@ const SUBMERSIBLE_SUBTYPE_TO_SYSTEM: Record<string, string> = {
   "Sistema sanitario": "sanitario",
 };
 
+// Versión normalizada (sin acentos/mayúsculas) del mapa de subtipos → sistema.
+// Se busca por `norm(subtipo)` para que "Sistema freático" y "Sistema freatico"
+// (y cualquier variante de mayúsculas) caigan en la misma entrada.
+const SUBMERSIBLE_SUBTYPE_TO_SYSTEM_NORM: Record<string, string> =
+  Object.fromEntries(
+    Object.entries(SUBMERSIBLE_SUBTYPE_TO_SYSTEM).map(([k, v]) => [norm(k), v])
+  );
+
 // Nombre del grupo = prefijo del label antes del primer " - " (los ítems se llaman
 // "Bombas principales - Bomba 1 - Voltaje L1-L2"). Sin " - " → "Datos generales".
 export const groupOf = (label: string) => {
@@ -92,13 +108,13 @@ const subtypeOf = (label: string) => {
 
 // Nº de unidad de una bomba principal: "Bombas principales - Bomba N - ...". null si no lo trae.
 const principalUnitOf = (label: string) => {
-  const m = label.match(/^Bombas principales - Bomba (\d+) -/);
+  const m = label.match(/^Bombas principales - Bomba (\d+) -/i);
   return m ? Number(m[1]) : null;
 };
 
 // Nº de unidad de una reforzadora: grupo "Bomba reforzadora N". null si no aplica.
 const reforzadoraUnitOf = (groupName: string) => {
-  const m = groupName.match(/^Bomba reforzadora (\d+)$/);
+  const m = groupName.match(/^Bomba reforzadora (\d+)$/i);
   return m ? Number(m[1]) : null;
 };
 
@@ -180,14 +196,25 @@ const GROUP_TO_REQUIREMENT: Record<string, (s: BuildingScope) => boolean> = {
   "Planta electrica": (s) => s.hasGenerator,
 };
 
+// Versión normalizada del mapa de requisitos. El template de prod trae el MISMO grupo
+// con dos grafías ("Planta electrica" y "Planta eléctrica"); sin normalizar, la acentuada
+// no casaba y la sección se mostraba siempre. Se busca por `norm(group)`.
+const GROUP_TO_REQUIREMENT_NORM: Record<
+  string,
+  (s: BuildingScope) => boolean
+> = Object.fromEntries(
+  Object.entries(GROUP_TO_REQUIREMENT).map(([k, v]) => [norm(k), v])
+);
+
 // ¿Este ítem aplica al edificio? Combina conteo por unidad (principales/reforzadoras),
 // filtro por subtipo (sumergibles) y presencia del equipo (resto). Debe usarse igual en el
 // render, el guardado y el PDF para que no se desincronicen.
 export const itemAppliesToBuilding = (label: string, scope: BuildingScope) => {
   const group = groupOf(label);
+  const groupNorm = norm(group);
 
   // Principales: una "Bomba N" por cada bomba de transferencia. Sin bombas → grupo oculto.
-  if (group === "Bombas principales") {
+  if (groupNorm === "bombas principales") {
     const count = scope.pumpCounts.get("transferencia_agua_potable") ?? 0;
     if (count === 0) return false;
     const unit = principalUnitOf(label);
@@ -205,8 +232,8 @@ export const itemAppliesToBuilding = (label: string, scope: BuildingScope) => {
   // solo tantas unidades como bombas tenga el edificio. El 3er segmento es la unidad
   // ("Sistema pluvial - Pluvial 2 - ...", "Foso elevador - Bomba 1 - ..."). Si no trae
   // número (ej. "Sanitario", "Estado del foso") → ítem compartido, se muestra igual.
-  if (group === "Bombas sumergibles") {
-    const sys = SUBMERSIBLE_SUBTYPE_TO_SYSTEM[subtypeOf(label)];
+  if (groupNorm === "bombas sumergibles") {
+    const sys = SUBMERSIBLE_SUBTYPE_TO_SYSTEM_NORM[norm(subtypeOf(label))];
     if (!sys) return true;
     if (!scope.systems.has(sys)) return false;
     const parts = label.split(" - ");
@@ -216,6 +243,6 @@ export const itemAppliesToBuilding = (label: string, scope: BuildingScope) => {
   }
 
   // Resto: gatillado por equipo → presencia real; general/administrativo → siempre.
-  const requirement = GROUP_TO_REQUIREMENT[group];
+  const requirement = GROUP_TO_REQUIREMENT_NORM[groupNorm];
   return requirement ? requirement(scope) : true;
 };
