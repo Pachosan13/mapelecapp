@@ -130,6 +130,8 @@ export type BuildingScope = {
   hasReforzadorPanel: boolean; // panel del sistema reforzador de presión
   hasBciPanel: boolean; // panel de la bomba principal contra incendios (NFPA, normada)
   hasJockeyPanel: boolean; // panel de la bomba jockey (dentro de contra incendios normado)
+  hasPluvialPanel: boolean; // panel de control de las bombas sumergibles pluviales
+  hasSanitarioPanel: boolean; // panel de control de las bombas sumergibles sanitarias
   hasJockey: boolean;
   hasFirePump: boolean; // bomba contra incendios NORMADA (NFPA)
   hasFireNoNormada: boolean; // bomba contra incendios NO normada (checklist propio)
@@ -145,6 +147,8 @@ export const EMPTY_SCOPE: BuildingScope = {
   hasReforzadorPanel: false,
   hasBciPanel: false,
   hasJockeyPanel: false,
+  hasPluvialPanel: false,
+  hasSanitarioPanel: false,
   hasJockey: false,
   hasFirePump: false,
   hasFireNoNormada: false,
@@ -158,6 +162,8 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
   let hasReforzadorPanel = false;
   let hasBciPanel = false;
   let hasJockeyPanel = false;
+  let hasPluvialPanel = false;
+  let hasSanitarioPanel = false;
   let hasJockey = false;
   let hasFirePump = false;
   let hasFireNoNormada = false;
@@ -179,6 +185,11 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
           if (/\bjockey\b/.test(nm)) hasJockeyPanel = true;
           else hasBciPanel = true;
         }
+        // Sumergibles pluvial/sanitario a veces traen su propio panel de control
+        // (contactor/térmica, supervisor de voltaje, luces piloto, alternador) —
+        // feedback William 15-jul. Gatillan su sección solo si el edificio lo registra.
+        else if (r.system === "achique_pluvial") hasPluvialPanel = true;
+        else if (r.system === "sanitario") hasSanitarioPanel = true;
         break;
       }
       case "jockey":
@@ -203,6 +214,8 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
     hasReforzadorPanel,
     hasBciPanel,
     hasJockeyPanel,
+    hasPluvialPanel,
+    hasSanitarioPanel,
     hasJockey,
     hasFirePump,
     hasFireNoNormada,
@@ -221,6 +234,8 @@ const GROUP_TO_REQUIREMENT: Record<string, (s: BuildingScope) => boolean> = {
   "Tablero reforzador": (s) => s.hasReforzadorPanel,
   "Panel contra incendios": (s) => s.hasBciPanel,
   "Panel jockey": (s) => s.hasJockeyPanel,
+  "Panel pluvial": (s) => s.hasPluvialPanel,
+  "Panel sanitario": (s) => s.hasSanitarioPanel,
   "Bomba Jockey": (s) => s.hasJockey,
   "Bomba contra incendio": (s) => s.hasFirePump,
   "Bomba contra incendio (no normada)": (s) => s.hasFireNoNormada,
