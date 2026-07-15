@@ -118,6 +118,36 @@ describe("Panel de Control - Sistema Reforzador (grupo Tablero reforzador)", () 
   });
 });
 
+describe("Panel de Control - Sistema Pluvial (grupo Panel pluvial)", () => {
+  const label = "Panel pluvial - Supervisor de voltaje";
+
+  it("se muestra si el sistema pluvial tiene panel de control registrado", () => {
+    assert.equal(
+      applies(label, [panel("Panel de Control Pluvial", "achique_pluvial")]),
+      true
+    );
+  });
+
+  it("NO se muestra si el pluvial solo tiene bombas sumergibles sin panel", () => {
+    assert.equal(applies(label, [bomba("Bomba Pluvial 1", "achique_pluvial")]), false);
+  });
+});
+
+describe("Panel de Control - Sistema Sanitario (grupo Panel sanitario)", () => {
+  const label = "Panel sanitario - Contactor/Térmica #1";
+
+  it("se muestra si el sistema sanitario tiene panel de control registrado", () => {
+    assert.equal(
+      applies(label, [panel("Panel de Control Sanitario", "sanitario")]),
+      true
+    );
+  });
+
+  it("NO se muestra si el sanitario solo tiene bombas sumergibles sin panel", () => {
+    assert.equal(applies(label, [bomba("Bomba Sanitaria 1", "sanitario")]), false);
+  });
+});
+
 describe("Panel de la Bomba Principal Contra Incendios (grupo Panel contra incendios)", () => {
   const label = "Panel contra incendios - Selector en AUTO";
 

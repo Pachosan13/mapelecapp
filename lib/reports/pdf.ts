@@ -439,6 +439,8 @@ const PDF_GROUP_DISPLAY: Record<string, string> = {
   "Tablero reforzador": "Panel de Control - Sistema Reforzador",
   "Panel contra incendios": "Panel de la Bomba Principal Contra Incendios",
   "Panel jockey": "Panel de la Bomba Jockey",
+  "Panel pluvial": "Panel de Control - Sistema Pluvial",
+  "Panel sanitario": "Panel de Control - Sistema Sanitario",
 };
 
 function groupedResults(c: Ctx, rows: PdfResponseValue[]) {
