@@ -258,7 +258,8 @@ function drawCover(c: Ctx, input: ServiceReportPdfInput) {
         .map((s) => (s === "pump" ? "Bombeo" : s === "fire" ? "Contra Incendio" : s))
         .join(" · "),
     ]);
-  if (input.statusLabel) metaItems.push(["Estado", input.statusLabel]);
+  // Nota: el estado editorial (draft/ready/sent) es workflow interno y NO se
+  // muestra en el PDF del cliente. Se sigue viendo en el dashboard de ops.
   // meta in two columns
   const metaRows = Math.ceil(metaItems.length / 2);
   cardH += metaRows * 28 + 14;
