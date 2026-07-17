@@ -13,7 +13,12 @@
  *    (Offline fallan y el outbox se encarga; nunca servimos una mutación desde caché.)
  */
 
-const VERSION = "semco-v2";
+// ⚠️ SUBIR ESTA VERSIÓN en CADA deploy que cambie una página del técnico (formularios, visita).
+// El caché de páginas lleva la versión en el nombre; si no cambia, un técnico con la app ya
+// abierta sigue viendo la página CACHEADA vieja hasta que el caché expire solo. Eso le pasó a
+// William en Torre BAC (15-jul): llenó un formulario nuevo mergeado ese día contra una página
+// del 10-jul cacheada → el autosave de esa versión no cubría el form nuevo y no guardó nada.
+const VERSION = "semco-v3";
 const STATIC_CACHE = `semco-static-${VERSION}`;
 const PAGES_CACHE = `semco-pages-${VERSION}`;
 const OFFLINE_URL = "/offline.html";
