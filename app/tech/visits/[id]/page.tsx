@@ -57,6 +57,15 @@ const isEscalerasTemplate = (templateName?: string | null) => {
   return n.includes("presurización de escaleras") || n.includes("presurizacion de escaleras");
 };
 
+// Todos los formularios de contra incendios (categoría `fire`: IPM de bomba, rociadores,
+// recorrido y el unificado RED HÚMEDA) son inspecciones NFPA-25 → cada ítem es Aprobado/Falla/N/A.
+// Detectar por categoría (como bombas) en vez de por UUID en CORE_TEMPLATE_IDS: el unificado se
+// creó con gen_random_uuid() y nunca se registró, así que caía al checkbox simple "solo Sí"
+// (feedback William 20-jul-2026). Por categoría, todo fire —presente y futuro— sale bien sin
+// tener que acordarse de registrar el UUID.
+const isFireTemplate = (templateCategory?: string | null) =>
+  (templateCategory ?? "").trim().toLowerCase() === "fire";
+
 // "Estado del foso" usa opciones propias (Aprobado / Requiere limpieza) en vez de
 // Aprobado/Falla/N/A. El valor guardado sigue siendo approved/failed/na para no romper
 // validación ni almacenamiento — solo cambian las etiquetas visibles.
@@ -158,7 +167,8 @@ async function handleResponses(formData: FormData) {
   const isChecklistTemplate =
     isCoreChecklistTemplateId(visit.template_id) ||
     isBombasTemplate(templateMeta?.name, templateMeta?.category) ||
-    isEscalerasTemplate(templateMeta?.name);
+    isEscalerasTemplate(templateMeta?.name) ||
+    isFireTemplate(templateMeta?.category);
 
   const { data: templateItemsData } = visit.template_id
     ? await supabase
@@ -650,7 +660,8 @@ export default async function TechVisitPage({
   const isChecklistTemplate =
     isCoreChecklistTemplateId(visit.template_id) ||
     isBombasTemplate(templateMeta?.name, templateMeta?.category) ||
-    isEscalerasTemplate(templateMeta?.name);
+    isEscalerasTemplate(templateMeta?.name) ||
+    isFireTemplate(templateMeta?.category);
   const templateItems = templateItemsData ?? [];
 
   // Filtro dinámico por edificio (feedback William 1-jul / ONIX 5-jul): el checklist de
