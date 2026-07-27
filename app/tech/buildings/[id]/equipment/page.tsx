@@ -1,3 +1,4 @@
+import { SYSTEM_LABELS } from "@/lib/equipment/systems";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -5,19 +6,6 @@ import { listMedia } from "@/lib/media/service";
 
 export const dynamic = "force-dynamic";
 
-// Etiquetas legibles para el sistema del equipo (subtítulo). El código crudo
-// (transferencia_agua_potable, etc.) es el mismo que precarga el levantamiento.
-const SYSTEM_LABELS: Record<string, string> = {
-  transferencia_agua_potable: "Transferencia agua potable",
-  reforzador_agua_potable: "Reforzador agua potable",
-  contra_incendios: "Contra incendios",
-  contra_incendios_no_normada: "Contra incendios (no normada)",
-  achique_freatico: "Achique freático",
-  achique_elevador: "Foso elevador",
-  achique_pluvial: "Achique pluvial",
-  sanitario: "Aguas sanitarias",
-  planta_diesel: "Planta eléctrica",
-};
 
 const TYPE_LABELS: Record<string, string> = {
   pump: "Bomba",

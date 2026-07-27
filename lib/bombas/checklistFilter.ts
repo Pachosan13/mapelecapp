@@ -43,6 +43,14 @@ export const isBombasTemplate = (
   );
 };
 
+// ¿Es la plantilla de presurización de escaleras? Trae "Ventilador 1..4" fijos y hay que
+// recortarlos al nº real de ventiladores del edificio (Metro View tiene 1 por torre y le
+// salían los 4 — feedback William 27-jul). Se detecta por NOMBRE, no por categoría: su
+// categoría es `fire`, la misma que las plantillas NFPA de rociadores/bomba, que NO se
+// filtran por inventario (decisión 15-jul: sus bloques siempre salen).
+export const isPresurizacionTemplate = (templateName?: string | null) =>
+  norm(templateName ?? "").includes("presurizacion");
+
 // Sistemas de bomba contra incendios. Una bomba no normada se inspecciona igual que
 // una normada (voltajes, presiones); lo que cambia es la clasificación/etiqueta, no
 // el mantenimiento base. Los ítems de panel/jockey ya se filtran por su cuenta.
@@ -55,7 +63,12 @@ export const FIRE_SYSTEMS = new Set<string>([
 export const isFireSystem = (system: string | null | undefined): boolean =>
   system != null && FIRE_SYSTEMS.has(system);
 
-export type EquipmentClass = "panel" | "jockey" | "generador" | "bomba";
+export type EquipmentClass =
+  | "panel"
+  | "jockey"
+  | "generador"
+  | "ventilador"
+  | "bomba";
 
 /**
  * Clasifica un equipo para decidir qué grupos del checklist activa.
@@ -70,6 +83,7 @@ export type EquipmentClass = "panel" | "jockey" | "generador" | "bomba";
 export const classifyEquipment = (row: EquipmentRow): EquipmentClass => {
   const name = (row.name ?? "").trim();
   if (row.kind === "generador") return "generador";
+  if (row.kind === "ventilador") return "ventilador";
   if (row.kind === "panel_control" || /^panel\b/i.test(name)) return "panel";
   if (/\bjockey\b/i.test(name)) return "jockey";
   return "bomba";
@@ -118,6 +132,13 @@ const reforzadoraUnitOf = (groupName: string) => {
   return m ? Number(m[1]) : null;
 };
 
+// Nº de unidad de un ventilador de presurización: grupo "Ventilador N". null si no aplica.
+// La plantilla de presurización de escaleras trae 4 fijos; Metro View tiene 1 por torre.
+const ventiladorUnitOf = (groupName: string) => {
+  const m = groupName.match(/^Ventilador (\d+)$/i);
+  return m ? Number(m[1]) : null;
+};
+
 // Alcance del edificio derivado de la precarga: sistemas presentes, nº de BOMBAS reales por
 // sistema (excluye paneles, jockeys y generadores) y presencia de cada equipo gatillo.
 export type BuildingScope = {
@@ -136,6 +157,9 @@ export type BuildingScope = {
   hasFirePump: boolean; // bomba contra incendios NORMADA (NFPA)
   hasFireNoNormada: boolean; // bomba contra incendios NO normada (checklist propio)
   hasGenerator: boolean;
+  // Ventiladores de presurización de escaleras registrados en el edificio.
+  // 0 significa "no sabemos", NO "no tiene" — ver la regla en itemAppliesToBuilding.
+  fanCount: number;
 };
 
 // Alcance vacío = "no filtrar". Los consumidores lo usan en vez de construirlo a mano,
@@ -153,6 +177,7 @@ export const EMPTY_SCOPE: BuildingScope = {
   hasFirePump: false,
   hasFireNoNormada: false,
   hasGenerator: false,
+  fanCount: 0,
 };
 
 export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
@@ -168,6 +193,7 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
   let hasFirePump = false;
   let hasFireNoNormada = false;
   let hasGenerator = false;
+  let fanCount = 0;
 
   for (const r of rows) {
     if (!r.system) continue;
@@ -198,6 +224,9 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
       case "generador":
         hasGenerator = true;
         break;
+      case "ventilador":
+        fanCount += 1;
+        break;
       case "bomba":
         pumpCounts.set(r.system, (pumpCounts.get(r.system) ?? 0) + 1);
         // Normada y no normada tienen secciones de checklist distintas.
@@ -220,6 +249,7 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
     hasFirePump,
     hasFireNoNormada,
     hasGenerator,
+    fanCount,
   };
 };
 
@@ -272,6 +302,24 @@ export const itemAppliesToBuilding = (label: string, scope: BuildingScope) => {
   if (refUnit !== null) {
     const count = scope.pumpCounts.get("reforzador_agua_potable") ?? 0;
     return refUnit <= count;
+  }
+
+  // Ventiladores de presurización: un grupo por unidad, como las reforzadoras, PERO con
+  // una regla asimétrica a propósito.
+  //
+  // Los ventiladores se empezaron a modelar como equipo el 27-jul; hasta entonces NINGÚN
+  // edificio los tenía registrados. Si aplicáramos la regla normal (`unit <= count`), un
+  // edificio con bombas cargadas pero sin ventiladores daría count=0 y escondería los 4
+  // → el técnico no podría registrar ni el ventilador que sí existe. Eso es peor que el
+  // problema original (a Metro View le salen 4 cuando tiene 1).
+  //
+  // Por eso: filtramos SOLO con evidencia positiva. fanCount === 0 significa "todavía no
+  // sabemos", no "no tiene" → se muestran los 4 como siempre. Cuando el edificio registre
+  // sus ventiladores, salen exactamente los que tiene.
+  const fanUnit = ventiladorUnitOf(group);
+  if (fanUnit !== null) {
+    if (scope.fanCount === 0) return true;
+    return fanUnit <= scope.fanCount;
   }
 
   // Sumergibles: solo los subtipos cuyo sistema esté presente, y dentro de cada subtipo,

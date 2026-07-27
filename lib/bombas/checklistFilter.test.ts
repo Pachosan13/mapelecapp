@@ -4,6 +4,7 @@ import {
   buildBuildingScope,
   classifyEquipment,
   isBombasTemplate,
+  isPresurizacionTemplate,
   itemAppliesToBuilding,
   type EquipmentRow,
 } from "./checklistFilter.ts";
@@ -18,6 +19,11 @@ const generador = (name: string, system: string): EquipmentRow => ({
   name,
   system,
   kind: "generador",
+});
+const ventilador = (name: string, system: string): EquipmentRow => ({
+  name,
+  system,
+  kind: "ventilador",
 });
 
 const applies = (label: string, rows: EquipmentRow[]) =>
@@ -324,5 +330,61 @@ describe("grupos generales y sumergibles", () => {
     assert.equal(applies("Ventilador 1 - Ubicación", rows), true);
     assert.equal(applies("Trimestral - Conexiones del cuerpo de bomberos (siamesa)", rows), true);
     assert.equal(applies("Sistema de bombas diésel - El nivel de electrolitos", rows), true);
+  });
+});
+
+describe("presurización de escaleras — ventiladores", () => {
+  it("detecta la plantilla por nombre, con y sin acento", () => {
+    assert.equal(
+      isPresurizacionTemplate("MANTENIMIENTO MENSUAL SISTEMA DE PRESURIZACIÓN DE ESCALERAS"),
+      true
+    );
+    assert.equal(isPresurizacionTemplate("mantenimiento mensual presurizacion"), true);
+    assert.equal(isPresurizacionTemplate("Mantenimiento – Bombas"), false);
+    assert.equal(isPresurizacionTemplate(null), false);
+  });
+
+  it("classifyEquipment reconoce el ventilador por kind", () => {
+    assert.equal(
+      classifyEquipment({ name: "Ventilador presurización", system: "presurizacion_escaleras", kind: "ventilador" }),
+      "ventilador"
+    );
+  });
+
+  it("un ventilador registrado esconde los otros 3 (caso Metro View)", () => {
+    const rows = [
+      bomba("Bomba Principal 1", "transferencia_agua_potable"),
+      ventilador("Ventilador presurización Torre A", "presurizacion_escaleras"),
+    ];
+    assert.equal(applies("Ventilador 1 - Ubicación", rows), true);
+    assert.equal(applies("Ventilador 2 - Ubicación", rows), false);
+    assert.equal(applies("Ventilador 4 - Ubicación", rows), false);
+  });
+
+  it("dos ventiladores muestran dos", () => {
+    const rows = [
+      ventilador("Ventilador Torre A", "presurizacion_escaleras"),
+      ventilador("Ventilador Torre B", "presurizacion_escaleras"),
+    ];
+    assert.equal(applies("Ventilador 2 - Ubicación", rows), true);
+    assert.equal(applies("Ventilador 3 - Ubicación", rows), false);
+  });
+
+  // La asimetría deliberada: sin ventiladores registrados NO escondemos nada, porque
+  // 0 significa "no sabemos" (nadie los había modelado antes del 27-jul), no "no tiene".
+  // Si esto se volviera `unit <= 0`, todo edificio con bombas perdería el formulario
+  // completo de presurización — peor que el bug que arregla.
+  it("sin ventiladores registrados se muestran los 4 (no sabemos ≠ no tiene)", () => {
+    const rows = [bomba("Bomba Principal 1", "transferencia_agua_potable")];
+    assert.equal(applies("Ventilador 1 - Ubicación", rows), true);
+    assert.equal(applies("Ventilador 4 - Ubicación", rows), true);
+  });
+
+  it("el ventilador no se cuenta como bomba de su sistema", () => {
+    const scope = buildBuildingScope([
+      ventilador("Ventilador Torre A", "presurizacion_escaleras"),
+    ]);
+    assert.equal(scope.fanCount, 1);
+    assert.equal(scope.pumpCounts.get("presurizacion_escaleras") ?? 0, 0);
   });
 });

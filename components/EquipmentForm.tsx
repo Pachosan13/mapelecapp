@@ -2,24 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-
-const SYSTEMS: [string, string][] = [
-  ["transferencia_agua_potable", "Transferencia agua potable"],
-  ["reforzador_agua_potable", "Reforzador agua potable"],
-  ["contra_incendios", "Contra incendios (NFPA)"],
-  ["contra_incendios_no_normada", "Contra incendios (no normada)"],
-  ["achique_freatico", "Achique freático"],
-  ["achique_elevador", "Achique elevador"],
-  ["achique_pluvial", "Achique pluvial"],
-  ["sanitario", "Sanitario"],
-  ["planta_diesel", "Planta diésel"],
-];
-
-const KINDS: [string, string][] = [
-  ["bomba", "Bomba"],
-  ["panel_control", "Panel de control"],
-  ["generador", "Generador"],
-];
+import { SYSTEMS, KINDS } from "@/lib/equipment/systems";
 
 const STARTERS: [string, string][] = [
   ["arrancador_suave", "Arrancador suave"],

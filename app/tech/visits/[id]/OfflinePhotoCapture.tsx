@@ -1,5 +1,7 @@
 "use client";
 
+import { SYSTEM_OPTIONS_WITH_BLANK } from "@/lib/equipment/systems";
+
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -9,18 +11,7 @@ import {
   type QueuedPhoto,
 } from "@/lib/offline/photoQueue";
 
-const SYSTEM_OPTIONS: [string, string][] = [
-  ["", "General (sin sistema)"],
-  ["transferencia_agua_potable", "Transferencia agua potable"],
-  ["reforzador_agua_potable", "Reforzador agua potable"],
-  ["contra_incendios", "Contra incendios (NFPA)"],
-  ["contra_incendios_no_normada", "Contra incendios (no normada)"],
-  ["achique_freatico", "Achique freático"],
-  ["achique_elevador", "Achique elevador"],
-  ["achique_pluvial", "Achique pluvial"],
-  ["sanitario", "Sanitario"],
-  ["planta_diesel", "Planta diésel"],
-];
+const SYSTEM_OPTIONS = SYSTEM_OPTIONS_WITH_BLANK;
 
 const RESYNC_INTERVAL = 15000;
 

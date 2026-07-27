@@ -8,9 +8,11 @@ import {
   buildBuildingScope,
   itemAppliesToBuilding,
   isBombasTemplate,
+  isPresurizacionTemplate,
   EMPTY_SCOPE,
   type BuildingScope,
 } from "@/lib/bombas/checklistFilter";
+import { SYSTEM_LABELS } from "@/lib/equipment/systems";
 import {
   MEDIA_BUCKET,
   createSignedMediaUrl,
@@ -191,8 +193,12 @@ async function handleResponses(formData: FormData) {
       .eq("is_active", true);
     buildingScope = buildBuildingScope(buildingEquipmentRows ?? []);
   }
+  // Presurización se filtra igual que bombas: sus "Ventilador N" se recortan al nº real
+  // del edificio. El resto de plantillas fire (rociadores, IPM bomba) NO se filtra —
+  // decisión 15-jul, sus bloques siempre salen.
   const applyBuildingFilter =
-    isBombasTemplate(templateMeta?.name, templateMeta?.category) &&
+    (isBombasTemplate(templateMeta?.name, templateMeta?.category) ||
+      isPresurizacionTemplate(templateMeta?.name)) &&
     buildingScope.systems.size > 0;
   const scopedItems = applyBuildingFilter
     ? (templateItemsData ?? []).filter((item) =>
@@ -669,8 +675,12 @@ export default async function TechVisitPage({
   // Debe coincidir con el filtro del server action `handleResponses`. Fallback: edificio sin
   // equipos precargados → se muestra todo (comportamiento previo, no rompe edificios sin levantamiento).
   const buildingScope = buildBuildingScope(buildingEquipment);
+  // Presurización se filtra igual que bombas: sus "Ventilador N" se recortan al nº real
+  // del edificio. El resto de plantillas fire (rociadores, IPM bomba) NO se filtra —
+  // decisión 15-jul, sus bloques siempre salen.
   const applyBuildingFilter =
-    isBombasTemplate(templateMeta?.name, templateMeta?.category) &&
+    (isBombasTemplate(templateMeta?.name, templateMeta?.category) ||
+      isPresurizacionTemplate(templateMeta?.name)) &&
     buildingScope.systems.size > 0;
   const itemInScope = (item: (typeof templateItems)[number]) =>
     !applyBuildingFilter ||
@@ -699,17 +709,6 @@ export default async function TechVisitPage({
 
   // Agrupa los campos del formulario por el prefijo del label (antes del primer " - ")
   // para mostrarlos en secciones desplegables — mejor experiencia en campo.
-  const SYSTEM_LABELS: Record<string, string> = {
-    transferencia_agua_potable: "Transferencia agua potable",
-    reforzador_agua_potable: "Reforzador agua potable",
-    contra_incendios: "Contra incendios (NFPA)",
-    contra_incendios_no_normada: "Contra incendios (no normada)",
-    achique_freatico: "Achique freático",
-    achique_elevador: "Achique elevador",
-    achique_pluvial: "Achique pluvial",
-    sanitario: "Sanitario",
-    planta_diesel: "Planta diésel",
-  };
   const itemGroups: { name: string; items: typeof templateItems }[] = [];
   for (const item of templateItems) {
     if (!itemInScope(item)) continue;
