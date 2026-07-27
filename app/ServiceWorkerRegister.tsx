@@ -7,8 +7,13 @@ import { usePathname } from "next/navigation";
  * Registra el service worker (public/sw.js) que da el shell offline y precalienta en
  * caché los documentos que el técnico/gerente pueda necesitar sin señal.
  *
- * Solo en producción: en dev cachear rompería el HMR de Next. El SW se auto-actualiza
- * cuando cambia el contenido de sw.js (VERSION en los nombres de caché + skipWaiting).
+ * Solo en producción: en dev cachear rompería el HMR de Next.
+ *
+ * Se registra como `/sw.js?v=<buildId>`: al cambiar la URL en cada deploy, el navegador
+ * baja el worker de nuevo, y el propio sw.js toma esa `v` como nombre de sus cachés
+ * (skipWaiting + clients.claim + borrado de los cachés que no son de esta versión).
+ * Así una página cacheada nunca sobrevive al deploy que la dejó obsoleta — que es lo que
+ * dejó a las tablets en blanco el 20-jul, cuando la versión se subía a mano y se olvidó.
  */
 
 // Le pide al service worker que guarde en caché el documento de la página actual.
@@ -43,9 +48,13 @@ export default function ServiceWorkerRegister() {
     if (!("serviceWorker" in navigator)) return;
     if (process.env.NODE_ENV !== "production") return;
 
+    // Sin buildId (build local viejo) cae a "dev": el SW igual funciona, solo que su
+    // caché no rota hasta el próximo build con id.
+    const buildId = process.env.NEXT_PUBLIC_BUILD_ID || "dev";
+
     const register = () => {
       navigator.serviceWorker
-        .register("/sw.js")
+        .register(`/sw.js?v=${encodeURIComponent(buildId)}`)
         .then(() => navigator.serviceWorker.ready)
         .then(() => warmCurrentPage())
         .catch(() => {

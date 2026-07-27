@@ -13,12 +13,20 @@
  *    (Offline fallan y el outbox se encarga; nunca servimos una mutación desde caché.)
  */
 
-// ⚠️ SUBIR ESTA VERSIÓN en CADA deploy que cambie una página del técnico (formularios, visita).
-// El caché de páginas lleva la versión en el nombre; si no cambia, un técnico con la app ya
-// abierta sigue viendo la página CACHEADA vieja hasta que el caché expire solo. Eso le pasó a
-// William en Torre BAC (15-jul): llenó un formulario nuevo mergeado ese día contra una página
-// del 10-jul cacheada → el autosave de esa versión no cubría el form nuevo y no guardó nada.
-const VERSION = "semco-v3";
+// La versión sale de la URL con que se registra el SW (`/sw.js?v=<buildId>`, ver
+// app/ServiceWorkerRegister.tsx). Cambia SOLA en cada deploy — no hay que acordarse.
+//
+// Antes era una constante a mano con un aviso de "subirla en cada deploy". Falló dos veces:
+// el 15-jul (William en Torre BAC llenó un formulario nuevo contra una página del 10-jul
+// cacheada y el autosave viejo no lo guardó) y el 20-jul (el commit 31f2632 cambió la
+// pantalla del técnico sin subir la versión → las tablets siguieron sirviendo el HTML del
+// 17-jul, cuyos chunks de JS ya no existían tras el deploy → pantalla en blanco en campo).
+//
+// Por qué el query string y no el contenido del archivo: el navegador solo reinstala el SW
+// si cambia el BYTE del script o su URL. Con la versión adentro había que editar el archivo;
+// con `?v=` la URL cambia sola en cada build y la reinstalación queda garantizada.
+const VERSION =
+  new URL(self.location.href).searchParams.get("v") || "dev";
 const STATIC_CACHE = `semco-static-${VERSION}`;
 const PAGES_CACHE = `semco-pages-${VERSION}`;
 const OFFLINE_URL = "/offline.html";
