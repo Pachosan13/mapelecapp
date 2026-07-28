@@ -19,6 +19,22 @@ export default async function OpsDashboardPage() {
           <p className="text-sm text-gray-500">Visitas de hoy</p>
         </Link>
         <Link
+          href="/ops/verificacion"
+          className="rounded-xl border border-transparent bg-white p-4 transition hover:border-gray-200 hover:shadow-sm"
+        >
+          <h2 className="text-base font-semibold text-gray-900">Revisar equipos cargados</h2>
+          <p className="text-sm text-gray-500">
+            Lo que el sistema leyó de las hojas de mantenimiento
+          </p>
+        </Link>
+        <Link
+          href="/ops/levantamiento"
+          className="rounded-xl border border-transparent bg-white p-4 transition hover:border-gray-200 hover:shadow-sm"
+        >
+          <h2 className="text-base font-semibold text-gray-900">Hojas por identificar</h2>
+          <p className="text-sm text-gray-500">Hojas sin edificio asignado</p>
+        </Link>
+        <Link
           href="/ops/buildings"
           className="rounded-xl border border-transparent bg-white p-4 transition hover:border-gray-200 hover:shadow-sm"
         >
