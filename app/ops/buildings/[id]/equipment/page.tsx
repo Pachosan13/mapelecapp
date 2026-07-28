@@ -2,11 +2,12 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient, getCurrentUser } from "@/lib/supabase/server";
+import { systemLabel } from "@/lib/equipment/systems";
 
-const EQUIPMENT_TYPE_LABELS: Record<string, string> = {
-  pump: "Bombas",
-  fire: "Incendio",
-};
+// La columna mostraba `equipment_type`, que solo distingue pump/fire: una planta de
+// emergencia o un ventilador salían rotulados "Bombas" (lo notó William, 28-jul). El
+// sistema es el dato que él usa para leer la lista, y ya tiene etiquetas en una fuente
+// única (lib/equipment/systems.ts) — se usa esa en vez de mantener un mapa aparte.
 
 // Reordena un equipo dentro de su edificio intercambiando el sort_order con su
 // vecino (arriba/abajo). El orden ya no es alfabético fijo: William lo acomoda.
@@ -85,7 +86,7 @@ export default async function BuildingEquipmentPage({
 
   const { data: equipmentData, error: equipmentError } = await supabaseDb
     .from("equipment")
-    .select("id,name,equipment_type,is_active,location,model,sort_order")
+    .select("id,name,system,is_active,location,model,sort_order")
     .eq("building_id", params.id)
     .order("sort_order", { ascending: true, nullsFirst: false })
     .order("name", { ascending: true });
@@ -133,7 +134,7 @@ export default async function BuildingEquipmentPage({
           <thead className="bg-gray-50 text-gray-600">
             <tr>
               <th className="px-4 py-3 font-medium">Name</th>
-              <th className="px-4 py-3 font-medium">Tipo</th>
+              <th className="px-4 py-3 font-medium">Sistema</th>
               <th className="px-4 py-3 font-medium">Ubicación</th>
               <th className="px-4 py-3 font-medium">Modelo</th>
               <th className="px-4 py-3 font-medium">Activo</th>
@@ -146,8 +147,7 @@ export default async function BuildingEquipmentPage({
                 <tr key={item.id} className="border-t">
                   <td className="px-4 py-3 font-medium">{item.name}</td>
                   <td className="px-4 py-3 text-gray-600">
-                    {EQUIPMENT_TYPE_LABELS[item.equipment_type] ??
-                      item.equipment_type}
+                    {systemLabel(item.system)}
                   </td>
                   <td className="px-4 py-3 text-gray-600">
                     {item.location ?? "—"}
