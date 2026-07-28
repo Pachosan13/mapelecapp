@@ -77,6 +77,70 @@ export type Database = {
         }
         Relationships: []
       }
+      // Agregada a mano el 28-jul-2026: `supabase gen types` no puede conectar
+      // desde esta máquina (el host directo del proyecto es IPv6-only y no hay
+      // ruta; el pooler de la región no resolvió). La tabla SÍ está en prod
+      // (migración 20260728150000). La próxima regeneración legítima la trae
+      // sola y este bloque se puede borrar.
+      levantamiento_hojas: {
+        Row: {
+          archivo: string
+          building_id: string | null
+          candidatos: Json
+          cliente_texto: string | null
+          created_at: string
+          estado: string
+          fecha_hoja: string | null
+          id: string
+          nota: string | null
+          numero_reporte: string | null
+          payload: Json
+          resuelta_at: string | null
+          resuelta_por: string | null
+          tecnico: string | null
+        }
+        Insert: {
+          archivo: string
+          building_id?: string | null
+          candidatos?: Json
+          cliente_texto?: string | null
+          created_at?: string
+          estado?: string
+          fecha_hoja?: string | null
+          id?: string
+          nota?: string | null
+          numero_reporte?: string | null
+          payload: Json
+          resuelta_at?: string | null
+          resuelta_por?: string | null
+          tecnico?: string | null
+        }
+        Update: {
+          archivo?: string
+          building_id?: string | null
+          candidatos?: Json
+          cliente_texto?: string | null
+          created_at?: string
+          estado?: string
+          fecha_hoja?: string | null
+          id?: string
+          nota?: string | null
+          numero_reporte?: string | null
+          payload?: Json
+          resuelta_at?: string | null
+          resuelta_por?: string | null
+          tecnico?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "levantamiento_hojas_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       equipment: {
         Row: {
           building_id: string
