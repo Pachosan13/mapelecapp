@@ -388,3 +388,39 @@ describe("presurización de escaleras — ventiladores", () => {
     assert.equal(scope.pumpCounts.get("presurizacion_escaleras") ?? 0, 0);
   });
 });
+
+// --- Guarda de inventario sin verificar (28-jul-2026) ---
+//
+// Al cargar 97 edificios leídos de las hojas escaneadas, sus formularios pasarían a
+// filtrarse contra un inventario que SEMCO no confirmó. Una bomba que la lectura se comió
+// le borraría la sección al técnico en campo, y eso no se recupera. Hasta que William
+// verifique, sale la plantilla completa.
+describe("buildBuildingScope — equipo sin verificar", () => {
+  const bomba = { name: "Bomba Principal #1", system: "transferencia_agua_potable", kind: "bomba" };
+
+  it("un solo equipo sin verificar apaga TODO el filtro del edificio", () => {
+    const scope = buildBuildingScope([
+      { ...bomba, specs: { verificado: true } },
+      { name: "Bomba Jockey", system: "contra_incendios", kind: "bomba", specs: { verificado: false } },
+    ]);
+    assert.equal(scope.systems.size, 0);
+    assert.equal(scope.pumpCounts.size, 0);
+    assert.equal(scope.hasJockey, false);
+  });
+
+  it("el inventario cargado a mano (sin la marca) sigue filtrando igual que siempre", () => {
+    const scope = buildBuildingScope([bomba, { ...bomba, name: "Bomba Principal #2" }]);
+    assert.ok(scope.systems.has("transferencia_agua_potable"));
+    assert.equal(scope.pumpCounts.get("transferencia_agua_potable"), 2);
+  });
+
+  it("ya verificado por SEMCO → el filtro se activa", () => {
+    const scope = buildBuildingScope([{ ...bomba, specs: { verificado: true } }]);
+    assert.equal(scope.pumpCounts.get("transferencia_agua_potable"), 1);
+  });
+
+  it("specs con otra forma no se confunde con 'sin verificar'", () => {
+    const scope = buildBuildingScope([{ ...bomba, specs: { voltaje: 480 } }]);
+    assert.ok(scope.systems.has("transferencia_agua_potable"));
+  });
+});

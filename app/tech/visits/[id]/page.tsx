@@ -188,7 +188,7 @@ async function handleResponses(formData: FormData) {
   if (visit.building_id) {
     const { data: buildingEquipmentRows } = await supabase
       .from("equipment")
-      .select("name,system,kind")
+      .select("name,system,kind,specs")
       .eq("building_id", visit.building_id)
       .eq("is_active", true);
     buildingScope = buildBuildingScope(buildingEquipmentRows ?? []);

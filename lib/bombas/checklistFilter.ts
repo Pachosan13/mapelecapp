@@ -18,7 +18,17 @@ export type EquipmentRow = {
   name: string | null;
   system: string | null;
   kind?: string | null;
+  // `specs.verificado === false` marca inventario que entró por lectura automática de
+  // las hojas de mantenimiento (28-jul) y que SEMCO todavía no revisó.
+  specs?: unknown;
 };
+
+// Un equipo está sin verificar solo si lo dice explícitamente. Los que William cargó a
+// mano no traen la marca y cuentan como buenos: la ausencia no es sospecha.
+export const equipoSinVerificar = (row: EquipmentRow): boolean =>
+  typeof row.specs === "object" &&
+  row.specs !== null &&
+  (row.specs as { verificado?: unknown }).verificado === false;
 
 // Normaliza texto para comparar grupos/subtipos sin que un acento o una mayúscula
 // descuadre el filtro. El template real de prod trae AMBAS grafías del mismo grupo
@@ -181,6 +191,17 @@ export const EMPTY_SCOPE: BuildingScope = {
 };
 
 export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
+  // Mientras el edificio tenga UN equipo sin verificar, no se filtra nada: sale la
+  // plantilla completa.
+  //
+  // Por qué (28-jul-2026): hasta hoy un edificio sin inventario mostraba el formulario
+  // entero — el default seguro. Al cargar 97 edificios leídos de las hojas escaneadas,
+  // esos formularios pasarían a filtrarse contra un inventario que nadie confirmó, y una
+  // bomba que la lectura se comió le BORRARÍA la sección al técnico en campo. Mostrar de
+  // más se ignora; mostrar de menos se pierde. El filtro se activa cuando William
+  // termina de revisar el edificio.
+  if (rows.some(equipoSinVerificar)) return EMPTY_SCOPE;
+
   const systems = new Set<string>();
   const pumpCounts = new Map<string, number>();
   let hasPrincipalesPanel = false;

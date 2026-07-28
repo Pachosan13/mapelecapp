@@ -239,7 +239,7 @@ export default async function OpsVisitReportPage({
   const { data: buildingEquipmentRows } = visit.building_id
     ? await supabase
         .from("equipment")
-        .select("name,system,kind")
+        .select("name,system,kind,specs")
         .eq("building_id", visit.building_id)
         .eq("is_active", true)
     : { data: [] };
