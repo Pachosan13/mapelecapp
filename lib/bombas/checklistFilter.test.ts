@@ -424,3 +424,34 @@ describe("buildBuildingScope — equipo sin verificar", () => {
     assert.ok(scope.systems.has("transferencia_agua_potable"));
   });
 });
+
+// --- La sección de planta se colaba en todos los formularios (William, 28-jul) ---
+describe("grupo Planta de Emergencia", () => {
+  const conPlanta = buildBuildingScope([
+    { name: "Bomba Principal #1", system: "transferencia_agua_potable", kind: "bomba" },
+    { name: "Planta de Emergencia", system: "planta_diesel", kind: "generador" },
+  ]);
+  const sinPlanta = buildBuildingScope([
+    { name: "Bomba Principal #1", system: "transferencia_agua_potable", kind: "bomba" },
+  ]);
+
+  it("sin generador registrado, la sección NO se muestra", () => {
+    assert.equal(itemAppliesToBuilding("Planta de Emergencia - Nivel de combustible", sinPlanta), false);
+  });
+
+  it("con generador, sí", () => {
+    assert.equal(itemAppliesToBuilding("Planta de Emergencia - Nivel de combustible", conPlanta), true);
+  });
+
+  it("los labels mal formados del template también se filtran", () => {
+    // "Planta de Emergencia- Modelo" (sin espacio antes del guion) queda como grupo
+    // aparte; sin el match por prefijo se colaba igual.
+    assert.equal(itemAppliesToBuilding("Planta de Emergencia- Modelo", sinPlanta), false);
+    assert.equal(itemAppliesToBuilding("Planta de Emergencia- Modelo", conPlanta), true);
+  });
+
+  it("la grafía vieja del mapa sigue funcionando", () => {
+    assert.equal(itemAppliesToBuilding("Planta electrica - Nivel de combustible", sinPlanta), false);
+    assert.equal(itemAppliesToBuilding("Planta eléctrica - Nivel de combustible", conPlanta), true);
+  });
+});

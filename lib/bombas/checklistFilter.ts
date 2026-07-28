@@ -358,6 +358,20 @@ export const itemAppliesToBuilding = (label: string, scope: BuildingScope) => {
   }
 
   // Resto: gatillado por equipo → presencia real; general/administrativo → siempre.
+  // La plantilla de prod llama al grupo "Planta de Emergencia"; el mapa solo conocía
+  // "Planta electrica", así que NINGÚN edificio casaba y la sección de planta se colaba
+  // en todos los formularios — la vio William el 28-jul al asignar un mantenimiento en
+  // PH. NUOVO RESIDENCES, que no tiene planta. Se matchea por PREFIJO para cubrir las dos
+  // grafías y los labels mal formados del template ("Planta de Emergencia- Modelo", sin
+  // espacio antes del guion, que `groupOf` parte como un grupo distinto).
+  // Se mira la ETIQUETA completa, no el grupo: tres ítems del template vienen como
+  // "Planta de Emergencia- Modelo" (sin espacio antes del guion), y `groupOf` los manda a
+  // "Datos generales", donde ningún requisito los alcanzaba.
+  const labelNorm = norm(label);
+  if (labelNorm.startsWith("planta de emergencia") || labelNorm.startsWith("planta electrica")) {
+    return scope.hasGenerator;
+  }
+
   const requirement = GROUP_TO_REQUIREMENT_NORM[groupNorm];
   return requirement ? requirement(scope) : true;
 };
