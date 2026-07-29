@@ -192,6 +192,10 @@ export type BuildingScope = {
   hasBciPanel: boolean; // panel de la bomba principal contra incendios (NFPA, normada)
   hasJockeyPanel: boolean; // panel de la bomba jockey (dentro de contra incendios normado)
   hasPluvialPanel: boolean; // panel de control de las bombas sumergibles pluviales
+  // Nº de paneles pluviales = nº de FOSOS pluviales. William confirmó (29-jul) que cada foso
+  // tiene su propio panel de control (que maneja sus 2-3 bombas). Es lo único que deja saber
+  // cuántos fosos hay: el inventario guarda bombas sueltas, no fosos.
+  pluvialPanelCount: number;
   hasSanitarioPanel: boolean; // panel de control de las bombas sumergibles sanitarias
   hasJockey: boolean;
   jockeyCount: number; // nº de bombas jockey (Sótano, Azotea…) para la sección por unidad
@@ -213,6 +217,7 @@ export const EMPTY_SCOPE: BuildingScope = {
   hasBciPanel: false,
   hasJockeyPanel: false,
   hasPluvialPanel: false,
+  pluvialPanelCount: 0,
   hasSanitarioPanel: false,
   hasJockey: false,
   jockeyCount: 0,
@@ -241,6 +246,7 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
   let hasBciPanel = false;
   let hasJockeyPanel = false;
   let hasPluvialPanel = false;
+  let pluvialPanelCount = 0;
   let hasSanitarioPanel = false;
   let hasJockey = false;
   let jockeyCount = 0;
@@ -268,7 +274,10 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
         // Sumergibles pluvial/sanitario a veces traen su propio panel de control
         // (contactor/térmica, supervisor de voltaje, luces piloto, alternador) —
         // feedback William 15-jul. Gatillan su sección solo si el edificio lo registra.
-        else if (r.system === "achique_pluvial") hasPluvialPanel = true;
+        else if (r.system === "achique_pluvial") {
+          hasPluvialPanel = true;
+          pluvialPanelCount += 1;
+        }
         else if (r.system === "sanitario") hasSanitarioPanel = true;
         break;
       }
@@ -299,6 +308,7 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
     hasBciPanel,
     hasJockeyPanel,
     hasPluvialPanel,
+    pluvialPanelCount,
     hasSanitarioPanel,
     hasJockey,
     jockeyCount,
@@ -408,6 +418,28 @@ export const itemAppliesToBuilding = (label: string, scope: BuildingScope) => {
     if (!sys) return true;
     if (!scope.systems.has(sys)) return false;
     const parts = label.split(" - ");
+
+    // Pluvial: modelo de dos niveles foso→bomba (29-jul, feedback William, Colores de Bella
+    // Vista). El label es "… - Sistema pluvial - Pluvial N (foso) - Bomba M - campo". El nº de
+    // fosos = nº de paneles pluviales (1 panel por foso). Antes se comparaba el índice de FOSO
+    // contra el conteo de BOMBAS, así que 2 bombas mostraban 2 fosos (el bug que reportó).
+    if (sys === "achique_pluvial") {
+      const bombaCount = scope.pumpCounts.get("achique_pluvial") ?? 0;
+      // Si no se inventarió panel pero hay bombas, hay al menos 1 foso (no esconder equipo real).
+      const fosoCount =
+        scope.pluvialPanelCount > 0 ? scope.pluvialPanelCount : bombaCount > 0 ? 1 : 0;
+      const foso = Number((parts[2] ?? "").trim().match(/(\d+)$/)?.[1] ?? NaN);
+      if (Number.isNaN(foso)) return true;
+      if (foso > fosoCount) return false; // foso gate
+      const bombaMatch = (parts[3] ?? "").trim().match(/^Bomba (\d+)$/i);
+      if (!bombaMatch) return true; // "Estado del foso" / "Panel de control" → nivel foso
+      // Un solo foso: todas las bombas pluviales son de ese foso (exacto). Multi-foso: no
+      // sabemos el reparto por foso, así que se muestran todos los slots sembrados y el técnico
+      // deja en blanco el que sobre (mostrar de más se ignora; de menos se pierde).
+      if (fosoCount === 1) return Number(bombaMatch[1]) <= bombaCount;
+      return true;
+    }
+
     const unitMatch = (parts[2] ?? "").trim().match(/(\d+)$/);
     if (!unitMatch) return true;
     return Number(unitMatch[1]) <= (scope.pumpCounts.get(sys) ?? 0);

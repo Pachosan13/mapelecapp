@@ -491,6 +491,48 @@ describe("contra incendio — bombas jockey por unidad", () => {
   });
 });
 
+// Pluvial: modelo foso→bombas (29-jul, feedback William — Colores de Bella Vista: 1 foso con
+// 2 bombas salía como 2 fosos). Nº de fosos = nº de paneles pluviales.
+describe("bombas sumergibles pluviales — foso = panel", () => {
+  const P = "Bombas sumergibles - Sistema pluvial";
+
+  it("1 panel + 2 bombas = 1 foso con sus 2 bombas (caso Colores)", () => {
+    const rows = [
+      panel("Panel de Control de Bombas Pluviales", "achique_pluvial"),
+      bomba("Bomba Pluvial #1", "achique_pluvial"),
+      bomba("Bomba Pluvial #2", "achique_pluvial"),
+    ];
+    assert.equal(buildBuildingScope(rows).pluvialPanelCount, 1);
+    assert.equal(applies(`${P} - Pluvial 1 - Bomba 1 - Voltaje L1-L2 (V)`, rows), true);
+    assert.equal(applies(`${P} - Pluvial 1 - Bomba 2 - Voltaje L1-L2 (V)`, rows), true);
+    assert.equal(applies(`${P} - Pluvial 1 - Estado del foso`, rows), true);
+    assert.equal(applies(`${P} - Pluvial 2 - Bomba 1 - Voltaje L1-L2 (V)`, rows), false);
+  });
+
+  it("sin panel inventariado pero con bombas → al menos 1 foso (no esconder equipo)", () => {
+    const rows = [
+      bomba("Bomba Pluvial #1", "achique_pluvial"),
+      bomba("Bomba Pluvial #2", "achique_pluvial"),
+    ];
+    assert.equal(applies(`${P} - Pluvial 1 - Bomba 2 - Voltaje L1-L2 (V)`, rows), true);
+    assert.equal(applies(`${P} - Pluvial 2 - Bomba 1 - Voltaje L1-L2 (V)`, rows), false);
+  });
+
+  it("2 paneles = 2 fosos; el 3ro se esconde y las bombas no se recortan dentro", () => {
+    const rows = [
+      panel("Panel Pluvial A", "achique_pluvial"),
+      panel("Panel Pluvial B", "achique_pluvial"),
+      bomba("Bomba Pluvial #1", "achique_pluvial"),
+      bomba("Bomba Pluvial #2", "achique_pluvial"),
+      bomba("Bomba Pluvial #3", "achique_pluvial"),
+    ];
+    assert.equal(buildBuildingScope(rows).pluvialPanelCount, 2);
+    assert.equal(applies(`${P} - Pluvial 1 - Bomba 1 - Voltaje L1-L2 (V)`, rows), true);
+    assert.equal(applies(`${P} - Pluvial 2 - Bomba 3 - Voltaje L1-L2 (V)`, rows), true);
+    assert.equal(applies(`${P} - Pluvial 3 - Bomba 1 - Voltaje L1-L2 (V)`, rows), false);
+  });
+});
+
 // --- Guarda de inventario sin verificar (28-jul-2026) ---
 //
 // Al cargar 97 edificios leídos de las hojas escaneadas, sus formularios pasarían a
