@@ -142,12 +142,42 @@ const reforzadoraUnitOf = (groupName: string) => {
   return m ? Number(m[1]) : null;
 };
 
+// Nº de unidad de una bomba contra incendio NORMADA: grupo "Bomba contra incendio N".
+// null si no aplica. Antes había una sola sección "Bomba contra incendio" (por presencia);
+// se volvió por unidad el 29-jul porque un edificio con 2 bombas normadas (Colores: Sótano 4
+// + Azotea) solo veía una — feedback William. El regex EXIGE el número al final, así que NO
+// casa "Bomba contra incendio (no normada)" (esa sigue siendo sección única) ni el label
+// viejo sin numerar "Bomba contra incendio" (que se sigue tratando por presencia mientras la
+// migración no lo renumere — deploy va antes que la migración).
+const fireUnitOf = (groupName: string) => {
+  const m = groupName.match(/^Bomba contra incendio (\d+)$/i);
+  return m ? Number(m[1]) : null;
+};
+
+// Nº de unidad de una bomba jockey: grupo "Bomba Jockey N". null si no aplica. Igual que la
+// bomba de incendio: pasó de sección única a por-unidad el 29-jul (Colores tiene jockey en
+// Sótano 4 y en Azotea, y William confirmó que la de azotea lleva su propio checklist). El
+// label viejo sin numerar "Bomba Jockey" cae por presencia (hasJockey) hasta que la migración
+// lo renumere.
+const jockeyUnitOf = (groupName: string) => {
+  const m = groupName.match(/^Bomba Jockey (\d+)$/i);
+  return m ? Number(m[1]) : null;
+};
+
 // Nº de unidad de un ventilador de presurización: grupo "Ventilador N". null si no aplica.
-// La plantilla de presurización de escaleras trae 4 fijos; Metro View tiene 1 por torre.
+// La plantilla de presurización de escaleras trae "Ventilador 1..12" sembrados (se extendió
+// de 4 a 12 el 29-jul: edificios con más de 4 ventiladores, pregunta de William). Metro View
+// tiene 1 por torre; el filtro recorta al nº real de cada edificio (`fanCount`).
 const ventiladorUnitOf = (groupName: string) => {
   const m = groupName.match(/^Ventilador (\d+)$/i);
   return m ? Number(m[1]) : null;
 };
+
+// Cuántos ventiladores mostrar cuando el edificio TODAVÍA no registró los suyos (fanCount=0
+// = "no sabemos", no "no tiene"). Es el default histórico: antes de extender la plantilla a
+// 12 se mostraban "todos", y todos eran 4. Se conserva 4 a propósito — si mostráramos las 12
+// unidades sembradas, cada edificio sin inventariar arrastraría 372 casillas de ventilador.
+const DEFAULT_FAN_UNITS = 4;
 
 // Alcance del edificio derivado de la precarga: sistemas presentes, nº de BOMBAS reales por
 // sistema (excluye paneles, jockeys y generadores) y presencia de cada equipo gatillo.
@@ -164,6 +194,7 @@ export type BuildingScope = {
   hasPluvialPanel: boolean; // panel de control de las bombas sumergibles pluviales
   hasSanitarioPanel: boolean; // panel de control de las bombas sumergibles sanitarias
   hasJockey: boolean;
+  jockeyCount: number; // nº de bombas jockey (Sótano, Azotea…) para la sección por unidad
   hasFirePump: boolean; // bomba contra incendios NORMADA (NFPA)
   hasFireNoNormada: boolean; // bomba contra incendios NO normada (checklist propio)
   hasGenerator: boolean;
@@ -184,6 +215,7 @@ export const EMPTY_SCOPE: BuildingScope = {
   hasPluvialPanel: false,
   hasSanitarioPanel: false,
   hasJockey: false,
+  jockeyCount: 0,
   hasFirePump: false,
   hasFireNoNormada: false,
   hasGenerator: false,
@@ -211,6 +243,7 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
   let hasPluvialPanel = false;
   let hasSanitarioPanel = false;
   let hasJockey = false;
+  let jockeyCount = 0;
   let hasFirePump = false;
   let hasFireNoNormada = false;
   let hasGenerator = false;
@@ -241,6 +274,7 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
       }
       case "jockey":
         hasJockey = true;
+        jockeyCount += 1;
         break;
       case "generador":
         hasGenerator = true;
@@ -267,6 +301,7 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
     hasPluvialPanel,
     hasSanitarioPanel,
     hasJockey,
+    jockeyCount,
     hasFirePump,
     hasFireNoNormada,
     hasGenerator,
@@ -325,6 +360,25 @@ export const itemAppliesToBuilding = (label: string, scope: BuildingScope) => {
     return refUnit <= count;
   }
 
+  // Bombas contra incendio normadas: igual que reforzadoras, una "Bomba contra incendio N"
+  // por cada bomba normada del edificio. Los jockeys NO cuentan (classifyEquipment los saca
+  // a "jockey", nunca entran en pumpCounts), así que el conteo son las bombas principales de
+  // incendio (Sótano 4 + Azotea = 2 en Colores). El label viejo sin numerar cae abajo, en el
+  // mapa por presencia (hasFirePump), hasta que la migración lo renumere a "... 1".
+  const fireUnit = fireUnitOf(group);
+  if (fireUnit !== null) {
+    const count = scope.pumpCounts.get("contra_incendios") ?? 0;
+    return fireUnit <= count;
+  }
+
+  // Bombas jockey por unidad: una "Bomba Jockey N" por cada jockey del edificio (Sótano 4 +
+  // Azotea = 2 en Colores). Se cuenta aparte de las bombas (classifyEquipment las saca a
+  // "jockey"), en scope.jockeyCount.
+  const jockeyUnit = jockeyUnitOf(group);
+  if (jockeyUnit !== null) {
+    return jockeyUnit <= scope.jockeyCount;
+  }
+
   // Ventiladores de presurización: un grupo por unidad, como las reforzadoras, PERO con
   // una regla asimétrica a propósito.
   //
@@ -335,12 +389,14 @@ export const itemAppliesToBuilding = (label: string, scope: BuildingScope) => {
   // problema original (a Metro View le salen 4 cuando tiene 1).
   //
   // Por eso: filtramos SOLO con evidencia positiva. fanCount === 0 significa "todavía no
-  // sabemos", no "no tiene" → se muestran los 4 como siempre. Cuando el edificio registre
-  // sus ventiladores, salen exactamente los que tiene.
+  // sabemos", no "no tiene" → se muestra el default histórico (DEFAULT_FAN_UNITS = 4).
+  // Antes se devolvía `true` (mostrar TODAS), pero al extender la plantilla de 4 a 12 (29-jul)
+  // "todas" pasaría a ser 12 y cada edificio sin inventariar cargaría 12 ventiladores. Cuando
+  // el edificio registre sus ventiladores, salen exactamente los que tiene, hasta 12.
   const fanUnit = ventiladorUnitOf(group);
   if (fanUnit !== null) {
-    if (scope.fanCount === 0) return true;
-    return fanUnit <= scope.fanCount;
+    const cap = scope.fanCount === 0 ? DEFAULT_FAN_UNITS : scope.fanCount;
+    return fanUnit <= cap;
   }
 
   // Sumergibles: solo los subtipos cuyo sistema esté presente, y dentro de cada subtipo,

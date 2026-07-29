@@ -380,12 +380,114 @@ describe("presurización de escaleras — ventiladores", () => {
     assert.equal(applies("Ventilador 4 - Ubicación", rows), true);
   });
 
+  // Techo de la plantilla extendido a 12 (29-jul). Sin dato del edificio se conserva el
+  // default histórico de 4: los ventiladores 5..12 sembrados NO deben colarse en edificios
+  // que nunca los registraron, o cada uno cargaría 372 casillas de más.
+  it("sin ventiladores registrados NO se cuelan los sembrados 5..12", () => {
+    const rows = [bomba("Bomba Principal 1", "transferencia_agua_potable")];
+    assert.equal(applies("Ventilador 5 - Ubicación", rows), false);
+    assert.equal(applies("Ventilador 12 - Ubicación", rows), false);
+  });
+
+  it("un edificio con 6 ventiladores muestra 1..6 y esconde el 7", () => {
+    const rows = Array.from({ length: 6 }, (_, i) =>
+      ventilador(`Ventilador Torre ${i + 1}`, "presurizacion_escaleras")
+    );
+    assert.equal(applies("Ventilador 4 - Ubicación", rows), true);
+    assert.equal(applies("Ventilador 6 - Ubicación", rows), true);
+    assert.equal(applies("Ventilador 7 - Ubicación", rows), false);
+  });
+
+  it("un edificio con 12 ventiladores muestra hasta el 12", () => {
+    const rows = Array.from({ length: 12 }, (_, i) =>
+      ventilador(`Ventilador Torre ${i + 1}`, "presurizacion_escaleras")
+    );
+    assert.equal(applies("Ventilador 12 - Ubicación", rows), true);
+  });
+
   it("el ventilador no se cuenta como bomba de su sistema", () => {
     const scope = buildBuildingScope([
       ventilador("Ventilador Torre A", "presurizacion_escaleras"),
     ]);
     assert.equal(scope.fanCount, 1);
     assert.equal(scope.pumpCounts.get("presurizacion_escaleras") ?? 0, 0);
+  });
+});
+
+// Bombas contra incendio normadas por unidad (29-jul-2026, feedback William — Colores de
+// Bella Vista tiene bomba de incendio en Sótano 4 y en Azotea, y solo salía una).
+describe("contra incendio — bombas normadas por unidad", () => {
+  it("dos bombas de incendio muestran 1 y 2, esconden la 3 (caso Colores)", () => {
+    const rows = [
+      bomba("Bomba Contra Incendios Sótano 4", "contra_incendios"),
+      bomba("Bomba Contra Incendios Azotea", "contra_incendios"),
+    ];
+    assert.equal(applies("Bomba contra incendio 1 - Voltaje L1-L2", rows), true);
+    assert.equal(applies("Bomba contra incendio 2 - Voltaje L1-L2", rows), true);
+    assert.equal(applies("Bomba contra incendio 3 - Voltaje L1-L2", rows), false);
+  });
+
+  it("los jockeys NO cuentan como bombas de incendio", () => {
+    const rows = [
+      bomba("Bomba Contra Incendios Sótano 4", "contra_incendios"),
+      bomba("Bomba Jockey Azotea", "contra_incendios"),
+    ];
+    assert.equal(applies("Bomba contra incendio 1 - Voltaje L1-L2", rows), true);
+    assert.equal(applies("Bomba contra incendio 2 - Voltaje L1-L2", rows), false);
+  });
+
+  // Transición: el filtro se despliega ANTES que la migración que renumera. Mientras tanto
+  // el label viejo sin número se sigue tratando por presencia (hasFirePump), como siempre.
+  it("el label viejo sin numerar se muestra por presencia hasta la migración", () => {
+    const conBomba = [bomba("Bomba Contra Incendios", "contra_incendios")];
+    const sinBomba = [bomba("Bomba Principal 1", "transferencia_agua_potable")];
+    assert.equal(applies("Bomba contra incendio - Voltaje L1-L2", conBomba), true);
+    assert.equal(applies("Bomba contra incendio - Voltaje L1-L2", sinBomba), false);
+  });
+
+  // La (no normada) es sección única aparte: el filtro por unidad NO la toca, y depende de
+  // que el edificio tenga una bomba en el sistema no normado, no de la normada.
+  it("la (no normada) sigue por presencia, independiente de la normada", () => {
+    const soloNormada = [bomba("Bomba Contra Incendios", "contra_incendios")];
+    const noNormada = [bomba("BCI patio", "contra_incendios_no_normada")];
+    assert.equal(applies("Bomba contra incendio (no normada) - Voltaje L1-L2", soloNormada), false);
+    assert.equal(applies("Bomba contra incendio (no normada) - Voltaje L1-L2", noNormada), true);
+  });
+});
+
+// Bombas jockey por unidad (29-jul-2026, feedback William — Colores tiene jockey en Sótano 4
+// y en Azotea, cada una con su checklist).
+describe("contra incendio — bombas jockey por unidad", () => {
+  it("dos jockeys cuentan y se muestran 1 y 2, no 3 (caso Colores)", () => {
+    const rows = [
+      bomba("Bomba Jockey Sótano 4", "contra_incendios"),
+      bomba("Bomba Jockey Azotea", "contra_incendios"),
+    ];
+    const scope = buildBuildingScope(rows);
+    assert.equal(scope.jockeyCount, 2);
+    assert.equal(applies("Bomba Jockey 1 - Presión de arranque", rows), true);
+    assert.equal(applies("Bomba Jockey 2 - Presión de arranque", rows), true);
+    assert.equal(applies("Bomba Jockey 3 - Presión de arranque", rows), false);
+  });
+
+  it("el jockey no infla el conteo de bombas de incendio y viceversa", () => {
+    const rows = [
+      bomba("Bomba Contra Incendios Sótano 4", "contra_incendios"),
+      bomba("Bomba Jockey Sótano 4", "contra_incendios"),
+    ];
+    const scope = buildBuildingScope(rows);
+    assert.equal(scope.jockeyCount, 1);
+    assert.equal(scope.pumpCounts.get("contra_incendios"), 1);
+    assert.equal(applies("Bomba Jockey 2 - Presión de arranque", rows), false);
+    assert.equal(applies("Bomba contra incendio 2 - Voltaje L1-L2", rows), false);
+  });
+
+  // Transición: el label viejo sin numerar se sigue tratando por presencia hasta la migración.
+  it("el label viejo 'Bomba Jockey' se muestra por presencia hasta la migración", () => {
+    const conJockey = [bomba("Bomba Jockey", "contra_incendios")];
+    const sinJockey = [bomba("Bomba Principal 1", "transferencia_agua_potable")];
+    assert.equal(applies("Bomba Jockey - Presión de arranque", conJockey), true);
+    assert.equal(applies("Bomba Jockey - Presión de arranque", sinJockey), false);
   });
 });
 
