@@ -509,6 +509,15 @@ describe("bombas sumergibles pluviales — foso = panel", () => {
     assert.equal(applies(`${P} - Pluvial 2 - Bomba 1 - Voltaje L1-L2 (V)`, rows), false);
   });
 
+  it("1 foso con 4 bombas muestra hasta la Bomba 4 (foso de 4, raro pero soportado)", () => {
+    const rows = [
+      panel("Panel de Control de Bombas Pluviales", "achique_pluvial"),
+      ...Array.from({ length: 4 }, (_, i) => bomba(`Bomba Pluvial #${i + 1}`, "achique_pluvial")),
+    ];
+    assert.equal(applies(`${P} - Pluvial 1 - Bomba 4 - Voltaje L1-L2 (V)`, rows), true);
+    assert.equal(applies(`${P} - Pluvial 2 - Bomba 1 - Voltaje L1-L2 (V)`, rows), false);
+  });
+
   it("sin panel inventariado pero con bombas → al menos 1 foso (no esconder equipo)", () => {
     const rows = [
       bomba("Bomba Pluvial #1", "achique_pluvial"),
