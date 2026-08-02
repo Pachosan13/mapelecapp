@@ -99,6 +99,9 @@ export default async function BuildingFormatoPage({
     grupos.set(g, acc);
   }
   const totalSale = items.filter((i) => sale(String(i.label ?? ""))).length;
+  const ocultas = [...grupos.entries()]
+    .filter(([, c]) => c.sale === 0)
+    .map(([g]) => g);
 
   return (
     <div className="min-h-screen p-6 sm:p-8">
@@ -182,33 +185,38 @@ export default async function BuildingFormatoPage({
           </p>
 
           {/* Dos columnas, no tres: en el teléfono de William (390px) la tercera se
-              cortaba, y el ✅/🚫 con el conteo ya dice todo lo que necesita. */}
+              cortaba, y el ✅ con el conteo ya dice lo que necesita.
+              Las que NO salen van colapsadas: al extender las unidades a 12 (2-ago)
+              pasaron de 9 a ~36 filas grises y tapaban lo que sí importa. */}
           <table className="mt-3 w-full border-collapse text-sm">
             <thead>
               <tr className="border-b-2 border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
-                <th className="py-2 pr-3">Sección</th>
+                <th className="py-2 pr-3">Le sale al técnico</th>
                 <th className="w-24 py-2 text-right">Campos</th>
               </tr>
             </thead>
             <tbody>
-              {[...grupos.entries()].map(([g, c]) => (
-                <tr
-                  key={g}
-                  className={`border-b border-gray-100 ${
-                    c.sale === 0 ? "text-gray-400" : ""
-                  }`}
-                >
-                  <td className="py-2 pr-3">
-                    {c.sale > 0 ? "✅ " : "🚫 "}
-                    {g}
-                  </td>
-                  <td className="py-2 text-right tabular-nums">
-                    {c.sale > 0 ? c.sale : "no sale"}
-                  </td>
-                </tr>
-              ))}
+              {[...grupos.entries()]
+                .filter(([, c]) => c.sale > 0)
+                .map(([g, c]) => (
+                  <tr key={g} className="border-b border-gray-100">
+                    <td className="py-2 pr-3">✅ {g}</td>
+                    <td className="py-2 text-right tabular-nums">{c.sale}</td>
+                  </tr>
+                ))}
             </tbody>
           </table>
+
+          {ocultas.length > 0 ? (
+            <details className="mt-4">
+              <summary className="cursor-pointer text-sm text-gray-500">
+                {ocultas.length} secciones que no aplican a este edificio
+              </summary>
+              <p className="mt-2 text-sm leading-relaxed text-gray-400">
+                {ocultas.join(" · ")}
+              </p>
+            </details>
+          ) : null}
 
           <details className="mt-6">
             <summary className="cursor-pointer text-sm font-semibold">
