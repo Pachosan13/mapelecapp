@@ -176,8 +176,8 @@ export default async function LevantamientoPage({
         <h1 className="mt-2 text-2xl font-bold">Hojas por identificar</h1>
         <p className="mt-1 text-gray-600">
           Hojas de mantenimiento que no pude asignar a un edificio. Elegí cuál es y se cargan
-          sus equipos; si el edificio no existe en la app todavía, descartala y creámoslo
-          primero.
+          sus equipos. Si el edificio todavía no existe en la app, escribí su nombre en el
+          campo de abajo y «Crear y cargar» lo crea y le mete los equipos de una vez.
         </p>
         <p className="mt-2 text-sm text-gray-500">
           {hojas?.length ?? 0} pendientes · {asignadas ?? 0} ya resueltas
