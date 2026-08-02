@@ -181,38 +181,34 @@ export default async function BuildingFormatoPage({
             <em>{activa.name}</em>
           </p>
 
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[420px] border-collapse text-sm">
-              <thead>
-                <tr className="border-b-2 border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
-                  <th className="py-2 pr-3">Sección</th>
-                  <th className="w-20 py-2 pr-3 text-center">Le sale</th>
-                  <th className="w-20 py-2 text-center">Oculto</th>
+          {/* Dos columnas, no tres: en el teléfono de William (390px) la tercera se
+              cortaba, y el ✅/🚫 con el conteo ya dice todo lo que necesita. */}
+          <table className="mt-3 w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b-2 border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
+                <th className="py-2 pr-3">Sección</th>
+                <th className="w-24 py-2 text-right">Campos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...grupos.entries()].map(([g, c]) => (
+                <tr
+                  key={g}
+                  className={`border-b border-gray-100 ${
+                    c.sale === 0 ? "text-gray-400" : ""
+                  }`}
+                >
+                  <td className="py-2 pr-3">
+                    {c.sale > 0 ? "✅ " : "🚫 "}
+                    {g}
+                  </td>
+                  <td className="py-2 text-right tabular-nums">
+                    {c.sale > 0 ? c.sale : "no sale"}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {[...grupos.entries()].map(([g, c]) => (
-                  <tr
-                    key={g}
-                    className={`border-b border-gray-100 ${
-                      c.sale === 0 ? "text-gray-400" : ""
-                    }`}
-                  >
-                    <td className="py-2 pr-3">
-                      {c.sale > 0 ? "✅ " : "🚫 "}
-                      {g}
-                    </td>
-                    <td className="py-2 pr-3 text-center tabular-nums">
-                      {c.sale || "—"}
-                    </td>
-                    <td className="py-2 text-center tabular-nums text-gray-400">
-                      {c.oculto || "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
 
           <details className="mt-6">
             <summary className="cursor-pointer text-sm font-semibold">
