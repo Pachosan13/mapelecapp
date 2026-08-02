@@ -103,14 +103,23 @@ export default async function BuildingEquipmentPage({
             <h1 className="text-2xl font-bold">{building.name}</h1>
             <p className="text-gray-600">Inventario de equipos</p>
           </div>
-          {!isReadOnly ? (
+          <div className="flex flex-wrap gap-2">
+            {/* Vista previa del formato sin crear una visita de prueba (William, 2-ago). */}
             <Link
-              href={`/ops/buildings/${building.id}/equipment/new`}
-              className="rounded bg-black px-4 py-2 text-white"
+              href={`/ops/buildings/${building.id}/formato`}
+              className="rounded border border-black px-4 py-2 text-black"
             >
-              Agregar equipo
+              Ver formato
             </Link>
-          ) : null}
+            {!isReadOnly ? (
+              <Link
+                href={`/ops/buildings/${building.id}/equipment/new`}
+                className="rounded bg-black px-4 py-2 text-white"
+              >
+                Agregar equipo
+              </Link>
+            ) : null}
+          </div>
         </div>
         <p className="mt-2 text-sm text-gray-500">
           {building.address ?? "Sin dirección"}
