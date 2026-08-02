@@ -98,8 +98,18 @@ async function cargarHojaEnEdificio(
     .eq("building_id", buildingId)
     .limit(1);
   if (yaTiene?.length) {
+    // Pasa cuando la hoja es de OTRA área/torre del mismo PH (William, 2-ago: Aqua Point).
+    // La causa de fondo no es la carga sino el formulario: sus secciones por unidad tienen
+    // cupo de 3 (Bomba reforzadora 1-3, contra incendio 1-3, jockey 1-3, principales 1-3).
+    // Juntar dos áreas en un edificio deja bombas fuera del formulario del técnico — y
+    // mostrar de menos se pierde en campo. Por eso el patrón es partir, como METRO VIEW
+    // TORRE A/B o P.H PRIVAL TORRE A/B. Ver decision_mapelec_carga_primero_verifica_despues.
     volverConError(
-      "Ese edificio ya tiene equipos cargados. Revisalo primero desde su inventario; no cargo encima."
+      "Ese edificio ya tiene equipos cargados y no cargo encima. Si esta hoja es de OTRA " +
+        "área o torre del mismo PH, creala como edificio aparte con «Crear y cargar» " +
+        "(ej. «PH AQUAPOINT ALTOS»), igual que METRO VIEW TORRE A y TORRE B. El formulario " +
+        "solo tiene 3 cupos por sistema, así que juntar dos áreas dejaría bombas sin " +
+        "aparecer en el formulario del técnico."
     );
   }
 
