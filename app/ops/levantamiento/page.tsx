@@ -28,7 +28,56 @@ async function asignarHoja(formData: FormData) {
   if (!buildingId) {
     volverConError("Elegí un edificio antes de asignar.");
   }
+  await cargarHojaEnEdificio(hojaId, buildingId, user.id);
+}
 
+// La hoja trae un edificio que NO está en la app. Pasa seguido: la base tiene ~238 y
+// SEMCO da servicio a ~300 (William, 2-ago: "el edificio no estaba creado, lo tuve que
+// realizar manual ya que no salía en la lista"). Antes había que salir a /ops/buildings/new,
+// crearlo y volver a buscar la hoja; ahora se crea y se asigna en un solo paso.
+async function crearEdificioYAsignar(formData: FormData) {
+  "use server";
+  const user = await getCurrentUser();
+  if (!user || user.role === "director") {
+    redirect("/ops/levantamiento");
+  }
+  const hojaId = String(formData.get("hoja_id") ?? "");
+  const nombre = String(formData.get("nuevo_nombre") ?? "").trim();
+  if (!nombre) {
+    volverConError("Escribí el nombre del edificio nuevo.");
+  }
+
+  const db = (await createClient()).schema("public");
+  // Si ya existe con ese nombre, no se duplica: se usa el que hay.
+  const { data: existente } = await db
+    .from("buildings")
+    .select("id")
+    .ilike("name", nombre)
+    .maybeSingle();
+
+  let buildingId = existente?.id ?? "";
+  if (!buildingId) {
+    const { data: creado, error: errCrear } = await db
+      .from("buildings")
+      .insert({ name: nombre, created_by: user.id })
+      .select("id")
+      .maybeSingle();
+    if (errCrear || !creado) {
+      volverConError(`No pude crear el edificio: ${errCrear?.message ?? "sin id"}`);
+    }
+    buildingId = creado.id;
+  }
+
+  await cargarHojaEnEdificio(hojaId, buildingId, user.id);
+}
+
+// Núcleo compartido por las dos acciones: valida la hoja, carga sus equipos y la marca
+// resuelta. Vive aparte para que "crear y asignar" no reimplemente las reglas de carga.
+async function cargarHojaEnEdificio(
+  hojaId: string,
+  buildingId: string,
+  userId: string
+) {
   const db = (await createClient()).schema("public");
   const { data: hoja } = await db
     .from("levantamiento_hojas")
@@ -67,7 +116,7 @@ async function asignarHoja(formData: FormData) {
     .update({
       building_id: buildingId,
       estado: "asignada",
-      resuelta_por: user.id,
+      resuelta_por: userId,
       resuelta_at: new Date().toISOString(),
     })
     .eq("id", hojaId);
@@ -190,6 +239,26 @@ export default async function LevantamientoPage({
                       </select>
                       <button type="submit" className="rounded bg-black px-3 py-1 text-sm text-white">
                         Asignar y cargar
+                      </button>
+                    </form>
+                    {/* El edificio no existe en la app: se crea y se asigna de una. */}
+                    <form
+                      action={crearEdificioYAsignar}
+                      className="flex flex-wrap items-center gap-2"
+                    >
+                      <input type="hidden" name="hoja_id" value={h.id} />
+                      <input
+                        type="text"
+                        name="nuevo_nombre"
+                        placeholder="…o edificio nuevo"
+                        defaultValue={h.cliente_texto ?? ""}
+                        className="rounded border px-2 py-1 text-sm"
+                      />
+                      <button
+                        type="submit"
+                        className="rounded border border-black px-3 py-1 text-sm text-black"
+                      >
+                        Crear y cargar
                       </button>
                     </form>
                     <form action={descartarHoja}>
