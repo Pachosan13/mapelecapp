@@ -85,15 +85,29 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Firma ────────────────────────────────────────────────────────────────
-  // Una firma por rol y por visita: la nueva REEMPLAZA a la anterior. Misma regla
-  // que traía el server action (nacida de las 30 firmas duplicadas del 10-jul,
-  // cuando el pad no daba señal de guardado y el técnico volvía a firmar).
+  // Una firma por rol y por visita: la nueva REEMPLAZA a la anterior.
+  //
+  // 🐛 ORDEN — se borra ANTES de subir, y esto NO es un detalle.
+  // La tabla tiene un índice único `media_una_firma_por_visita_y_rol`. El código
+  // anterior subía primero y borraba después, así que al firmar de nuevo el mismo
+  // rol el INSERT chocaba con la restricción y devolvía 400: la firma nueva NUNCA
+  // entraba. Eso es una buena parte del "la firma siempre da problema" que
+  // reportó William — no era solo la señal.
+  //
+  // Borrar primero es seguro AHORA porque la firma ya vive en la cola del equipo
+  // del técnico (IndexedDB): si la subida falla después del borrado, el PNG sigue
+  // en su celular y se reintenta solo. Antes no había esa red y por eso el orden
+  // inverso tenía sentido.
   const { data: previas } = await supabase
     .from("media")
     .select("id,storage_path")
     .eq("visit_id", visit.id)
     .eq("kind", "signature")
     .eq("signer_role", signerRole);
+
+  if (previas?.length) {
+    await supabase.from("media").delete().in("id", previas.map((p) => p.id));
+  }
 
   const { error } = await uploadMedia({
     buildingId: visit.building_id,
@@ -104,13 +118,13 @@ export async function POST(req: NextRequest) {
   });
 
   if (error) {
+    // La firma sigue en la cola del equipo → el cliente reintenta.
     return NextResponse.json({ ok: false, error }, { status: 400 });
   }
 
-  // Se borran DESPUÉS de que la nueva quedó guardada: si el borrado falla queda
-  // una firma de más (recuperable), nunca ninguna.
+  // Los archivos viejos se limpian al final: si esto falla queda un PNG huérfano
+  // en el bucket (inofensivo), nunca una firma de menos.
   if (previas?.length) {
-    await supabase.from("media").delete().in("id", previas.map((p) => p.id));
     await supabase.storage
       .from(MEDIA_BUCKET)
       .remove(previas.map((p) => p.storage_path));
