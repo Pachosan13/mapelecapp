@@ -71,6 +71,13 @@ export default function OfflinePhotoCapture({
         fd.append("file", new File([p.blob], p.name || "foto.jpg", { type: p.type }));
         fd.append("visit_id", p.visitId);
         if (p.system) fd.append("system", p.system);
+        // Las firmas viajan por esta misma cola desde el 3-ago-2026. Sin `kind`
+        // el endpoint las trata como evidencia, que es lo correcto para las fotos
+        // que ya estaban encoladas antes del cambio.
+        if (p.kind === "signature") {
+          fd.append("kind", "signature");
+          fd.append("signer_role", p.signerRole ?? "cliente");
+        }
         try {
           const res = await fetch("/api/tech/media", { method: "POST", body: fd });
           if (res.ok) {

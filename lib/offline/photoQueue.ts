@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Cola de FOTOS offline en IndexedDB.
+ * Cola de MEDIA offline en IndexedDB: fotos de evidencia Y firmas.
  *
  * Por qué IndexedDB y no localStorage: los blobs de foto (hasta 10MB) no caben en
  * localStorage. IndexedDB guarda binarios y sobrevive recarga y cierre de la app.
@@ -20,6 +20,15 @@ export type QueuedPhoto = {
   size: number;
   blob: Blob;
   ts: number;
+  /**
+   * "evidence" (default, foto de inspección) o "signature" (firma de recibido).
+   * Las firmas entraron a esta cola el 3-ago-2026: eran la única pieza del
+   * formulario que se perdía sin señal. Ausente = evidencia, para que las fotos
+   * que ya estén encoladas en el equipo de un técnico sigan subiendo igual.
+   */
+  kind?: "evidence" | "signature";
+  /** Solo para kind="signature": quién firmó. */
+  signerRole?: "cliente" | "tecnico";
 };
 
 const DB_NAME = "semco-photos";

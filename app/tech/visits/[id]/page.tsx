@@ -361,122 +361,6 @@ async function handleResponses(formData: FormData) {
   redirect(`/tech/visits/${visitId}?saved=1`);
 }
 
-// Firma de recibido (estándar de los formularios SEMCO: "Recibido por / Realizado por").
-// El cliente firma en el celular del técnico; se guarda como media kind="signature".
-async function handleSignatureUpload(formData: FormData) {
-  "use server";
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    redirect("/login");
-  }
-
-  const visitId = String(formData.get("visit_id") ?? "");
-  if (!visitId) {
-    redirect("/tech/today");
-  }
-
-  const dataUrl = String(formData.get("signature_data") ?? "");
-  const signerName = String(formData.get("signature_name") ?? "").trim();
-  // Rol de quien firma → media.signer_role. Estampa cada firma en su línea del
-  // PDF ("Técnico responsable" vs "Recibido por el cliente"). NO va en
-  // media.system: ese campo es el sistema de la evidencia.
-  const signerRole: SignerRole =
-    String(formData.get("signer_role") ?? "cliente").trim() === "tecnico"
-      ? "tecnico"
-      : "cliente";
-  const b64 = dataUrl.startsWith("data:image/png;base64,")
-    ? dataUrl.slice("data:image/png;base64,".length)
-    : "";
-  if (!b64) {
-    redirect(
-      `/tech/visits/${visitId}?media_error=${encodeURIComponent(
-        "Dibuja la firma antes de guardarla."
-      )}`
-    );
-  }
-
-  const { data: visit } = await supabase
-    .from("visits")
-    .select("id,building_id,assigned_tech_user_id,assigned_crew_id,status")
-    .eq("id", visitId)
-    .maybeSingle();
-
-  if (!visit || !visit.building_id) {
-    redirect(
-      `/tech/visits/${visitId}?media_error=${encodeURIComponent(
-        "No se encontró la visita."
-      )}`
-    );
-  }
-
-  const canAccessVisit =
-    visit.assigned_tech_user_id === user.id ||
-    (Boolean(visit.assigned_crew_id) &&
-      visit.assigned_crew_id ===
-        (
-          await supabase
-            .from("profiles")
-            .select("home_crew_id")
-            .eq("user_id", user.id)
-            .maybeSingle()
-        ).data?.home_crew_id);
-
-  if (!canAccessVisit) {
-    redirect("/unauthorized");
-  }
-
-  const bytes = Buffer.from(b64, "base64");
-  const nameSlug = signerName
-    ? signerName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40)
-    : "recibido";
-  const file = new File([new Uint8Array(bytes)], `firma-${nameSlug}.png`, {
-    type: "image/png",
-  });
-
-  // Una firma por rol y por visita: la nueva REEMPLAZA a la anterior.
-  // Antes se acumulaban (30 duplicados en prod al 10-jul) porque el pad no daba
-  // señal de guardado y el técnico volvía a firmar.
-  const { data: previas } = await supabase
-    .from("media")
-    .select("id,storage_path")
-    .eq("visit_id", visit.id)
-    .eq("kind", "signature")
-    .eq("signer_role", signerRole);
-
-  const { error } = await uploadMedia({
-    buildingId: visit.building_id,
-    visitId: visit.id,
-    file,
-    kind: "signature",
-    signerRole,
-  });
-
-  if (error) {
-    redirect(
-      `/tech/visits/${visitId}?media_error=${encodeURIComponent(error)}`
-    );
-  }
-
-  // Se borran DESPUÉS de que la nueva quedó guardada: si el borrado falla, hay
-  // una firma de más (recuperable), no ninguna.
-  if (previas?.length) {
-    await supabase
-      .from("media")
-      .delete()
-      .in("id", previas.map((p) => p.id));
-    await supabase.storage
-      .from(MEDIA_BUCKET)
-      .remove(previas.map((p) => p.storage_path));
-  }
-
-  redirect(`/tech/visits/${visitId}?signature_saved=1`);
-}
 
 async function handleMediaDelete(formData: FormData) {
   "use server";
@@ -1189,13 +1073,19 @@ export default async function TechVisitPage({
               </div>
             ) : null}
             {!isCompleted ? (
-              <form action={handleSignatureUpload} className="space-y-3">
-                <input type="hidden" name="visit_id" value={visit.id} />
+              // Ya NO es un <form>: la firma se guarda primero en el equipo
+              // (cola IndexedDB) y se sube después, para que un sótano sin señal
+              // no se la coma. Ver el encabezado de SignaturePad.tsx.
+              <div className="space-y-3">
                 {/* El `key` cambia cuando cambian las firmas guardadas → el pad
                     se remonta y el lienzo queda limpio. Sin esto el trazo sigue
                     dibujado tras guardar y el técnico cree que no se guardó. */}
-                <SignaturePad key={signatureFormKey} signedRoles={signedRoles} />
-              </form>
+                <SignaturePad
+                  key={signatureFormKey}
+                  visitId={visit.id}
+                  signedRoles={signedRoles}
+                />
+              </div>
             ) : null}
           </div>
         </>
