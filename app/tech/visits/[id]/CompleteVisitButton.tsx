@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { pendingCount } from "@/lib/offline/outbox";
 
 type Props = {
+  visitId: string;
   enforceChecklistValidation: boolean;
   requiredChecklistItemIds: string[];
   isCompleted: boolean;
@@ -12,6 +14,7 @@ type Props = {
 const MISSING_OUTLINE = "2px solid #ef4444";
 
 export default function CompleteVisitButton({
+  visitId,
   enforceChecklistValidation,
   requiredChecklistItemIds,
   isCompleted,
@@ -43,7 +46,27 @@ export default function CompleteVisitButton({
   };
 
   const handleClick: React.MouseEventHandler<HTMLButtonElement> = (event) => {
-    if (!enforceChecklistValidation || isCompleted) {
+    if (isCompleted) return;
+
+    // Frena el cierre si quedan respuestas guardadas SOLO en el equipo.
+    // Completar apagaba el autosave y esas respuestas se quedaban varadas para
+    // siempre — el técnico las veía desaparecer ("se borran las cosas que uno
+    // apunta"). Mejor no dejar cerrar y decir por qué. (3-ago-2026)
+    const sinSubir = pendingCount(visitId);
+    if (sinSubir > 0) {
+      event.preventDefault();
+      clearHighlights();
+      const sinSenal =
+        typeof navigator !== "undefined" && navigator.onLine === false;
+      setUiError(
+        sinSenal
+          ? `Tienes ${sinSubir} ${sinSubir === 1 ? "respuesta guardada" : "respuestas guardadas"} en el equipo que todavía no ${sinSubir === 1 ? "sube" : "suben"}. Busca señal un momento y vuelve a darle a Completar — no se te va a perder nada, está todo guardado en el celular.`
+          : `Estoy subiendo ${sinSubir} ${sinSubir === 1 ? "respuesta" : "respuestas"} que faltaban. Espera unos segundos y vuelve a darle a Completar.`
+      );
+      return;
+    }
+
+    if (!enforceChecklistValidation) {
       return;
     }
 
@@ -112,7 +135,7 @@ export default function CompleteVisitButton({
         value="complete"
         className="rounded bg-black px-4 py-2 text-white"
         disabled={isCompleted}
-        onClick={enforceChecklistValidation ? handleClick : undefined}
+        onClick={handleClick}
       >
         Completar visita
       </button>

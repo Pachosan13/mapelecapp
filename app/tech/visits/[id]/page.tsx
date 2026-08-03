@@ -984,6 +984,7 @@ export default async function TechVisitPage({
                   Guardar
                 </button>
                 <CompleteVisitButton
+                  visitId={visit.id}
                   enforceChecklistValidation={isChecklistTemplate}
                   requiredChecklistItemIds={requiredChecklistItemIds}
                   isCompleted={isCompleted}

@@ -46,6 +46,47 @@ export default function AutosaveManager({ visitId, formId, enabled }: Props) {
   const [pendingN, setPendingN] = useState(0);
   const timers = useRef<Map<string, number>>(new Map());
 
+  // ⚠️ DRENADO INCONDICIONAL — corre AUNQUE la visita ya esté completada.
+  //
+  // Bug encontrado el 3-ago-2026 leyendo el código, a raíz de un técnico de SEMCO:
+  // *"cuando pierde señal como q se borran algunas cosas q uno apunta"*.
+  // El efecto grande de abajo arranca con `if (!enabled) return`, y `enabled` es
+  // `!isCompleted`. Entonces: técnico llena el formulario en un sótano (todo queda
+  // en la cola local) → toca "Completar visita" → la página vuelve a renderizar
+  // con isCompleted=true → el efecto se corta antes de drenar Y antes de rehidratar.
+  // Resultado: esas respuestas NO suben nunca y encima desaparecen de pantalla.
+  // Para el técnico es idéntico a que se hubieran borrado.
+  //
+  // Este efecto separado solo SUBE lo pendiente; no captura nada nuevo. Así una
+  // visita ya cerrada termina de sincronizar en vez de dejar la cola varada.
+  useEffect(() => {
+    let vivo = true;
+    const drenar = async () => {
+      if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+      const items = pending(visitId);
+      if (items.length === 0) return;
+      for (const entry of items) {
+        // eslint-disable-next-line no-await-in-loop
+        const res = await autosaveResponse({ visitId, ...entry.payload }).catch(
+          () => null
+        );
+        if (!vivo) return;
+        if (res?.ok) resolve(entry.key);
+        else break;
+      }
+      if (vivo) setPendingN(pendingCount(visitId));
+    };
+    void drenar();
+    const onOnline = () => void drenar();
+    window.addEventListener("online", onOnline);
+    const t = window.setInterval(() => void drenar(), RESYNC_INTERVAL);
+    return () => {
+      vivo = false;
+      window.removeEventListener("online", onOnline);
+      window.clearInterval(t);
+    };
+  }, [visitId]);
+
   useEffect(() => {
     if (!enabled) return;
     const form = document.getElementById(formId) as HTMLFormElement | null;
