@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { pendingCount } from "@/lib/offline/outbox";
+import { track } from "@/lib/telemetry/fieldEvents";
 
 type Props = {
   visitId: string;
@@ -71,6 +72,7 @@ export default function CompleteVisitButton({
       event.preventDefault();
       clearHighlights();
       const sinSubir = pendingCount(visitId);
+      track(visitId, "complete_blocked", { motivo: "sin_senal", pendientes: sinSubir });
       setUiError(
         `Sin señal ahora mismo, y para cerrar la visita necesito un momento de señal. ${
           sinSubir > 0

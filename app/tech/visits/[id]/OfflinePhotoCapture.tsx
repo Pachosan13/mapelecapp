@@ -12,6 +12,7 @@ import {
   type QueuedPhoto,
 } from "@/lib/offline/photoQueue";
 import { MAX_UPLOAD_BYTES, comprimirImagen } from "@/lib/media/compress";
+import { track } from "@/lib/telemetry/fieldEvents";
 
 const SYSTEM_OPTIONS = SYSTEM_OPTIONS_WITH_BLANK;
 
@@ -102,6 +103,7 @@ export default function OfflinePhotoCapture({
             // "para no reintentar en bucle" — y con él la evidencia, en silencio.
             // Ahora se marca y se muestra: el 413 de una foto pesada y el 401 de
             // una sesión vencida son justo lo que pasa tras un rato sin señal.
+            track(visitId, "photo_rejected", { status: res.status, bytes: p.size, kind: p.kind ?? "evidence" });
             await setPhotoError(p.id, motivoDelRechazo(res.status));
           } else {
             break; // 5xx u otro: reintentar luego

@@ -11,6 +11,7 @@ import {
   type OutboxPayload,
 } from "@/lib/offline/outbox";
 import { readLastValues, saveLastValue } from "@/lib/offline/lastValues";
+import { flush, track } from "@/lib/telemetry/fieldEvents";
 
 type Props = {
   visitId: string;
@@ -112,15 +113,23 @@ export default function AutosaveManager({ visitId, formId, enabled }: Props) {
       drenando = true;
       if (vivo) setStatus("saving");
       let hubeFallo = false;
+      // Medición del pase: es la respuesta a "se queda guardando y no sube".
+      // Sin estos números, hoy hubo que deducir la avalancha leyendo el código.
+      const t0 = Date.now();
+      let enviados = 0;
+      let fallidos = 0;
+      track(visitId, "drain_start", { pendientes: items.length });
       try {
         for (const entry of items) {
           // eslint-disable-next-line no-await-in-loop
           const ok = await subir(entry);
           if (!vivo) return;
+          enviados += 1;
           // El contador baja en vivo: sin esto el técnico ve un número congelado
           // y cree que no avanza (fue justo lo que reportó William).
           setPendingN(pendingCount(visitId));
           if (ok) continue;
+          fallidos += 1;
           if (isOffline()) break; // se cayó la señal: el resto queda en cola
           // Falló con señal. NO cortamos el pase: una sola entrada que el server
           // rechace siempre trancaba la cola entera para siempre.
@@ -132,6 +141,16 @@ export default function AutosaveManager({ visitId, formId, enabled }: Props) {
       if (!vivo) return;
       const quedan = pendingCount(visitId);
       setPendingN(quedan);
+      track(visitId, "drain_end", {
+        pendientes: items.length,
+        enviados,
+        fallidos,
+        quedan,
+        ms: Date.now() - t0,
+        online: !isOffline(),
+      });
+      // Solo sube si la cola del técnico quedó vacía: su evidencia va primero.
+      void flush(quedan === 0);
       if (quedan === 0) {
         espera = RESYNC_INTERVAL;
         setSavedAt(new Date());
