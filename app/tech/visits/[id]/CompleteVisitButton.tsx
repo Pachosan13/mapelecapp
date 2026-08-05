@@ -48,20 +48,35 @@ export default function CompleteVisitButton({
   const handleClick: React.MouseEventHandler<HTMLButtonElement> = (event) => {
     if (isCompleted) return;
 
-    // Frena el cierre si quedan respuestas guardadas SOLO en el equipo.
-    // Completar apagaba el autosave y esas respuestas se quedaban varadas para
-    // siempre — el técnico las veía desaparecer ("se borran las cosas que uno
-    // apunta"). Mejor no dejar cerrar y decir por qué. (3-ago-2026)
-    const sinSubir = pendingCount(visitId);
-    if (sinSubir > 0) {
+    // ⚠️ ACÁ NO SE FRENA EL CIERRE (revertido el 4-ago-2026).
+    //
+    // El 3-ago puse un bloqueo: si quedaban respuestas sin subir, no dejaba
+    // completar. La intención era buena —completar apagaba el autosave y la cola
+    // quedaba varada— pero el remedio salió peor:
+    //
+    //  1. La cola se atascaba sola (avalancha de reenvíos, ver AutosaveManager),
+    //     así que ese "espera unos segundos" no terminaba nunca. William mandó la
+    //     foto del mensaje trancado en 23 respuestas con la visita ya lista.
+    //  2. Completar NO necesita la cola: el submit manda TODO el formulario de
+    //     una sola vez, incluido lo que estaba pendiente. Es UN request en vez de
+    //     44 — en una escalera es justo lo que sí llega.
+    //  3. Y lo que motivó el bloqueo ya está resuelto por otro lado: el drenador
+    //     corre aunque la visita esté completada, así que la cola termina sola.
+    //
+    // Lo único que sí frena el cierre es NO tener señal, porque el submit viaja
+    // por red: sin ella no pasa nada y el técnico se queda sin saber por qué.
+    // `navigator.onLine === false` solo miente hacia el lado seguro (cuando dice
+    // false, de verdad no hay interfaz de red).
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
       event.preventDefault();
       clearHighlights();
-      const sinSenal =
-        typeof navigator !== "undefined" && navigator.onLine === false;
+      const sinSubir = pendingCount(visitId);
       setUiError(
-        sinSenal
-          ? `Tienes ${sinSubir} ${sinSubir === 1 ? "respuesta guardada" : "respuestas guardadas"} en el equipo que todavía no ${sinSubir === 1 ? "sube" : "suben"}. Busca señal un momento y vuelve a darle a Completar — no se te va a perder nada, está todo guardado en el celular.`
-          : `Estoy subiendo ${sinSubir} ${sinSubir === 1 ? "respuesta" : "respuestas"} que faltaban. Espera unos segundos y vuelve a darle a Completar.`
+        `Sin señal ahora mismo, y para cerrar la visita necesito un momento de señal. ${
+          sinSubir > 0
+            ? `Lo que llenaste está guardado en el equipo (${sinSubir} por subir) y no se pierde. `
+            : "Lo que llenaste está guardado en el equipo y no se pierde. "
+        }Busca señal y vuelve a darle a Completar.`
       );
       return;
     }

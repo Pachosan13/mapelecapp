@@ -297,15 +297,49 @@ async function handleResponses(formData: FormData) {
   }
 
   if (action === "save" || action === "complete") {
+    // 🛡️ Un campo VACÍO no pisa un valor que ya está guardado.
+    //
+    // Este handler reconstruye TODOS los campos desde el DOM y los upsertea. Si
+    // el técnico recarga sin señal, el service worker le sirve el HTML cacheado
+    // —que puede ser anterior a lo que ya subió— y esos campos salen en blanco:
+    // darle a Guardar/Completar los escribía encima del dato bueno. Es la otra
+    // mitad de *"lo había borrado y lo tuve que volver a llenar"* (4-ago-2026).
+    //
+    // Vacío = sin bool, sin número y sin texto. "na" NO es vacío: es una respuesta.
+    const esVacia = (r: (typeof responses)[number]) =>
+      r.value_bool === null &&
+      r.value_number === null &&
+      (r.value_text === null || r.value_text === "");
+
+    const { data: yaGuardadas } = await supabase
+      .from("visit_latest_responses")
+      .select("item_id,value_text,value_number,value_bool")
+      .eq("visit_id", visit.id);
+
+    const conDato = new Set(
+      (yaGuardadas ?? [])
+        .filter(
+          (r) =>
+            r.value_bool !== null ||
+            r.value_number !== null ||
+            (r.value_text !== null && r.value_text !== "")
+        )
+        .map((r) => String(r.item_id))
+    );
+
     // Mismo token determinístico que el autosave: "Guardar"/"Completar" caen en la
     // misma fila por campo (upsert), sin duplicar respuestas ya guardadas.
-    const tokenedResponses = responses.map((r) => ({
-      ...r,
-      client_token: `${r.visit_id}:${r.item_id}`,
-    }));
-    const { error: insertError } = await supabase
-      .from("visit_responses")
-      .upsert(tokenedResponses, { onConflict: "client_token" });
+    const tokenedResponses = responses
+      .filter((r) => !(esVacia(r) && conDato.has(String(r.item_id))))
+      .map((r) => ({
+        ...r,
+        client_token: `${r.visit_id}:${r.item_id}`,
+      }));
+    const { error: insertError } = tokenedResponses.length
+      ? await supabase
+          .from("visit_responses")
+          .upsert(tokenedResponses, { onConflict: "client_token" })
+      : { error: null };
 
     if (insertError) {
       console.error(insertError);
