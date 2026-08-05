@@ -362,19 +362,22 @@ export default async function ServiceReportPage({
                       </div>
                     </div>
 
-                    <div className="mt-3 overflow-x-auto rounded border">
-                      <table className="min-w-full text-left text-sm">
+                    {/* Dos columnas, no tres: ver el mismo arreglo en
+                        `ops/visits/[id]/report`. La columna "Tipo" era jerga
+                        interna y en 390px empujaba la respuesta fuera de la
+                        pantalla. */}
+                    <div className="mt-3 rounded border">
+                      <table className="w-full table-fixed text-left text-sm">
                         <thead className="bg-gray-50 text-gray-600">
                           <tr>
-                            <th className="px-4 py-3 font-medium">Item</th>
-                            <th className="px-4 py-3 font-medium">Tipo</th>
-                            <th className="px-4 py-3 font-medium">Valor</th>
+                            <th className="w-3/5 px-4 py-3 font-medium">Item</th>
+                            <th className="w-2/5 px-4 py-3 font-medium">Valor</th>
                           </tr>
                         </thead>
                         <tbody>
                           {section.items.length === 0 ? (
                             <tr>
-                              <td className="px-4 py-6 text-gray-500" colSpan={3}>
+                              <td className="px-4 py-6 text-gray-500" colSpan={2}>
                                 No hay items configurados para esta plantilla.
                               </td>
                             </tr>
@@ -382,12 +385,11 @@ export default async function ServiceReportPage({
                             section.items.map((item) => {
                               const response = visit.latest_response_by_item_id.get(item.id);
                               return (
-                                <tr key={item.id} className="border-t">
-                                  <td className="px-4 py-3 font-medium">{item.label}</td>
-                                  <td className="px-4 py-3 text-gray-600">
-                                    {item.item_type}
+                                <tr key={item.id} className="border-t align-top">
+                                  <td className="break-words px-4 py-3 font-medium">
+                                    {item.label}
                                   </td>
-                                  <td className="px-4 py-3 text-gray-700">
+                                  <td className="break-words px-4 py-3 text-gray-700">
                                     {formatResponseValue(item.item_type, response, item.label)}
                                   </td>
                                 </tr>

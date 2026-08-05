@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -417,19 +418,25 @@ export default async function OpsVisitReportPage({
         )}
       </div>
 
-      <div className="overflow-x-auto rounded border">
-        <table className="min-w-full text-left text-sm">
+      {/* DOS columnas, no tres (5-ago-2026). La columna "Tipo" mostraba jerga
+          interna —`number`, `checkbox`, `textarea`— que a un gerente no le dice
+          nada, y en un teléfono de 390px empujaba la columna "Valor" fuera de la
+          pantalla: se veía el ítem y NO la respuesta. `table-fixed` con anchos
+          obliga a que la etiqueta larga se parta en vez de ensanchar la tabla,
+          en vez de dejarlo al scroll horizontal (mismo criterio que el arreglo
+          de la vista previa del formato, 2-ago). */}
+      <div className="rounded border">
+        <table className="w-full table-fixed text-left text-sm">
           <thead className="bg-gray-50 text-gray-600">
             <tr>
-              <th className="px-4 py-3 font-medium">Item</th>
-              <th className="px-4 py-3 font-medium">Tipo</th>
-              <th className="px-4 py-3 font-medium">Valor</th>
+              <th className="w-3/5 px-4 py-3 font-medium">Item</th>
+              <th className="w-2/5 px-4 py-3 font-medium">Valor</th>
             </tr>
           </thead>
           <tbody>
             {(templateItems ?? []).length === 0 ? (
               <tr>
-                <td className="px-4 py-6 text-gray-500" colSpan={3}>
+                <td className="px-4 py-6 text-gray-500" colSpan={2}>
                   No hay items configurados para esta plantilla.
                 </td>
               </tr>
@@ -446,13 +453,51 @@ export default async function OpsVisitReportPage({
                     ? "—"
                     : rawText
                   : "—";
-                return (
-                  <tr key={item.id} className="border-t align-top">
-                    <td className="px-4 py-3 font-medium">{item.label}</td>
-                    <td className="px-4 py-3 text-gray-600">{item.item_type}</td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {recorridoRows ? (
-                        <div className="overflow-x-auto rounded border">
+                // La tabla nace con 70 filas (un edificio de 70 pisos es el tope,
+                // no la norma). Imprimir los pisos que nadie registró son decenas
+                // de filas de "—" entre el gerente y el resto del informe, y en un
+                // teléfono es media pantalla de nada. Se muestran solo los que
+                // tienen algo, y se DICE cuántos quedaron fuera: ocultar en
+                // silencio se leería como "el técnico solo revisó 8 pisos".
+                const recorridoConRegistro = recorridoRows?.filter(
+                  (r) =>
+                    r.presion_entrada !== null ||
+                    r.presion_salida !== null ||
+                    r.observacion.trim() !== "" ||
+                    r.estacion_control_abierta ||
+                    r.estacion_control_cerrada ||
+                    r.valvula_reguladora ||
+                    r.estado_manometro ||
+                    r.gabinetes_manguera ||
+                    r.extintores
+                );
+                const recorridoSinRegistro =
+                  (recorridoRows?.length ?? 0) - (recorridoConRegistro?.length ?? 0);
+
+                // El recorrido son 10 columnas: no cabe metido en una celda de
+                // 2/5 de ancho. Va en su propia fila, a lo ancho de la tabla.
+                if (recorridoRows && recorridoConRegistro) {
+                  return (
+                    <Fragment key={item.id}>
+                      <tr className="border-t align-top">
+                        <td
+                          className="break-words px-4 pb-1 pt-3 font-medium"
+                          colSpan={2}
+                        >
+                          {/* La etiqueta de este ítem trae los encabezados
+                              pegados con "|" ("Recorrido por pisos - Piso |
+                              Presión entrada (psi) | …"): en el teléfono son
+                              seis líneas de ruido justo encima de la tabla que
+                              ya muestra esos mismos encabezados. */}
+                          {item.label
+                            .split("|")[0]
+                            .replace(/\s*-\s*Piso\s*$/i, "")
+                            .trim()}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="px-4 pb-3 text-gray-700" colSpan={2}>
+                          <div className="overflow-x-auto rounded border">
                           <table className="min-w-full text-left text-xs">
                             <thead className="bg-gray-50 text-gray-600">
                               <tr>
@@ -487,7 +532,7 @@ export default async function OpsVisitReportPage({
                               </tr>
                             </thead>
                             <tbody>
-                              {recorridoRows.length === 0 ? (
+                              {recorridoConRegistro.length === 0 ? (
                                 <tr className="border-t">
                                   <td
                                     className="px-3 py-3 text-gray-500"
@@ -497,7 +542,7 @@ export default async function OpsVisitReportPage({
                                   </td>
                                 </tr>
                               ) : null}
-                              {recorridoRows.map((row, index) => (
+                              {recorridoConRegistro.map((row, index) => (
                                 <tr key={`${item.id}-${index}`} className="border-t">
                                   <td className="px-3 py-2">{row.piso || "—"}</td>
                                   <td className="px-3 py-2">
@@ -531,12 +576,29 @@ export default async function OpsVisitReportPage({
                               ))}
                             </tbody>
                           </table>
-                        </div>
-                      ) : (
-                        isRecorridoItem
-                          ? fallbackText
-                          : formatResponseValue(item.item_type, response, item.label)
-                      )}
+                          </div>
+                          {recorridoSinRegistro > 0 ? (
+                            <p className="mt-2 text-xs text-gray-500">
+                              {recorridoSinRegistro === 1
+                                ? "1 piso más sin registro (no se muestra)."
+                                : `${recorridoSinRegistro} pisos más sin registro (no se muestran).`}
+                            </p>
+                          ) : null}
+                        </td>
+                      </tr>
+                    </Fragment>
+                  );
+                }
+
+                return (
+                  <tr key={item.id} className="border-t align-top">
+                    <td className="break-words px-4 py-3 font-medium">
+                      {item.label}
+                    </td>
+                    <td className="break-words px-4 py-3 text-gray-700">
+                      {isRecorridoItem
+                        ? fallbackText
+                        : formatResponseValue(item.item_type, response, item.label)}
                     </td>
                   </tr>
                 );
