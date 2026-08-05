@@ -379,7 +379,7 @@ export default async function EditEquipmentPage({
         <h2 className="text-lg font-semibold">Fotos del equipo</h2>
         <p className="mt-1 text-sm text-gray-500">
           Sube fotos de este equipo (bomba, tablero, placa…). Se acumulan aquí.
-          JPG, PNG o iPhone. Máx. 10MB c/u.
+          JPG, PNG o iPhone. Máx. 4MB c/u.
         </p>
 
         {searchParams?.media_error ? (

@@ -29,6 +29,14 @@ export type QueuedPhoto = {
   kind?: "evidence" | "signature";
   /** Solo para kind="signature": quién firmó. */
   signerRole?: "cliente" | "tecnico";
+  /**
+   * Por qué el server la rechazó (5-ago-2026). Antes, ante cualquier 4xx el blob
+   * se BORRABA de la cola en silencio "para no reintentar en bucle": una foto
+   * demasiado pesada o una sesión vencida y la evidencia desaparecía sin que el
+   * técnico se enterara. Ahora se marca, se muestra en pantalla y él decide si
+   * la reintenta o la quita. Una foto no se tira sin que su dueño lo sepa.
+   */
+  error?: string;
 };
 
 const DB_NAME = "semco-photos";
@@ -91,6 +99,31 @@ export async function removePhoto(id: string): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const t = db.transaction(STORE, "readwrite");
     t.objectStore(STORE).delete(id);
+    t.oncomplete = () => resolve();
+    t.onerror = () => reject(t.error);
+  });
+}
+
+/**
+ * Marca (o limpia, con `null`) el motivo por el que el server rechazó una foto.
+ * Reemplaza al borrado silencioso: el blob se queda hasta que el técnico decida.
+ */
+export async function setPhotoError(
+  id: string,
+  error: string | null
+): Promise<void> {
+  const db = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const t = db.transaction(STORE, "readwrite");
+    const store = t.objectStore(STORE);
+    const req = store.get(id);
+    req.onsuccess = () => {
+      const rec = req.result as QueuedPhoto | undefined;
+      if (!rec) return; // ya no está: nada que marcar
+      if (error) rec.error = error;
+      else delete rec.error;
+      store.put(rec);
+    };
     t.oncomplete = () => resolve();
     t.onerror = () => reject(t.error);
   });

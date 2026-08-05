@@ -2,7 +2,18 @@ import { createClient } from "@/lib/supabase/server";
 import convert from "heic-convert";
 
 export const MEDIA_BUCKET = "media";
-export const MAX_MEDIA_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+/**
+ * 4 MB, no 10. El 10 era una promesa que la plataforma no podía cumplir: las
+ * funciones serverless de Vercel cortan el cuerpo de la petición en ~4.5 MB, así
+ * que un archivo de 6 MB nunca llegaba hasta acá — moría en un 413 opaco antes
+ * de entrar, y la cola del técnico lo borraba en silencio. Mejor un límite real
+ * y un mensaje nuestro que un tope inventado y un error de la infraestructura.
+ *
+ * El cliente ya achica las fotos por debajo de esto antes de encolarlas
+ * (`lib/media/compress.ts`, que repite este número: no puede importarlo porque
+ * este módulo arrastra `heic-convert`, que es de Node).
+ */
+export const MAX_MEDIA_FILE_SIZE_BYTES = 4 * 1024 * 1024;
 
 const ALLOWED_MEDIA_MIME_TYPES = new Set([
   "image/jpeg",
@@ -143,7 +154,9 @@ const validateUploadParams = (params: UploadMediaParams): string | null => {
     return "Tipo de archivo no permitido.";
   }
   if (params.file.size > MAX_MEDIA_FILE_SIZE_BYTES) {
-    return "Archivo excede el límite de 10MB.";
+    return `Archivo excede el límite de ${Math.round(
+      MAX_MEDIA_FILE_SIZE_BYTES / 1024 / 1024
+    )}MB.`;
   }
   return null;
 };

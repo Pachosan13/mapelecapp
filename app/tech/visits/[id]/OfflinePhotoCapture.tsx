@@ -8,12 +8,22 @@ import {
   addPhoto,
   listPhotos,
   removePhoto,
+  setPhotoError,
   type QueuedPhoto,
 } from "@/lib/offline/photoQueue";
+import { MAX_UPLOAD_BYTES, comprimirImagen } from "@/lib/media/compress";
 
 const SYSTEM_OPTIONS = SYSTEM_OPTIONS_WITH_BLANK;
 
 const RESYNC_INTERVAL = 15000;
+
+/** En palabras del técnico, no del server. */
+const motivoDelRechazo = (status: number): string => {
+  if (status === 413) return "La foto pesa demasiado. Tómala de nuevo.";
+  if (status === 401 || status === 403)
+    return "Se cerró la sesión. Vuelve a entrar y reintenta.";
+  return `El servidor no la aceptó (error ${status}).`;
+};
 
 /**
  * Captura de evidencia offline-first.
@@ -67,6 +77,10 @@ export default function OfflinePhotoCapture({
     try {
       const list = await listPhotos(visitId).catch(() => [] as QueuedPhoto[]);
       for (const p of list) {
+        // Las rechazadas no se reintentan solas: el server ya dijo que no las
+        // acepta y machacar el enlace del sótano con ellas atrasa a las demás.
+        // Quedan a la vista con su motivo y el técnico decide.
+        if (p.error) continue;
         const fd = new FormData();
         fd.append("file", new File([p.blob], p.name || "foto.jpg", { type: p.type }));
         fd.append("visit_id", p.visitId);
@@ -84,9 +98,11 @@ export default function OfflinePhotoCapture({
             await removePhoto(p.id);
             uploaded++;
           } else if (res.status >= 400 && res.status < 500 && res.status !== 408) {
-            // Error de validación/permiso (no de red): quitar para no reintentar
-            // en bucle una foto que el server nunca va a aceptar.
-            await removePhoto(p.id);
+            // Error de validación/permiso (no de red). ANTES esto BORRABA el blob
+            // "para no reintentar en bucle" — y con él la evidencia, en silencio.
+            // Ahora se marca y se muestra: el 413 de una foto pesada y el 401 de
+            // una sesión vencida son justo lo que pasa tras un rato sin señal.
+            await setPhotoError(p.id, motivoDelRechazo(res.status));
           } else {
             break; // 5xx u otro: reintentar luego
           }
@@ -126,8 +142,15 @@ export default function OfflinePhotoCapture({
     const files = Array.from(e.currentTarget.files ?? []);
     e.currentTarget.value = ""; // permite re-seleccionar el mismo archivo
     if (files.length === 0) return;
-    for (const f of files) {
-      if (f.size === 0) continue;
+    for (const original of files) {
+      if (original.size === 0) continue;
+      // Achicar ANTES de encolar: así no viaja por el enlace del sótano una foto
+      // de 8MB que además la plataforma rechazaría (ver lib/media/compress).
+      const f = await comprimirImagen(original).catch(() => original);
+      // Si aun así no cabe (típico: HEIC de iPhone, que no se puede comprimir en
+      // el navegador), se guarda IGUAL pero marcada. Nunca se descarta la foto
+      // por la espalda: el técnico la ve en rojo y decide si la vuelve a tomar.
+      const noCabe = f.size > MAX_UPLOAD_BYTES;
       await addPhoto({
         visitId,
         system: system || null,
@@ -135,14 +158,36 @@ export default function OfflinePhotoCapture({
         type: f.type || "image/jpeg",
         size: f.size,
         blob: f,
+        ...(noCabe
+          ? {
+              error: `Pesa ${(f.size / 1024 / 1024).toFixed(1)}MB y el máximo es ${(
+                MAX_UPLOAD_BYTES /
+                1024 /
+                1024
+              ).toFixed(0)}MB. Tómala de nuevo con menos resolución.`,
+            }
+          : {}),
       }).catch(() => null);
     }
     await refresh();
     void flush();
   };
 
+  // Reintento manual de una foto rechazada, y descarte DELIBERADO.
+  const reintentar = async (id: string) => {
+    await setPhotoError(id, null).catch(() => null);
+    await refresh();
+    void flush();
+  };
+  const quitar = async (id: string) => {
+    await removePhoto(id).catch(() => null);
+    await refresh();
+  };
+
   const offline = typeof navigator !== "undefined" && navigator.onLine === false;
-  const pendingCount = photos.length;
+  const rechazadas = photos.filter((p) => p.error);
+  const enCola = photos.filter((p) => !p.error);
+  const pendingCount = enCola.length;
 
   return (
     <div className="space-y-3">
@@ -174,7 +219,8 @@ export default function OfflinePhotoCapture({
       />
       <p className="text-xs text-gray-500">
         Toma o selecciona las fotos. Se guardan en el equipo al instante y se suben
-        solas cuando haya señal. JPG, PNG o iPhone/HEIC. Máx. 10MB c/u.
+        solas cuando haya señal. JPG, PNG o iPhone/HEIC. Se achican solas para que
+        suban rápido; si alguna no se puede subir, te aviso acá y no se borra.
       </p>
 
       {pendingCount > 0 ? (
@@ -185,7 +231,7 @@ export default function OfflinePhotoCapture({
               : `Subiendo ${pendingCount} foto(s)…`}
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
-            {photos.map((p) => (
+            {enCola.map((p) => (
               <div key={p.id} className="relative">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -199,6 +245,51 @@ export default function OfflinePhotoCapture({
               </div>
             ))}
           </div>
+        </div>
+      ) : null}
+
+      {/* Las rechazadas, A LA VISTA. Antes desaparecían solas y el técnico se
+          quedaba creyendo que la evidencia estaba subida. */}
+      {rechazadas.length > 0 ? (
+        <div className="rounded border border-red-200 bg-red-50 p-3">
+          <p className="text-xs font-medium text-red-800">
+            {rechazadas.length === 1
+              ? "1 foto no se pudo subir. Sigue guardada en el equipo."
+              : `${rechazadas.length} fotos no se pudieron subir. Siguen guardadas en el equipo.`}
+          </p>
+          <ul className="mt-2 space-y-2">
+            {rechazadas.map((p) => (
+              <li key={p.id} className="flex items-start gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={urlFor(p)}
+                  alt={p.name}
+                  className="h-16 w-16 shrink-0 rounded border border-red-300 object-cover"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-xs text-red-700">{p.error}</p>
+                  <div className="mt-1 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void reintentar(p.id)}
+                      disabled={disabled}
+                      className="rounded border border-red-300 px-2 py-1 text-xs text-red-700 disabled:opacity-50"
+                    >
+                      Reintentar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void quitar(p.id)}
+                      disabled={disabled}
+                      className="rounded border px-2 py-1 text-xs text-gray-600 disabled:opacity-50"
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
     </div>

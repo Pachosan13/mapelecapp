@@ -11,6 +11,15 @@ const buildId =
   String(Date.now()); // local: basta con que cambie entre builds
 
 const nextConfig = {
+  experimental: {
+    serverActions: {
+      // Las fotos de equipo que sube el gerente (`ops/buildings/.../equipment/.../edit`)
+      // viajan por un server action, y Next los limita a 1 MB por defecto. Cualquier
+      // foto de celular pasaba de ahí y fallaba con un error opaco. 5 MB deja pasar
+      // el tope real de la app (4 MB, ver lib/media/service) más el sobre multipart.
+      bodySizeLimit: "5mb",
+    },
+  },
   env: {
     // Se inlinea en el bundle del cliente al construir. Lo consume ServiceWorkerRegister
     // para registrar `/sw.js?v=<buildId>`.
