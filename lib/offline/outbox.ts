@@ -68,22 +68,41 @@ function fieldKey(visitId: string, payload: OutboxPayload): string {
  * Guarda (o reemplaza) el último valor de un campo. Escritura SÍNCRONA y durable:
  * al volver de esta función el dato ya sobrevive a un cierre de la app.
  */
+/**
+ * Último `ts` entregado. `Date.now()` puede repetirse entre dos llamadas
+ * seguidas, y `resolve` distingue "esta entrada" de "una edición más nueva"
+ * comparando ese número: si dos ediciones comparten sello, la segunda se
+ * perdería. Forzarlo a subir siempre lo vuelve un sello único de verdad.
+ */
+let ultimoTs = 0;
+
 export function enqueue(visitId: string, payload: OutboxPayload): OutboxEntry {
   const all = safeRead();
   const key = fieldKey(visitId, payload);
-  const entry: OutboxEntry = { key, visitId, payload, ts: Date.now() };
+  const ts = Math.max(Date.now(), ultimoTs + 1);
+  ultimoTs = ts;
+  const entry: OutboxEntry = { key, visitId, payload, ts };
   all[key] = entry;
   safeWrite(all);
   return entry;
 }
 
-/** Quita una entrada de la cola tras confirmar que el server la guardó. */
-export function resolve(key: string): void {
+/**
+ * Quita una entrada de la cola tras confirmar que el server la guardó.
+ *
+ * `ts` es el sello de la entrada que REALMENTE se subió. Si mientras el envío
+ * estaba en vuelo el técnico volvió a editar ese mismo campo, `enqueue` ya
+ * reemplazó la entrada por una más nueva: borrarla acá tiraría esa edición a la
+ * basura (nunca se subiría y desaparecería al recargar). En ese caso se deja en
+ * la cola para que el próximo pase la suba.
+ */
+export function resolve(key: string, ts?: number): void {
   const all = safeRead();
-  if (all[key]) {
-    delete all[key];
-    safeWrite(all);
-  }
+  const actual = all[key];
+  if (!actual) return;
+  if (ts !== undefined && actual.ts > ts) return; // hay una edición más nueva
+  delete all[key];
+  safeWrite(all);
 }
 
 /** Entradas pendientes de sincronizar (de una visita, o de todas), en orden FIFO. */
