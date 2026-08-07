@@ -55,6 +55,11 @@ export async function GET(request: Request) {
     const buildingId = searchParams.get("buildingId")?.trim() ?? "";
     const reportDate = searchParams.get("reportDate")?.trim() ?? "";
     const visitId = searchParams.get("visitId")?.trim() ?? "";
+    // El informe se generaba SIEMPRE como `attachment`: el navegador lo bajaba y no
+    // había forma de volver a verlo desde la app — en una tablet el archivo se pierde
+    // en la carpeta de descargas (William, 6-ago-2026). Con `?view=1` se abre en el
+    // visor del navegador, que ya trae su propio botón de descarga.
+    const inline = searchParams.get("view") === "1";
 
     if (!visitId && (!buildingId || !reportDate)) {
       return NextResponse.json(
@@ -127,7 +132,13 @@ export async function GET(request: Request) {
     // ── Media: list + download image bytes ──
     const mediaByVisitId = new Map<
       string,
-      Array<{ storage_path: string; mime_type: string; size_bytes: number }>
+      Array<{
+        storage_path: string;
+        mime_type: string;
+        size_bytes: number;
+        system: string | null;
+        label: string | null;
+      }>
     >();
     // Firmas de recibido (kind=signature) — se estampan en el bloque de firmas, no en evidencia.
     const signatureRows: Array<{
@@ -138,7 +149,7 @@ export async function GET(request: Request) {
     if (allVisitIds.length > 0) {
       const { data: mediaRows } = await supabase
         .from("media")
-        .select("visit_id,storage_path,mime_type,size_bytes,kind,system,signer_role")
+        .select("visit_id,storage_path,mime_type,size_bytes,kind,system,label,signer_role")
         .eq("building_id", effBuildingId)
         .in("visit_id", allVisitIds)
         .order("created_at", { ascending: true });
@@ -159,6 +170,10 @@ export async function GET(request: Request) {
           storage_path: row.storage_path,
           mime_type: row.mime_type,
           size_bytes: row.size_bytes,
+          // El sistema viajaba hasta acá y se quedaba en el camino: el PDF pintaba la
+          // foto sin decir de cuál sistema era.
+          system: row.system ?? null,
+          label: row.label ?? null,
         });
       });
     }
@@ -212,6 +227,8 @@ export async function GET(request: Request) {
           media.push({
             name: m.storage_path.split("/").pop() || m.storage_path,
             sizeMb: (m.size_bytes / 1024 / 1024).toFixed(2),
+            system: m.system,
+            label: m.label,
             image,
           });
         }
@@ -265,7 +282,9 @@ export async function GET(request: Request) {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="informe-servicio-${effReportDate}.pdf"`,
+        "Content-Disposition": `${
+          inline ? "inline" : "attachment"
+        }; filename="informe-servicio-${effReportDate}.pdf"`,
       },
     });
   } catch (err: any) {

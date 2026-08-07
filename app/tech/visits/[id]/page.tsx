@@ -1028,7 +1028,22 @@ export default async function TechVisitPage({
           </form>
 
           <div className="mt-4 max-w-2xl rounded border p-4">
-            <OfflinePhotoCapture visitId={visit.id} disabled={isCompleted} />
+            {/* Los sistemas REALES del edificio, no los 10 del catálogo: el técnico
+                elige entre 2 y 4 opciones en vez de buscar en una lista con sistemas
+                que este edificio no tiene. Se saca del inventario crudo (no de
+                `buildingScope`, que se vacía a propósito mientras haya equipo sin
+                verificar). Sin inventario → el selector cae al catálogo completo. */}
+            <OfflinePhotoCapture
+              visitId={visit.id}
+              disabled={isCompleted}
+              buildingSystems={Array.from(
+                new Set(
+                  buildingEquipment
+                    .map((e) => (e.system ?? "").trim())
+                    .filter((s): s is string => s.length > 0)
+                )
+              )}
+            />
 
             <div className="mt-4">
               <p className="text-sm font-medium text-gray-800">Evidencia subida</p>

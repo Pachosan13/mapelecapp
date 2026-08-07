@@ -1,6 +1,6 @@
 "use client";
 
-import { SYSTEM_OPTIONS_WITH_BLANK } from "@/lib/equipment/systems";
+import { photoSystemOptions } from "@/lib/equipment/systems";
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -13,8 +13,6 @@ import {
 } from "@/lib/offline/photoQueue";
 import { MAX_UPLOAD_BYTES, comprimirImagen } from "@/lib/media/compress";
 import { track } from "@/lib/telemetry/fieldEvents";
-
-const SYSTEM_OPTIONS = SYSTEM_OPTIONS_WITH_BLANK;
 
 const RESYNC_INTERVAL = 15000;
 
@@ -37,11 +35,20 @@ const motivoDelRechazo = (status: number): string => {
 export default function OfflinePhotoCapture({
   visitId,
   disabled = false,
+  buildingSystems = [],
 }: {
   visitId: string;
   disabled?: boolean;
+  /** Sistemas que este edificio tiene. Vacío → se ofrece el catálogo completo. */
+  buildingSystems?: string[];
 }) {
   const router = useRouter();
+  // Arranca SIN elegir y no deja capturar hasta que el técnico escoja. Antes la
+  // primera opción era "General (sin sistema)" y quedaba puesta por defecto: 252 de
+  // 308 fotos (82%) llegaron sin sistema, y en el informe salía un manómetro sin
+  // forma de saber si era de las bombas principales o de la reforzadora (William,
+  // 6-ago-2026). La elección se queda pegada entre fotos: solo se toca al cambiar
+  // de sistema, no en cada disparo.
   const [system, setSystem] = useState("");
   const [photos, setPhotos] = useState<QueuedPhoto[]>([]);
   const urls = useRef<Map<string, string>>(new Map());
@@ -140,10 +147,14 @@ export default function OfflinePhotoCapture({
     };
   }, [refresh, flush]);
 
+  const systemOptions = photoSystemOptions(buildingSystems);
+
   const onFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.currentTarget.files ?? []);
     e.currentTarget.value = ""; // permite re-seleccionar el mismo archivo
     if (files.length === 0) return;
+    // Cinturón además del input deshabilitado: sin sistema no se encola nada.
+    if (!system) return;
     for (const original of files) {
       if (original.size === 0) continue;
       // Achicar ANTES de encolar: así no viaja por el enlace del sótano una foto
@@ -196,15 +207,18 @@ export default function OfflinePhotoCapture({
       <label className="block text-sm font-medium">Evidencia (foto/documento)</label>
       <div>
         <label className="mb-1 block text-xs font-medium text-gray-600">
-          Sistema al que pertenece
+          Sistema al que pertenece <span className="text-red-600">*</span>
         </label>
         <select
           value={system}
           onChange={(e) => setSystem(e.target.value)}
           disabled={disabled}
-          className="block w-full rounded border px-3 py-2 text-sm"
+          className={`block w-full rounded border px-3 py-2 text-sm ${
+            system ? "" : "border-amber-400 bg-amber-50"
+          }`}
         >
-          {SYSTEM_OPTIONS.map(([v, l]) => (
+          <option value="">— Elige el sistema —</option>
+          {systemOptions.map(([v, l]) => (
             <option key={v} value={v}>
               {l}
             </option>
@@ -215,10 +229,16 @@ export default function OfflinePhotoCapture({
         type="file"
         multiple
         accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,application/pdf"
-        disabled={disabled}
+        disabled={disabled || !system}
         onChange={onFiles}
-        className="block w-full rounded border px-3 py-2 text-sm file:mr-3 file:rounded file:border file:px-3 file:py-1.5"
+        className="block w-full rounded border px-3 py-2 text-sm file:mr-3 file:rounded file:border file:px-3 file:py-1.5 disabled:cursor-not-allowed disabled:bg-gray-100"
       />
+      {!system && !disabled ? (
+        <p className="text-xs font-medium text-amber-700">
+          Elige el sistema antes de tomar la foto. Sin eso, en el informe sale un
+          manómetro que nadie puede ubicar.
+        </p>
+      ) : null}
       <p className="text-xs text-gray-500">
         Toma o selecciona las fotos. Se guardan en el equipo al instante y se suben
         solas cuando haya señal. JPG, PNG o iPhone/HEIC. Se achican solas para que

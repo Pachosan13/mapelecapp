@@ -15,6 +15,7 @@ import {
   createSignedMediaUrl,
   listMedia,
 } from "@/lib/media/service";
+import { systemLabel } from "@/lib/equipment/systems";
 import type { Database } from "@/lib/database.types";
 
 // Borrado de evidencia por el gerente: para quitar fotos duplicadas o de otro proyecto
@@ -303,9 +304,16 @@ export default async function OpsVisitReportPage({
     ? `/ops/buildings/${visit.building_id}/history`
     : "/ops/buildings";
   const { data: mediaRows } = await listMedia({ visitId: visit.id, limit: 50 });
+  // 8 horas, no 15 minutos. El enlace se firmaba al pintar la página, así que un
+  // gerente que dejaba el informe abierto y volvía al rato encontraba "Ver archivo"
+  // muerto — se leía como que el archivo había desaparecido (William, 6-ago-2026).
+  const MEDIA_URL_TTL_SECONDS = 60 * 60 * 8;
   const mediaWithUrls = await Promise.all(
     (mediaRows ?? []).map(async (row) => {
-      const { data: signedUrl } = await createSignedMediaUrl(row.storage_path);
+      const { data: signedUrl } = await createSignedMediaUrl(
+        row.storage_path,
+        MEDIA_URL_TTL_SECONDS
+      );
       return {
         ...row,
         signed_url: signedUrl,
@@ -382,10 +390,24 @@ export default async function OpsVisitReportPage({
                 className="flex flex-wrap items-center justify-between gap-3 rounded border px-3 py-2 text-sm"
               >
                 <div className="min-w-0">
-                  <p className="truncate font-medium">{media.storage_path.split("/").pop()}</p>
-                  <p className="text-xs text-gray-500">
-                    {media.mime_type} · {(media.size_bytes / 1024 / 1024).toFixed(2)} MB
-                    {media.kind === "signature" ? " · firma" : ""}
+                  {/* El sistema primero: el nombre del archivo es un UUID que no le
+                      dice nada a nadie. Sin esto no se podía saber si el manómetro
+                      de la foto era de las bombas principales o de la reforzadora. */}
+                  {media.kind === "signature" ? (
+                    <p className="font-medium">Firma de recibido</p>
+                  ) : media.system ? (
+                    <p className="font-medium">{systemLabel(media.system)}</p>
+                  ) : (
+                    <p className="font-medium text-amber-700">
+                      Sistema sin especificar
+                    </p>
+                  )}
+                  {media.label ? (
+                    <p className="truncate text-xs text-gray-600">{media.label}</p>
+                  ) : null}
+                  <p className="truncate text-xs text-gray-500">
+                    {media.storage_path.split("/").pop()} · {media.mime_type} ·{" "}
+                    {(media.size_bytes / 1024 / 1024).toFixed(2)} MB
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
