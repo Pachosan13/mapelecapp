@@ -11,6 +11,7 @@ import {
   EMPTY_SCOPE,
   type BuildingScope,
 } from "@/lib/bombas/checklistFilter";
+import { fetchAllRows } from "@/lib/db/fetchAllRows";
 
 // Vista previa del formato que le va a salir al técnico en este edificio, SIN crear una
 // visita de prueba.
@@ -76,11 +77,15 @@ export default async function BuildingFormatoPage({
     plantillas.find((t) => t.id === searchParams?.t) ?? plantillas[0] ?? null;
 
   const { data: itemsData } = activa
-    ? await db
-        .from("template_items")
-        .select("id,label,sort_order")
-        .eq("template_id", activa.id)
-        .order("sort_order", { ascending: true })
+    ? await fetchAllRows<{ id: string; label: string | null; sort_order: number }>(
+        (desde, hasta) =>
+          db
+            .from("template_items")
+            .select("id,label,sort_order")
+            .eq("template_id", activa.id)
+            .order("sort_order", { ascending: true })
+            .range(desde, hasta)
+      )
     : { data: [] as { id: string; label: string | null }[] };
   const items = itemsData ?? [];
 

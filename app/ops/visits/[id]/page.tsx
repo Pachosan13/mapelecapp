@@ -5,6 +5,7 @@ import { formatDateOnlyLabel } from "@/lib/dates/dateOnly";
 import { getCrewsWithDisplay } from "@/lib/crews/withMembers";
 import { formatAssignmentLabel } from "@/lib/formatters/assignmentLabel";
 import type { Database } from "@/lib/database.types";
+import { fetchAllRows } from "@/lib/db/fetchAllRows";
 
 const MAX_TEXT_LENGTH = 120;
 const SNAPSHOT_GAP_MS = 3000;
@@ -121,11 +122,14 @@ export default async function OpsVisitDetailPage({
 
   const { data: templateItems } =
     visit.template_id
-      ? await supabase
-          .from("template_items")
-          .select("id,label,item_type,sort_order")
-          .eq("template_id", visit.template_id)
-          .order("sort_order", { ascending: true })
+      ? await fetchAllRows((desde, hasta) =>
+          supabase
+            .from("template_items")
+            .select("id,label,item_type,sort_order")
+            .eq("template_id", visit.template_id!)
+            .order("sort_order", { ascending: true })
+            .range(desde, hasta)
+        )
       : { data: [] };
 
   const { data: responses } = await supabase

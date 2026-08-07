@@ -5,6 +5,7 @@ import {
   isBombasTemplate,
   itemAppliesToBuilding,
 } from "@/lib/bombas/checklistFilter";
+import { fetchAllRows } from "@/lib/db/fetchAllRows";
 
 type TemplateItem = {
   id: string;
@@ -287,11 +288,14 @@ export async function getServiceReportData(params: {
 
   const [templateItemsResult, responsesResult] = await Promise.all([
     templateIds.length > 0
-      ? supabase
-          .from("template_items")
-          .select("id,template_id,label,item_type,required,sort_order")
-          .in("template_id", templateIds)
-          .order("sort_order", { ascending: true })
+      ? fetchAllRows((desde, hasta) =>
+          supabase
+            .from("template_items")
+            .select("id,template_id,label,item_type,required,sort_order")
+            .in("template_id", templateIds)
+            .order("sort_order", { ascending: true })
+            .range(desde, hasta)
+        )
       : Promise.resolve({ data: [] }),
     visits.length > 0
       ? supabase

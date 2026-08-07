@@ -17,6 +17,7 @@ import {
 } from "@/lib/media/service";
 import { systemLabel } from "@/lib/equipment/systems";
 import type { Database } from "@/lib/database.types";
+import { fetchAllRows } from "@/lib/db/fetchAllRows";
 
 // Borrado de evidencia por el gerente: para quitar fotos duplicadas o de otro proyecto
 // ANTES de enviar el informe al cliente, sin depender de editar el PDF a mano.
@@ -220,11 +221,14 @@ export default async function OpsVisitReportPage({
 
   const { data: allTemplateItems } =
     visit.template_id
-      ? await supabase
-          .from("template_items")
-          .select("id,label,item_type,required,sort_order")
-          .eq("template_id", visit.template_id)
-          .order("sort_order", { ascending: true })
+      ? await fetchAllRows((desde, hasta) =>
+          supabase
+            .from("template_items")
+            .select("id,label,item_type,required,sort_order")
+            .eq("template_id", visit.template_id!)
+            .order("sort_order", { ascending: true })
+            .range(desde, hasta)
+        )
       : { data: [] };
 
   const { data: templateMeta } = visit.template_id

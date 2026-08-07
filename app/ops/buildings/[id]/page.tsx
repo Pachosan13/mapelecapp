@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatPanamaDateLabel } from "@/lib/dates/panama";
 import { formatDateOnlyLabel } from "@/lib/dates/dateOnly";
+import { fetchAllRows } from "@/lib/db/fetchAllRows";
 
 const MAX_STATUS_ITEMS = 8;
 const MAX_TEXT_LENGTH = 80;
@@ -133,10 +134,14 @@ export default async function BuildingHistoryPage({
 
   const { data: templateItems } =
     templateIds.length > 0
-      ? await supabase
-          .from("template_items")
-          .select("id,label,item_type,sort_order")
-          .in("template_id", templateIds)
+      ? await fetchAllRows((desde, hasta) =>
+          supabase
+            .from("template_items")
+            .select("id,label,item_type,sort_order")
+            .in("template_id", templateIds)
+            .order("sort_order", { ascending: true })
+            .range(desde, hasta)
+        )
       : { data: [] };
 
   const templateItemById = new Map(

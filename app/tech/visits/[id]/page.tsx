@@ -28,6 +28,7 @@ import CompleteVisitButton from "./CompleteVisitButton";
 import OfflinePhotoCapture from "./OfflinePhotoCapture";
 import SignaturePad from "./SignaturePad";
 import type { Database } from "@/lib/database.types";
+import { fetchAllRows } from "@/lib/db/fetchAllRows";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -173,11 +174,14 @@ async function handleResponses(formData: FormData) {
     isFireTemplate(templateMeta?.category);
 
   const { data: templateItemsData } = visit.template_id
-    ? await supabase
-        .from("template_items")
-        .select("id,label,item_type,required,sort_order")
-        .eq("template_id", visit.template_id)
-        .order("sort_order", { ascending: true })
+    ? await fetchAllRows<TemplateItem>((desde, hasta) =>
+        supabase
+          .from("template_items")
+          .select("id,label,item_type,required,sort_order")
+          .eq("template_id", visit.template_id!)
+          .order("sort_order", { ascending: true })
+          .range(desde, hasta)
+      )
     : { data: [] as TemplateItem[] };
 
   // Alcance del edificio (precarga): sistemas presentes + nº de bombas por sistema. Se usa
@@ -508,11 +512,14 @@ export default async function TechVisitPage({
   }
 
   const { data: templateItemsData } = visit.template_id
-    ? await supabase
-        .from("template_items")
-        .select("id,label,item_type,required,sort_order")
-        .eq("template_id", visit.template_id)
-        .order("sort_order", { ascending: true })
+    ? await fetchAllRows<TemplateItem>((desde, hasta) =>
+        supabase
+          .from("template_items")
+          .select("id,label,item_type,required,sort_order")
+          .eq("template_id", visit.template_id!)
+          .order("sort_order", { ascending: true })
+          .range(desde, hasta)
+      )
     : { data: [] as TemplateItem[] };
 
   const { data: responses } = await supabase
