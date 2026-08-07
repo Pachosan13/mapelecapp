@@ -164,6 +164,20 @@ const jockeyUnitOf = (groupName: string) => {
   return m ? Number(m[1]) : null;
 };
 
+// Nº de unidad de un TABLERO. Los cuatro pasaron de sección única a por-unidad el
+// 7-ago-2026: un edificio puede tener dos paneles del mismo sistema y con una sola sección
+// el segundo se perdía. Devuelve 1 para el label viejo SIN numerar, para que el formato no
+// cambie de comportamiento entre el deploy y la migración que renumera.
+//
+// El orden importa: "Tablero reforzador" se prueba ANTES que "Tablero", porque el regex de
+// "Tablero" con \d opcional también casaría el prefijo del otro si se probara primero.
+const panelUnitOf = (groupName: string, base: string) => {
+  const re = new RegExp(`^${base}(?:\\s+(\\d+))?$`, "i");
+  const m = groupName.match(re);
+  if (!m) return null;
+  return m[1] ? Number(m[1]) : 1;
+};
+
 // Nº de unidad de un ventilador de presurización: grupo "Ventilador N". null si no aplica.
 // La plantilla de presurización de escaleras trae "Ventilador 1..12" sembrados (se extendió
 // de 4 a 12 el 29-jul: edificios con más de 4 ventiladores, pregunta de William). Metro View
@@ -191,6 +205,15 @@ export type BuildingScope = {
   hasReforzadorPanel: boolean; // panel del sistema reforzador de presión
   hasBciPanel: boolean; // panel de la bomba principal contra incendios (NFPA, normada)
   hasJockeyPanel: boolean; // panel de la bomba jockey (dentro de contra incendios normado)
+  // Los mismos cuatro, contados. Un edificio puede tener MÁS DE UN tablero por sistema y
+  // con el booleano solo salía una sección: el segundo panel no tenía dónde registrarse.
+  // Elite 400 tiene 4 bombas de transferencia con un panel por par (1-2 y 3-4); Elite 500
+  // tiene panel de incendios y de jockey en Azotea Y en Planta Baja — feedback William
+  // 7-ago-2026: "el formato me descarta algunos como incendio Planta baja jockey Planta baja".
+  principalesPanelCount: number;
+  reforzadorPanelCount: number;
+  bciPanelCount: number;
+  jockeyPanelCount: number;
   hasPluvialPanel: boolean; // panel de control de las bombas sumergibles pluviales
   // Nº de paneles pluviales = nº de FOSOS pluviales. William confirmó (29-jul) que cada foso
   // tiene su propio panel de control (que maneja sus 2-3 bombas). Es lo único que deja saber
@@ -216,6 +239,10 @@ export const EMPTY_SCOPE: BuildingScope = {
   hasReforzadorPanel: false,
   hasBciPanel: false,
   hasJockeyPanel: false,
+  principalesPanelCount: 0,
+  reforzadorPanelCount: 0,
+  bciPanelCount: 0,
+  jockeyPanelCount: 0,
   hasPluvialPanel: false,
   pluvialPanelCount: 0,
   hasSanitarioPanel: false,
@@ -245,6 +272,10 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
   let hasReforzadorPanel = false;
   let hasBciPanel = false;
   let hasJockeyPanel = false;
+  let principalesPanelCount = 0;
+  let reforzadorPanelCount = 0;
+  let bciPanelCount = 0;
+  let jockeyPanelCount = 0;
   let hasPluvialPanel = false;
   let pluvialPanelCount = 0;
   let hasSanitarioPanel = false;
@@ -265,11 +296,21 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
         // hay dos: el de la bomba principal y el de la jockey — se distinguen por el nombre
         // (mismo criterio que classifyEquipment usa para no confundir panel con jockey).
         const nm = norm(r.name ?? "");
-        if (r.system === "reforzador_agua_potable") hasReforzadorPanel = true;
-        else if (r.system === "transferencia_agua_potable") hasPrincipalesPanel = true;
+        if (r.system === "reforzador_agua_potable") {
+          hasReforzadorPanel = true;
+          reforzadorPanelCount += 1;
+        } else if (r.system === "transferencia_agua_potable") {
+          hasPrincipalesPanel = true;
+          principalesPanelCount += 1;
+        }
         else if (r.system === "contra_incendios") {
-          if (/\bjockey\b/.test(nm)) hasJockeyPanel = true;
-          else hasBciPanel = true;
+          if (/\bjockey\b/.test(nm)) {
+            hasJockeyPanel = true;
+            jockeyPanelCount += 1;
+          } else {
+            hasBciPanel = true;
+            bciPanelCount += 1;
+          }
         }
         // Sumergibles pluvial/sanitario a veces traen su propio panel de control
         // (contactor/térmica, supervisor de voltaje, luces piloto, alternador) —
@@ -307,6 +348,10 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
     hasReforzadorPanel,
     hasBciPanel,
     hasJockeyPanel,
+    principalesPanelCount,
+    reforzadorPanelCount,
+    bciPanelCount,
+    jockeyPanelCount,
     hasPluvialPanel,
     pluvialPanelCount,
     hasSanitarioPanel,
@@ -322,14 +367,10 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
 // Grupos que dependen de que el edificio TENGA ese equipo, no de que tenga el sistema.
 // Un edificio con bomba contra incendios no normada (sin panel, sin jockey) ya no arrastra
 // las secciones de Tablero ni de Jockey. — pregunta de William, 10-jul.
+// Los cuatro tableros (principales, reforzador, contra incendios y jockey) YA NO viven acá:
+// pasaron a por-unidad el 7-ago-2026 y se resuelven por conteo en `itemAppliesToBuilding`,
+// antes de llegar a este mapa. Lo que queda son los grupos que siguen siendo de presencia.
 const GROUP_TO_REQUIREMENT: Record<string, (s: BuildingScope) => boolean> = {
-  // "Tablero" (histórico) = el panel de bombas principales. Los demás tableros por sistema
-  // se agregaron 14-jul (feedback William): reforzador con su tablero, y en contra incendios
-  // normado el de la bomba principal y el de la jockey, cada uno gatillado por su panel.
-  Tablero: (s) => s.hasPrincipalesPanel,
-  "Tablero reforzador": (s) => s.hasReforzadorPanel,
-  "Panel contra incendios": (s) => s.hasBciPanel,
-  "Panel jockey": (s) => s.hasJockeyPanel,
   "Panel pluvial": (s) => s.hasPluvialPanel,
   "Panel sanitario": (s) => s.hasSanitarioPanel,
   "Bomba Jockey": (s) => s.hasJockey,
@@ -387,6 +428,20 @@ export const itemAppliesToBuilding = (label: string, scope: BuildingScope) => {
   const jockeyUnit = jockeyUnitOf(group);
   if (jockeyUnit !== null) {
     return jockeyUnit <= scope.jockeyCount;
+  }
+
+  // Tableros por unidad. Un edificio con dos paneles del mismo sistema recibe dos
+  // secciones; con uno, una. "Tablero reforzador" va primero: si se probara "Tablero"
+  // antes, su regex se comería el prefijo del otro y el reforzador nunca casaría.
+  const tableros: Array<[string, number]> = [
+    ["Tablero reforzador", scope.reforzadorPanelCount],
+    ["Tablero", scope.principalesPanelCount],
+    ["Panel contra incendios", scope.bciPanelCount],
+    ["Panel jockey", scope.jockeyPanelCount],
+  ];
+  for (const [base, count] of tableros) {
+    const unit = panelUnitOf(group, base);
+    if (unit !== null) return unit <= count;
   }
 
   // Ventiladores de presurización: un grupo por unidad, como las reforzadoras, PERO con

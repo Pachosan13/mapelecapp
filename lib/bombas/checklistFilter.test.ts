@@ -608,3 +608,80 @@ describe("grupo Planta de Emergencia", () => {
     assert.equal(itemAppliesToBuilding("Planta eléctrica - Nivel de combustible", conPlanta), true);
   });
 });
+
+// ── Tableros por unidad (7-ago-2026) ────────────────────────────────────────────
+// Un edificio puede tener DOS paneles del mismo sistema. Con el booleano viejo salía una
+// sola sección y el segundo panel se perdía — William, Elite 400 (dos paneles de principales,
+// uno por par de bombas) y Elite 500 (incendios y jockey en Azotea Y en Planta Baja).
+describe("tableros por unidad", () => {
+  const panel = (name: string, system: string): EquipmentRow => ({
+    name,
+    system,
+    kind: "panel_control",
+  });
+
+  it("dos paneles de principales muestran Tablero 1 y Tablero 2", () => {
+    const scope = buildBuildingScope([
+      bomba("Bomba Principal #1", "transferencia_agua_potable"),
+      panel("Panel de Control de Bombas Principales", "transferencia_agua_potable"),
+      panel("Panel de Control de Bombas Principales #3 Y #4", "transferencia_agua_potable"),
+    ]);
+    assert.equal(scope.principalesPanelCount, 2);
+    assert.equal(itemAppliesToBuilding("Tablero 1 - Voltaje", scope), true);
+    assert.equal(itemAppliesToBuilding("Tablero 2 - Voltaje", scope), true);
+    assert.equal(itemAppliesToBuilding("Tablero 3 - Voltaje", scope), false);
+  });
+
+  it("un solo panel deja fuera el Tablero 2", () => {
+    const scope = buildBuildingScope([
+      bomba("Bomba Principal #1", "transferencia_agua_potable"),
+      panel("Panel de Control de Bombas Principales", "transferencia_agua_potable"),
+    ]);
+    assert.equal(itemAppliesToBuilding("Tablero 1 - Voltaje", scope), true);
+    assert.equal(itemAppliesToBuilding("Tablero 2 - Voltaje", scope), false);
+  });
+
+  it("el label viejo SIN numerar sigue valiendo como unidad 1", () => {
+    const scope = buildBuildingScope([
+      bomba("Bomba Principal #1", "transferencia_agua_potable"),
+      panel("Panel de Control de Bombas Principales", "transferencia_agua_potable"),
+    ]);
+    assert.equal(itemAppliesToBuilding("Tablero - Voltaje", scope), true);
+  });
+
+  it("caso Elite 500: incendios y jockey en Azotea y en Planta Baja", () => {
+    const scope = buildBuildingScope([
+      bomba("Bomba Contra Incendios AZOTEA", "contra_incendios"),
+      bomba("Bomba Contra Incendios PLANTA BAJA", "contra_incendios"),
+      panel("Panel de Control de Bomba Contra Incendios Azotea", "contra_incendios"),
+      panel("Panel de Control de Bomba Contra Incendios PLANTA BAJA", "contra_incendios"),
+      panel("Panel de Control de Bomba Jockey Azotea", "contra_incendios"),
+      panel("panel de Control de Bomba Jockey PLANTA BAJA", "contra_incendios"),
+    ]);
+    assert.equal(scope.bciPanelCount, 2);
+    assert.equal(scope.jockeyPanelCount, 2);
+    assert.equal(itemAppliesToBuilding("Panel contra incendios 2 - Voltaje", scope), true);
+    assert.equal(itemAppliesToBuilding("Panel jockey 2 - Voltaje", scope), true);
+    assert.equal(itemAppliesToBuilding("Panel contra incendios 3 - Voltaje", scope), false);
+  });
+
+  it("'Tablero reforzador' no se lo come el regex de 'Tablero'", () => {
+    const scope = buildBuildingScope([
+      bomba("Bomba Reforzadora #1", "reforzador_agua_potable"),
+      panel("Panel de Control de Bombas Reforzadoras", "reforzador_agua_potable"),
+    ]);
+    assert.equal(scope.reforzadorPanelCount, 1);
+    assert.equal(scope.principalesPanelCount, 0);
+    assert.equal(itemAppliesToBuilding("Tablero reforzador 1 - Voltaje", scope), true);
+    // Sin panel de principales, el Tablero de principales NO debe salir.
+    assert.equal(itemAppliesToBuilding("Tablero 1 - Voltaje", scope), false);
+  });
+
+  it("sin ningún panel no sale ningún tablero", () => {
+    const scope = buildBuildingScope([
+      bomba("Bomba Principal #1", "transferencia_agua_potable"),
+    ]);
+    assert.equal(itemAppliesToBuilding("Tablero 1 - Voltaje", scope), false);
+    assert.equal(itemAppliesToBuilding("Panel jockey 1 - Voltaje", scope), false);
+  });
+});
