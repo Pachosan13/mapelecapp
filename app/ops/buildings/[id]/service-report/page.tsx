@@ -353,6 +353,17 @@ export default async function ServiceReportPage({
                             Equipo: {visit.equipment_labels.join(", ")}
                           </p>
                         ) : null}
+                        {/* Ver + Descargar. Antes solo se podía descargar, y el
+                            archivo se perdía en la carpeta de descargas de la
+                            tablet sin forma de volver a abrirlo desde la app. */}
+                        <a
+                          href={`/api/reports/service-report?visitId=${visit.id}&view=1`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700"
+                        >
+                          Ver informe
+                        </a>
                         <a
                           href={`/api/reports/service-report?visitId=${visit.id}`}
                           className="rounded bg-gray-900 px-3 py-1.5 text-xs font-medium text-white"

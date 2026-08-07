@@ -280,12 +280,24 @@ export default async function OpsVisitDetailPage({
           {buildingName} · {templateName}
         </p>
         {canGenerateReport ? (
-          <Link
-            href={`/api/reports/service-report?visitId=${visit.id}`}
-            className="mt-3 inline-flex rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white"
-          >
-            Generar reporte (PDF)
-          </Link>
+          // <a>, no <Link>: esto no es una página, es una ruta que devuelve un PDF.
+          // El router de Next intentaba navegar hacia ella como si lo fuera.
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <a
+              href={`/api/reports/service-report?visitId=${visit.id}&view=1`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex rounded-full border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700"
+            >
+              Ver reporte
+            </a>
+            <a
+              href={`/api/reports/service-report?visitId=${visit.id}`}
+              className="inline-flex rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white"
+            >
+              Descargar reporte (PDF)
+            </a>
+          </div>
         ) : null}
       </div>
 

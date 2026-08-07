@@ -1,4 +1,5 @@
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb, RGB } from "pdf-lib";
+import { systemLabel } from "@/lib/equipment/systems";
 
 /* ──────────────────────────────────────────────────────────
    SEMCO — Informe de Servicio Técnico
@@ -60,7 +61,15 @@ export type PdfVisitBlock = {
   crewLabel?: string | null;
   rows: PdfResponseValue[];
   recorrido?: { label: string; rows: PdfRecorridoRow[] } | null;
-  media: Array<{ name: string; sizeMb: string; image: { bytes: Uint8Array; isPng: boolean } | null }>;
+  media: Array<{
+    name: string;
+    sizeMb: string;
+    /** Código del sistema (`contra_incendios`, …). Se imprime como pie de cada foto. */
+    system: string | null;
+    /** Nota corta opcional del técnico sobre la foto. */
+    label: string | null;
+    image: { bytes: Uint8Array; isPng: boolean } | null;
+  }>;
   mediaCount: number;
 };
 
@@ -251,18 +260,29 @@ function drawCover(c: Ctx, input: ServiceReportPdfInput) {
   const metaItems: Array<[string, string]> = [];
   if (input.buildingAddress) metaItems.push(["Ubicación", input.buildingAddress]);
   metaItems.push(["Fecha de servicio", input.reportDateLabel]);
-  if (input.systems && input.systems.length)
-    metaItems.push([
-      "Sistemas",
-      input.systems
-        .map((s) => (s === "pump" ? "Bombeo" : s === "fire" ? "Contra Incendio" : s))
-        .join(" · "),
-    ]);
+  // La portada imprimía el código crudo de la base (`contra_incendios`,
+  // `transferencia_agua_potable`) en un PDF que ve el cliente. `systemLabel` es la
+  // misma fuente de nombres que ve el técnico en la app.
+  const systemsLine =
+    input.systems && input.systems.length
+      ? input.systems
+          .map((s) =>
+            s === "pump" ? "Bombeo" : s === "fire" ? "Contra Incendio" : systemLabel(s)
+          )
+          .join(" · ")
+      : null;
   // Nota: el estado editorial (draft/ready/sent) es workflow interno y NO se
   // muestra en el PDF del cliente. Se sigue viendo en el dashboard de ops.
   // meta in two columns
   const metaRows = Math.ceil(metaItems.length / 2);
   cardH += metaRows * 28 + 14;
+  // Los sistemas van a fila propia, a lo ancho de la tarjeta: en media columna una
+  // lista de dos sistemas con nombre real no cabía, y el renderizador se quedaba con
+  // la primera línea SIN avisar ("Transferencia agua" en vez de "…agua potable").
+  const systemsLines = systemsLine
+    ? wrap(c.font, systemsLine, 9.5, cardW - cardPadX * 2).slice(0, 2)
+    : [];
+  if (systemsLines.length) cardH += 12 + systemsLines.length * 12;
 
   c.page.drawRectangle({
     x: cardX,
@@ -306,6 +326,15 @@ function drawCover(c: Ctx, input: ServiceReportPdfInput) {
     const v = wrap(c.font, item[1], 9.5, colW - 12)[0];
     draw(c, v, mx, my - 12, 9.5, c.font, rgb(0.85, 0.87, 0.92));
   });
+
+  if (systemsLines.length) {
+    let sy = cy - (metaRows - 1) * 28 - 30;
+    draw(c, "SISTEMAS", cardX + cardPadX, sy, 7, c.bold, GOLD);
+    for (const ln of systemsLines) {
+      sy -= 12;
+      draw(c, ln, cardX + cardPadX, sy, 9.5, c.font, rgb(0.85, 0.87, 0.92));
+    }
+  }
 
   c.y = topY - cardH - 26;
 }
@@ -572,8 +601,12 @@ async function evidenceBlock(c: Ctx, v: PdfVisitBlock) {
   const gap = 12;
   const cellW = (w - gap) / 2;
   const cellH = 130;
+  // Alto del pie de foto. Sin esto, el informe mostraba un manómetro y nadie podía
+  // decir si era de las bombas principales o de la reforzadora (William, 6-ago-2026):
+  // la foto se guardaba CON su sistema y el PDF lo tiraba a la basura.
+  const capH = 14;
   for (let i = 0; i < images.length; i += 2) {
-    if (c.y - (cellH + 16) < CONTENT_BOTTOM) newPage(c);
+    if (c.y - (cellH + capH + 16) < CONTENT_BOTTOM) newPage(c);
     const pair = images.slice(i, i + 2);
     for (let j = 0; j < pair.length; j++) {
       const m = pair[j];
@@ -613,8 +646,24 @@ async function evidenceBlock(c: Ctx, v: PdfVisitBlock) {
         });
         draw(c, "No se pudo cargar la imagen", cx + 8, c.y - cellH / 2, 8, c.font, MUTED);
       }
+
+      // Pie de foto: el sistema en negrita y, si el técnico la anotó, su nota.
+      // Cuando la foto vino sin sistema se DICE, en vez de dejar el hueco mudo que
+      // obliga al gerente a adivinar.
+      const sysText = m.system ? systemLabel(m.system) : "Sistema sin especificar";
+      const capY = c.y - cellH - 10;
+      draw(c, sysText, cx, capY, 7.5, c.bold, m.system ? NAVY_500 : AMBER);
+      const note = (m.label ?? "").trim();
+      if (note) {
+        const used = textWidth(c.bold, sysText, 7.5);
+        const room = cellW - used - 6;
+        if (room > 24) {
+          const [first] = wrap(c.font, `· ${note}`, 7, room);
+          draw(c, first, cx + used + 6, capY, 7, c.font, MUTED);
+        }
+      }
     }
-    c.y -= cellH + 14;
+    c.y -= cellH + capH + 14;
   }
 }
 

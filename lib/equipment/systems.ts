@@ -59,3 +59,34 @@ export const KINDS: [string, string][] = [
 
 export const systemLabel = (system: string | null | undefined): string =>
   (system && SYSTEM_LABELS[system]) || system || "Sin sistema";
+
+/**
+ * Opciones del selector de sistema al capturar evidencia.
+ *
+ * Desde el 6-ago-2026 elegir sistema es obligatorio (antes la opción por defecto era
+ * "General (sin sistema)" y el 82% de las fotos llegaba sin sistema, así que el informe
+ * mostraba un manómetro y nadie sabía de cuál sistema era). Al ser obligatorio, esta
+ * lista NO puede quedar vacía nunca: un selector vacío deja al técnico sin poder tomar
+ * fotos en un sótano, que es peor que el problema original. De ahí el fallback.
+ *
+ * - Con inventario del edificio → solo esos sistemas, en el orden del catálogo.
+ * - Un sistema del edificio fuera del catálogo → igual se ofrece, al final.
+ * - Sin inventario → catálogo completo.
+ */
+export const photoSystemOptions = (
+  buildingSystems: readonly string[] | null | undefined
+): [string, string][] => {
+  const presentes = new Set(
+    (buildingSystems ?? []).map((s) => (s ?? "").trim()).filter(Boolean)
+  );
+  if (presentes.size === 0) return SYSTEMS;
+
+  const delCatalogo = SYSTEMS.filter(([key]) => presentes.has(key));
+  const conocidos = new Set(delCatalogo.map(([key]) => key));
+  const extras = [...presentes]
+    .filter((key) => !conocidos.has(key))
+    .map((key) => [key, SYSTEM_LABELS[key] ?? key] as [string, string]);
+
+  const opciones = [...delCatalogo, ...extras];
+  return opciones.length > 0 ? opciones : SYSTEMS;
+};
