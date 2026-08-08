@@ -335,6 +335,30 @@ export default async function OpsVisitReportPage({
         <p className="text-gray-600">
           {buildingName} · {templateName}
         </p>
+        {/* Los botones del PDF vivían solo en /ops/visits/[id] y en el informe por
+            edificio. Esta pantalla —la que se abre desde el historial y la que el
+            gerente tiene delante cuando revisa la evidencia— no tenía ninguno, así que
+            desde acá no había forma de llegar al PDF. William, 7-ago: "de este que se
+            realizo el 6 no me sale" — la visita estaba completa y el PDF generaba bien;
+            estaba parado en la pantalla que no los traía. */}
+        {visit.status === "completed" ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <a
+              href={`/api/reports/service-report?visitId=${visit.id}&view=1`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex rounded-full border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700"
+            >
+              Ver reporte
+            </a>
+            <a
+              href={`/api/reports/service-report?visitId=${visit.id}`}
+              className="inline-flex rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white"
+            >
+              Descargar reporte (PDF)
+            </a>
+          </div>
+        ) : null}
       </div>
 
       <div className="mb-6 grid gap-4 rounded border p-4 text-sm text-gray-700 md:grid-cols-2">
