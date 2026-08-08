@@ -30,11 +30,13 @@ export default async function AppHeader() {
         ? [
             { href: "/ops/dashboard", label: "Hoy", activeMatch: "exact" },
             { href: "/ops/buildings", label: "Edificios", activeMatch: "exact" },
+            { href: "/ops/hallazgos", label: "Hallazgos", activeMatch: "exact" },
           ]
         : role === "director"
           ? [
               { href: "/dir/overview", label: "Overview", activeMatch: "exact" },
               { href: "/ops/buildings", label: "Buildings", activeMatch: "exact" },
+              { href: "/ops/hallazgos", label: "Hallazgos", activeMatch: "exact" },
             ]
           : [];
 
