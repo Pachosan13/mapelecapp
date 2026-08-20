@@ -80,6 +80,13 @@
              Equipos
            </Link>
            <Link
+             href="/ops/visitas-abiertas"
+             className="block rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+             onClick={() => setOpen(false)}
+           >
+             Visitas abiertas
+           </Link>
+           <Link
              href="/ops/templates"
              className="block rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900"
              onClick={() => setOpen(false)}

@@ -4,6 +4,8 @@ import { formatPanamaDateLabel } from "@/lib/dates/panama";
 import { formatDateOnlyLabel } from "@/lib/dates/dateOnly";
 import { getCrewsWithDisplay } from "@/lib/crews/withMembers";
 import { formatAssignmentLabel } from "@/lib/formatters/assignmentLabel";
+import { formatCrewLabel } from "@/lib/formatters/crewLabel";
+import ReassignCrewForm from "./ReassignCrewForm";
 import type { Database } from "@/lib/database.types";
 import { fetchAllRows } from "@/lib/db/fetchAllRows";
 
@@ -327,6 +329,17 @@ export default async function OpsVisitDetailPage({
           <p className="text-sm font-medium">{templateName}</p>
         </div>
       </div>
+
+      {visit.status === "completed" ? null : (
+        <ReassignCrewForm
+          visitId={visit.id}
+          currentCrewId={visit.assigned_crew_id}
+          crews={crewsWithDisplay.map((crew) => ({
+            id: crew.id,
+            label: formatCrewLabel(crew),
+          }))}
+        />
+      )}
 
       <div className="mb-6 rounded border p-4">
         <div className="mb-2 text-sm font-semibold text-gray-700">
