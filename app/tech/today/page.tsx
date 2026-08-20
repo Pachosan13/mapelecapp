@@ -4,18 +4,11 @@ import { redirect } from "next/navigation";
 import type { Database } from "@/lib/database.types";
 import { panamaDay } from "@/lib/dates/panamaDay";
 
+import { formatShortDateLabel } from "@/lib/dates/dateOnly";
+
 type VisitStatus = Database["public"]["Tables"]["visits"]["Row"]["status"];
 
-const MESES = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
 
-// El helper compartido formatDateOnlyLabel devuelve MM/DD/YYYY (formato gringo).
-// En el badge queda ilegible para el técnico, así que acá se rotula "13-jul".
-const formatShortDate = (dateStr: string) => {
-  const [, m, d] = dateStr.split("-");
-  const mes = MESES[Number(m) - 1];
-  if (!mes || !d) return dateStr;
-  return `${Number(d)}-${mes}`;
-};
 
 export default async function TechTodayPage({
   searchParams,
@@ -250,7 +243,7 @@ export default async function TechTodayPage({
                   <div className="mt-1 flex flex-wrap gap-2">
                     {visit.scheduled_for < today ? (
                       <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
-                        Quedó abierta · {formatShortDate(visit.scheduled_for)}
+                        Quedó abierta · {formatShortDateLabel(visit.scheduled_for)}
                       </span>
                     ) : null}
                     {visit.assigned_tech_user_id &&

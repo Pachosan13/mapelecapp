@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { formatDateOnlyLabel } from "@/lib/dates/dateOnly";
+import { formatShortDateLabel } from "@/lib/dates/dateOnly";
 import { panamaDay } from "@/lib/dates/panamaDay";
 import { getCrewsWithDisplay } from "@/lib/crews/withMembers";
 import { formatCrewLabel } from "@/lib/formatters/crewLabel";
@@ -115,7 +115,7 @@ export default async function VisitasAbiertasPage() {
           </div>
           <div className="mt-0.5 text-sm text-gray-500">
             {visit.template?.name ?? "Formulario"} ·{" "}
-            {formatDateOnlyLabel(visit.scheduled_for)}
+            {formatShortDateLabel(visit.scheduled_for)}
             {days > 0 ? ` · ${days} día${days === 1 ? "" : "s"} abierta` : ""}
           </div>
           <div className="mt-1 text-sm text-gray-500">
