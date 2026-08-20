@@ -135,6 +135,33 @@ self.addEventListener("fetch", (event) => {
 // Precalentado de páginas: el cliente (online) nos pide guardar los documentos que el
 // técnico va a necesitar sin señal (la visita actual y /tech/today). Así, si sale del
 // app y vuelve a entrar en un sótano, la navegación cae a esta copia y puede continuar.
+// Extrae del HTML los assets de /_next/static/ y los mete al caché estático.
+// Se salta los que ya están: entre páginas comparten casi todos los chunks.
+async function warmAssetsOf(response) {
+  try {
+    const html = await response.text();
+    const encontrados = new Set();
+    const re = /["'(\s](\/_next\/static\/[^"'()\s\\]+)/g;
+    let m;
+    while ((m = re.exec(html)) !== null) encontrados.add(m[1]);
+    if (encontrados.size === 0) return;
+    const cache = await caches.open(STATIC_CACHE);
+    await Promise.all(
+      Array.from(encontrados).map(async (ruta) => {
+        try {
+          if (await cache.match(ruta)) return;
+          const r = await fetch(ruta, { credentials: "same-origin" });
+          if (r.ok && r.status === 200) await cache.put(ruta, r.clone());
+        } catch {
+          // best-effort
+        }
+      })
+    );
+  } catch {
+    // best-effort
+  }
+}
+
 self.addEventListener("message", (event) => {
   const data = event.data;
   if (!data || data.type !== "WARM_PAGES" || !Array.isArray(data.urls)) return;
@@ -153,6 +180,13 @@ self.addEventListener("message", (event) => {
               finalUrl.pathname !== "/login"
             ) {
               await cache.put(new Request(u), res.clone());
+              // Y sus chunks de JS/CSS. Cachear SOLO el documento no alcanza: offline el
+              // HTML sale del caché, pide /_next/static/... que nunca se descargó (el
+              // técnico jamás renderizó esa página con señal) y React no monta — sale
+              // "Application error", que es la misma pantalla en blanco del 20-jul.
+              // Verificado el 20-ago: el caché estático traía el chunk de /tech/today
+              // pero no el de /tech/visits/[id].
+              await warmAssetsOf(res.clone());
             }
           } catch {
             // sin señal o error: no pasa nada, se intentará de nuevo al reabrir online.
