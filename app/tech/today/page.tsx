@@ -6,6 +6,17 @@ import { panamaDay } from "@/lib/dates/panamaDay";
 
 type VisitStatus = Database["public"]["Tables"]["visits"]["Row"]["status"];
 
+const MESES = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+
+// El helper compartido formatDateOnlyLabel devuelve MM/DD/YYYY (formato gringo).
+// En el badge queda ilegible para el técnico, así que acá se rotula "13-jul".
+const formatShortDate = (dateStr: string) => {
+  const [, m, d] = dateStr.split("-");
+  const mes = MESES[Number(m) - 1];
+  if (!mes || !d) return dateStr;
+  return `${Number(d)}-${mes}`;
+};
+
 export default async function TechTodayPage({
   searchParams,
 }: {
@@ -53,10 +64,53 @@ export default async function TechTodayPage({
         .eq("assigned_tech_user_id", uid)
     : { data: [], error: null };
 
+  // Visitas de mi cuadrilla que YA reclamó otro compañero. Sin esto el traspaso
+  // entre técnicos no servía de nada: la RLS y los gates de la pantalla de visita
+  // sí dejan entrar a cualquiera de la cuadrilla, pero apenas alguien daba Start
+  // la visita desaparecía de la lista de los demás y no había cómo llegar a ella.
+  const { data: crewOtherData, error: crewOtherError } = user.home_crew_id
+    ? await supabase
+        .from("visits")
+        .select(selectFields)
+        .eq("scheduled_for", today)
+        .in("status", ["planned", "in_progress"])
+        .eq("assigned_crew_id", user.home_crew_id)
+        .not("assigned_tech_user_id", "is", null)
+        .neq("assigned_tech_user_id", uid)
+    : { data: [], error: null };
+
+  // Visitas que quedaron abiertas en días anteriores. La lista filtraba por
+  // `scheduled_for = hoy`, así que un mantenimiento que no se cerró el mismo día
+  // se le desaparecía a todo el mundo al día siguiente, incluido quien lo empezó.
+  // De ahí salen las visitas que se quedan en in_progress para siempre: sin
+  // completar no generan informe ni muestran hallazgos.
+  const { data: carryOverMineData, error: carryOverMineError } = await supabase
+    .from("visits")
+    .select(selectFields)
+    .lt("scheduled_for", today)
+    .eq("status", "in_progress")
+    .eq("assigned_tech_user_id", uid)
+    .order("scheduled_for", { ascending: false })
+    .limit(50);
+
+  const { data: carryOverCrewData, error: carryOverCrewError } = user.home_crew_id
+    ? await supabase
+        .from("visits")
+        .select(selectFields)
+        .lt("scheduled_for", today)
+        .eq("status", "in_progress")
+        .eq("assigned_crew_id", user.home_crew_id)
+        .order("scheduled_for", { ascending: false })
+        .limit(50)
+    : { data: [], error: null };
+
   const merged = [
     ...(legacyData ?? []),
     ...(crewData ?? []),
     ...(crewMineData ?? []),
+    ...(crewOtherData ?? []),
+    ...(carryOverMineData ?? []),
+    ...(carryOverCrewData ?? []),
   ];
   const visitsById = new Map<string, (typeof merged)[number]>();
   merged.forEach((visit) => {
@@ -65,6 +119,10 @@ export default async function TechTodayPage({
 
   const visits = Array.from(visitsById.values())
     .sort((a, b) => {
+      // Las de días anteriores van primero: son las que se quedan atrás y nadie ve.
+      const lateA = a.scheduled_for < today ? 0 : 1;
+      const lateB = b.scheduled_for < today ? 0 : 1;
+      if (lateA !== lateB) return lateA - lateB;
       const nameA = a.building?.name ?? "";
       const nameB = b.building?.name ?? "";
       const nameCompare = nameA.localeCompare(nameB);
@@ -80,6 +138,27 @@ export default async function TechTodayPage({
     template: { id: string; name: string } | null;
   }>;
 
+  const claimedByIds = Array.from(
+    new Set(
+      visits
+        .map((visit) => visit.assigned_tech_user_id)
+        .filter((id): id is string => Boolean(id) && id !== uid)
+    )
+  );
+  const { data: claimedProfiles } =
+    claimedByIds.length > 0
+      ? await supabase
+          .from("profiles")
+          .select("user_id,full_name")
+          .in("user_id", claimedByIds)
+      : { data: [] };
+  const claimedNameById = new Map(
+    (claimedProfiles ?? []).map((profile) => [
+      profile.user_id,
+      profile.full_name?.trim() || "otro técnico",
+    ])
+  );
+
   const formatStatus = (status?: VisitStatus | null) => {
     if (!status) return "Sin estado";
     return status
@@ -88,7 +167,13 @@ export default async function TechTodayPage({
   };
 
   const showCompletedBanner = searchParams?.completed === "1";
-  const error = legacyError ?? crewError ?? crewMineError;
+  const error =
+    legacyError ??
+    crewError ??
+    crewMineError ??
+    crewOtherError ??
+    carryOverMineError ??
+    carryOverCrewError;
 
   return (
     <div className="min-h-screen bg-gray-50/40 p-8">
@@ -96,7 +181,7 @@ export default async function TechTodayPage({
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Hoy</h1>
           <p className="text-sm text-gray-500">
-            Te toca hoy · Visitas asignadas para hoy
+            Te toca hoy · Incluye las que quedaron abiertas de días anteriores
           </p>
         </div>
         <div className="flex items-center gap-4 text-sm text-gray-600">
@@ -124,7 +209,7 @@ export default async function TechTodayPage({
       <div className="mt-6">
         {visits.length === 0 ? (
           <div className="rounded-2xl border border-gray-100 bg-white px-6 py-10 text-sm text-gray-500">
-            No tienes visitas asignadas hoy.
+            No tienes visitas asignadas hoy ni pendientes de días anteriores.
           </div>
         ) : (
           <div className="rounded-2xl border border-gray-100 bg-white">
@@ -161,6 +246,21 @@ export default async function TechTodayPage({
                       }`}
                     />
                     {formatStatus(visit.status)}
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {visit.scheduled_for < today ? (
+                      <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
+                        Quedó abierta · {formatShortDate(visit.scheduled_for)}
+                      </span>
+                    ) : null}
+                    {visit.assigned_tech_user_id &&
+                    visit.assigned_tech_user_id !== uid ? (
+                      <span className="inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-800">
+                        Iniciada por{" "}
+                        {claimedNameById.get(visit.assigned_tech_user_id) ??
+                          "otro técnico"}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
                 {/* Navegación completa (no <Link>): fuerza un request de documento
