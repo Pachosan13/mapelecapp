@@ -193,6 +193,12 @@ const ventiladorUnitOf = (groupName: string) => {
 // unidades sembradas, cada edificio sin inventariar arrastraría 372 casillas de ventilador.
 const DEFAULT_FAN_UNITS = 4;
 
+// Bombas que la plantilla "Mantenimiento – Bombas" siembra por cada foso pluvial
+// (migración 20260729130000_pluvial_4_fosos_4_bombas.sql: 4 fosos × 4 bombas). Es el techo
+// de lo que cabe en UN foso; por encima de eso el edificio necesita más fosos para que sus
+// bombas tengan dónde registrarse.
+const PLUVIAL_BOMBAS_SEMBRADAS_POR_FOSO = 4;
+
 // Alcance del edificio derivado de la precarga: sistemas presentes, nº de BOMBAS reales por
 // sistema (excluye paneles, jockeys y generadores) y presencia de cada equipo gatillo.
 export type BuildingScope = {
@@ -480,18 +486,33 @@ export const itemAppliesToBuilding = (label: string, scope: BuildingScope) => {
     // contra el conteo de BOMBAS, así que 2 bombas mostraban 2 fosos (el bug que reportó).
     if (sys === "achique_pluvial") {
       const bombaCount = scope.pumpCounts.get("achique_pluvial") ?? 0;
-      // Si no se inventarió panel pero hay bombas, hay al menos 1 foso (no esconder equipo real).
-      const fosoCount =
-        scope.pluvialPanelCount > 0 ? scope.pluvialPanelCount : bombaCount > 0 ? 1 : 0;
+      // Nº de fosos. Tres fuentes, se toma la MAYOR (nunca esconder equipo real):
+      //  1. Los paneles pluviales inventariados (1 panel por foso — regla de William).
+      //  2. La CAPACIDAD: el template solo siembra 4 bombas por foso, así que un edificio con
+      //     más bombas que eso necesita más fosos aunque el levantamiento traiga un solo panel.
+      //     Es el caso de GREENWOOD PLAZA (21-ago-2026): 6 bombas pluviales cargadas y un único
+      //     "Panel de Control de Bombas Sumergibles" (sin sistema asignado) → fosoCount valía 1
+      //     y a William le salían 4 de 6. Las 2 que faltaban no tenían dónde ir.
+      //  3. Si hay bombas, hay al menos 1 foso.
+      const fosoCount = Math.max(
+        scope.pluvialPanelCount,
+        Math.ceil(bombaCount / PLUVIAL_BOMBAS_SEMBRADAS_POR_FOSO),
+        bombaCount > 0 ? 1 : 0
+      );
       const foso = Number((parts[2] ?? "").trim().match(/(\d+)$/)?.[1] ?? NaN);
       if (Number.isNaN(foso)) return true;
       if (foso > fosoCount) return false; // foso gate
       const bombaMatch = (parts[3] ?? "").trim().match(/^Bomba (\d+)$/i);
       if (!bombaMatch) return true; // "Estado del foso" / "Panel de control" → nivel foso
-      // Un solo foso: todas las bombas pluviales son de ese foso (exacto). Multi-foso: no
-      // sabemos el reparto por foso, así que se muestran todos los slots sembrados y el técnico
-      // deja en blanco el que sobre (mostrar de más se ignora; de menos se pierde).
-      if (fosoCount === 1) return Number(bombaMatch[1]) <= bombaCount;
+      // Bombas por foso. El inventario guarda bombas sueltas, no dice a qué foso va cada una,
+      // así que solo se aprieta cuando el reparto PAREJO es la única lectura posible: si el
+      // total divide exacto entre los fosos (6 bombas / 3 fosos = 2 c/u, lo que William dictó
+      // para Greenwood; 6 / 2 = 3). Si no divide exacto (3 bombas en 2 fosos → ¿2+1 o 1+2?),
+      // se muestran todos los slots sembrados y el técnico deja el que sobre en blanco:
+      // mostrar de más se ignora, mostrar de menos se PIERDE.
+      if (bombaCount % fosoCount === 0) {
+        return Number(bombaMatch[1]) <= bombaCount / fosoCount;
+      }
       return true;
     }
 

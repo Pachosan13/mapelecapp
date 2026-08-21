@@ -540,6 +540,60 @@ describe("bombas sumergibles pluviales — foso = panel", () => {
     assert.equal(applies(`${P} - Pluvial 2 - Bomba 3 - Voltaje L1-L2 (V)`, rows), true);
     assert.equal(applies(`${P} - Pluvial 3 - Bomba 1 - Voltaje L1-L2 (V)`, rows), false);
   });
+
+  // GREENWOOD PLAZA, 21-ago-2026. William: "aquí como confirmo que las 6 bombas pluviales me
+  // salen? 2 bombas por cada foso… solo me aparecen 4 de 6". El edificio tiene las 6 bombas
+  // cargadas y UN solo panel sumergible (además sin sistema asignado, así que ni contaba):
+  // el foso único solo tiene 4 slots sembrados y las bombas 5 y 6 se quedaban sin dónde ir.
+  it("6 bombas con 1 solo panel: se abre un 2º foso por capacidad y salen las 6", () => {
+    const rows = [
+      panel("Panel de Control de Bombas Pluviales", "achique_pluvial"),
+      ...Array.from({ length: 6 }, (_, i) => bomba(`Bomba pluvial #${i + 1}`, "achique_pluvial")),
+    ];
+    // 6 bombas no caben en 1 foso (4 sembradas) → 2 fosos × 3 bombas = las 6, exacto.
+    for (const f of [1, 2]) {
+      for (const b of [1, 2, 3]) {
+        assert.equal(applies(`${P} - Pluvial ${f} - Bomba ${b} - Voltaje L1-L2 (V)`, rows), true);
+      }
+      assert.equal(applies(`${P} - Pluvial ${f} - Bomba 4 - Voltaje L1-L2 (V)`, rows), false);
+    }
+    assert.equal(applies(`${P} - Pluvial 3 - Bomba 1 - Voltaje L1-L2 (V)`, rows), false);
+  });
+
+  it("6 bombas en 3 fosos (3 paneles) = 2 bombas por foso, como lo dictó William", () => {
+    const rows = [
+      ...Array.from({ length: 3 }, (_, i) => panel(`Panel Pluvial ${i + 1}`, "achique_pluvial")),
+      ...Array.from({ length: 6 }, (_, i) => bomba(`Bomba pluvial #${i + 1}`, "achique_pluvial")),
+    ];
+    for (const f of [1, 2, 3]) {
+      assert.equal(applies(`${P} - Pluvial ${f} - Bomba 2 - Voltaje L1-L2 (V)`, rows), true);
+      assert.equal(applies(`${P} - Pluvial ${f} - Bomba 3 - Voltaje L1-L2 (V)`, rows), false);
+    }
+    assert.equal(applies(`${P} - Pluvial 4 - Bomba 1 - Voltaje L1-L2 (V)`, rows), false);
+  });
+
+  it("ninguna bomba pluvial se queda sin slot, reparta como reparta", () => {
+    // Invariante: los slots visibles (fosos × bombas por foso) nunca son menos que las
+    // bombas inventariadas. Es la regla de la casa: mostrar de más se ignora, de menos se pierde.
+    for (let paneles = 0; paneles <= 4; paneles++) {
+      for (let bombas = 1; bombas <= 12; bombas++) {
+        const rows = [
+          ...Array.from({ length: paneles }, (_, i) => panel(`Panel ${i + 1}`, "achique_pluvial")),
+          ...Array.from({ length: bombas }, (_, i) => bomba(`Bomba #${i + 1}`, "achique_pluvial")),
+        ];
+        let slots = 0;
+        for (let f = 1; f <= 4; f++) {
+          for (let b = 1; b <= 4; b++) {
+            if (applies(`${P} - Pluvial ${f} - Bomba ${b} - Voltaje L1-L2 (V)`, rows)) slots++;
+          }
+        }
+        assert.ok(
+          slots >= Math.min(bombas, 16),
+          `${paneles} paneles + ${bombas} bombas → solo ${slots} slots`
+        );
+      }
+    }
+  });
 });
 
 // --- Guarda de inventario sin verificar (28-jul-2026) ---
