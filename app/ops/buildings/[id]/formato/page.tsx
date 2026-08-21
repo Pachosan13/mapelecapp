@@ -54,7 +54,7 @@ export default async function BuildingFormatoPage({
   // Mismo select que el técnico: solo equipos activos.
   const { data: equipmentRows } = await db
     .from("equipment")
-    .select("name,system,kind,specs,is_active")
+    .select("name,system,kind,location,specs,is_active")
     .eq("building_id", params.id)
     .eq("is_active", true);
   const equipos = equipmentRows ?? [];

@@ -342,7 +342,7 @@ export async function getServiceReportData(params: {
   // la jockey y detecta paneles mal tipados. Sin equipos precargados → no se filtra.
   const { data: buildingEquipmentRows } = await supabase
     .from("equipment")
-    .select("name,system,kind,specs")
+    .select("name,system,kind,location,specs")
     .eq("building_id", buildingId)
     .eq("is_active", true);
   const buildingScope = buildBuildingScope(buildingEquipmentRows ?? []);

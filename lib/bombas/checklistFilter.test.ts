@@ -572,14 +572,94 @@ describe("bombas sumergibles pluviales — foso = panel", () => {
     assert.equal(applies(`${P} - Pluvial 4 - Bomba 1 - Voltaje L1-L2 (V)`, rows), false);
   });
 
+  // Ubicación = foso (21-ago-2026). William, tras hablar con el técnico: "son 2 pluviales
+  // dentro del cuarto de bombas, 2 pluviales normales en estacionamientos". El inventario ya
+  // tiene la columna Ubicación; llenarla es lo único que dice QUÉ bomba va en QUÉ foso.
+  const bombaEn = (name: string, location: string): EquipmentRow => ({
+    name,
+    system: "achique_pluvial",
+    kind: "bomba",
+    location,
+  });
+
+  it("la ubicación separa los fosos: 2 en cuarto de bombas + 2 en estacionamientos (Greenwood)", () => {
+    const rows = [
+      bombaEn("Bomba pluvial #1", "Cuarto de bombas"),
+      bombaEn("Bomba pluvial #2", "Cuarto de bombas"),
+      bombaEn("Bomba pluvial #3", "Estacionamientos"),
+      bombaEn("Bomba pluvial #4", "Estacionamientos"),
+    ];
+    assert.deepEqual(buildBuildingScope(rows).pluvialBombasPorFoso, [2, 2]);
+    for (const f of [1, 2]) {
+      assert.equal(applies(`${P} - Pluvial ${f} - Bomba 2 - Voltaje L1-L2 (V)`, rows), true);
+      assert.equal(applies(`${P} - Pluvial ${f} - Bomba 3 - Voltaje L1-L2 (V)`, rows), false);
+      assert.equal(applies(`${P} - Pluvial ${f} - Estado del foso`, rows), true);
+    }
+    assert.equal(applies(`${P} - Pluvial 3 - Bomba 1 - Voltaje L1-L2 (V)`, rows), false);
+  });
+
+  it("fosos desiguales: la ubicación manda aunque el reparto no sea parejo", () => {
+    const rows = [
+      bombaEn("Bomba pluvial #1", "Sótano"),
+      bombaEn("Bomba pluvial #2", "Sótano"),
+      bombaEn("Bomba pluvial #3", "Sótano"),
+      bombaEn("Bomba pluvial #4", "Azotea"),
+    ];
+    assert.deepEqual(buildBuildingScope(rows).pluvialBombasPorFoso, [1, 3]); // orden alfabético
+    assert.equal(applies(`${P} - Pluvial 1 - Bomba 1 - Voltaje L1-L2 (V)`, rows), true);
+    assert.equal(applies(`${P} - Pluvial 1 - Bomba 2 - Voltaje L1-L2 (V)`, rows), false);
+    assert.equal(applies(`${P} - Pluvial 2 - Bomba 3 - Voltaje L1-L2 (V)`, rows), true);
+    assert.equal(applies(`${P} - Pluvial 2 - Bomba 4 - Voltaje L1-L2 (V)`, rows), false);
+  });
+
+  it("si los paneles piden más fosos que las ubicaciones, no se aprieta por ubicación", () => {
+    // 3 paneles = 3 fosos, pero solo 2 ubicaciones llenas: no sabemos qué hay en el tercero.
+    const rows = [
+      ...Array.from({ length: 3 }, (_, i) => panel(`Panel Pluvial ${i + 1}`, "achique_pluvial")),
+      bombaEn("Bomba pluvial #1", "Cuarto de bombas"),
+      bombaEn("Bomba pluvial #2", "Estacionamientos"),
+    ];
+    assert.equal(applies(`${P} - Pluvial 3 - Bomba 4 - Voltaje L1-L2 (V)`, rows), true);
+  });
+
+  it("ubicación a medias: las que no la traen quedan en su propio grupo, sin perder ninguna", () => {
+    const rows = [
+      bombaEn("Bomba pluvial #1", "Cuarto de bombas"),
+      bombaEn("Bomba pluvial #2", "Cuarto de bombas"),
+      bomba("Bomba pluvial #3", "achique_pluvial"),
+    ];
+    assert.deepEqual(buildBuildingScope(rows).pluvialBombasPorFoso, [1, 2]); // "" ordena primero
+    assert.equal(applies(`${P} - Pluvial 1 - Bomba 1 - Voltaje L1-L2 (V)`, rows), true);
+    assert.equal(applies(`${P} - Pluvial 2 - Bomba 2 - Voltaje L1-L2 (V)`, rows), true);
+    assert.equal(applies(`${P} - Pluvial 2 - Bomba 3 - Voltaje L1-L2 (V)`, rows), false);
+  });
+
+  it("un foso con más bombas de las sembradas descarta la ubicación y abre fosos por capacidad", () => {
+    const rows = Array.from({ length: 5 }, (_, i) => bombaEn(`Bomba pluvial #${i + 1}`, "Sótano"));
+    assert.deepEqual(buildBuildingScope(rows).pluvialBombasPorFoso, []); // 5 > 4 sembradas
+    let slots = 0;
+    for (let f = 1; f <= 4; f++) {
+      for (let b = 1; b <= 4; b++) {
+        if (applies(`${P} - Pluvial ${f} - Bomba ${b} - Voltaje L1-L2 (V)`, rows)) slots++;
+      }
+    }
+    assert.ok(slots >= 5, `5 bombas en un foso solo dieron ${slots} slots`);
+  });
+
   it("ninguna bomba pluvial se queda sin slot, reparta como reparta", () => {
     // Invariante: los slots visibles (fosos × bombas por foso) nunca son menos que las
     // bombas inventariadas. Es la regla de la casa: mostrar de más se ignora, de menos se pierde.
     for (let paneles = 0; paneles <= 4; paneles++) {
       for (let bombas = 1; bombas <= 12; bombas++) {
+        // ubicaciones = en cuántos fosos se reparten (0 = nadie llenó el campo)
+        for (let ubicaciones = 0; ubicaciones <= 4; ubicaciones++) {
         const rows = [
           ...Array.from({ length: paneles }, (_, i) => panel(`Panel ${i + 1}`, "achique_pluvial")),
-          ...Array.from({ length: bombas }, (_, i) => bomba(`Bomba #${i + 1}`, "achique_pluvial")),
+          ...Array.from({ length: bombas }, (_, i) =>
+            ubicaciones === 0
+              ? bomba(`Bomba #${i + 1}`, "achique_pluvial")
+              : bombaEn(`Bomba #${i + 1}`, `Foso ${(i % ubicaciones) + 1}`)
+          ),
         ];
         let slots = 0;
         for (let f = 1; f <= 4; f++) {
@@ -589,8 +669,9 @@ describe("bombas sumergibles pluviales — foso = panel", () => {
         }
         assert.ok(
           slots >= Math.min(bombas, 16),
-          `${paneles} paneles + ${bombas} bombas → solo ${slots} slots`
+          `${paneles} paneles + ${bombas} bombas en ${ubicaciones} ubicaciones → solo ${slots} slots`
         );
+        }
       }
     }
   });

@@ -18,6 +18,9 @@ export type EquipmentRow = {
   name: string | null;
   system: string | null;
   kind?: string | null;
+  // Dónde está el equipo ("Cuarto de bombas", "Estacionamientos"). Para las bombas
+  // pluviales es lo único que dice a qué FOSO pertenece cada una — ver pluvialBombasPorFoso.
+  location?: string | null;
   // `specs.verificado === false` marca inventario que entró por lectura automática de
   // las hojas de mantenimiento (28-jul) y que SEMCO todavía no revisó.
   specs?: unknown;
@@ -225,6 +228,12 @@ export type BuildingScope = {
   // tiene su propio panel de control (que maneja sus 2-3 bombas). Es lo único que deja saber
   // cuántos fosos hay: el inventario guarda bombas sueltas, no fosos.
   pluvialPanelCount: number;
+  // Bombas pluviales agrupadas por UBICACIÓN, en orden alfabético: [2, 2] = dos fosos de dos
+  // bombas. Es la única fuente que dice de verdad qué bomba va en qué foso; el nº de paneles
+  // solo dice CUÁNTOS fosos hay, y solo si el levantamiento registró uno por foso.
+  // Vacío = "no sabemos" (ninguna bomba trae ubicación, o alguna ubicación tiene más bombas
+  // de las que la plantilla siembra por foso) → se cae a paneles + capacidad.
+  pluvialBombasPorFoso: number[];
   hasSanitarioPanel: boolean; // panel de control de las bombas sumergibles sanitarias
   hasJockey: boolean;
   jockeyCount: number; // nº de bombas jockey (Sótano, Azotea…) para la sección por unidad
@@ -251,6 +260,7 @@ export const EMPTY_SCOPE: BuildingScope = {
   jockeyPanelCount: 0,
   hasPluvialPanel: false,
   pluvialPanelCount: 0,
+  pluvialBombasPorFoso: [],
   hasSanitarioPanel: false,
   hasJockey: false,
   jockeyCount: 0,
@@ -284,6 +294,7 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
   let jockeyPanelCount = 0;
   let hasPluvialPanel = false;
   let pluvialPanelCount = 0;
+  const pluvialPorUbicacion = new Map<string, number>();
   let hasSanitarioPanel = false;
   let hasJockey = false;
   let jockeyCount = 0;
@@ -340,12 +351,30 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
         break;
       case "bomba":
         pumpCounts.set(r.system, (pumpCounts.get(r.system) ?? 0) + 1);
+        // Las pluviales se agrupan además por ubicación = foso. Sin ubicación caen todas
+        // en la misma llave "", que es exactamente lo que significa: no sabemos separarlas.
+        if (r.system === "achique_pluvial") {
+          const ubi = norm(r.location ?? "");
+          pluvialPorUbicacion.set(ubi, (pluvialPorUbicacion.get(ubi) ?? 0) + 1);
+        }
         // Normada y no normada tienen secciones de checklist distintas.
         if (r.system === "contra_incendios") hasFirePump = true;
         if (r.system === "contra_incendios_no_normada") hasFireNoNormada = true;
         break;
     }
   }
+
+  // Los fosos, deducidos de las ubicaciones. Se descarta la señal (→ []) cuando:
+  //  * ninguna bomba trae ubicación (una sola llave "" = un montón indistinguible), o
+  //  * algún foso tiene más bombas de las que la plantilla siembra por foso — ahí agrupar
+  //    ESCONDERÍA bombas, y la red de capacidad (abrir más fosos) las salva mejor.
+  const ubicaciones = [...pluvialPorUbicacion.entries()].sort(([a], [b]) => a.localeCompare(b));
+  const hayUbicacionReal = ubicaciones.some(([u]) => u !== "");
+  const conteos = ubicaciones.map(([, n]) => n);
+  const pluvialBombasPorFoso =
+    hayUbicacionReal && conteos.every((n) => n <= PLUVIAL_BOMBAS_SEMBRADAS_POR_FOSO)
+      ? conteos
+      : [];
 
   return {
     systems,
@@ -360,6 +389,7 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
     jockeyPanelCount,
     hasPluvialPanel,
     pluvialPanelCount,
+    pluvialBombasPorFoso,
     hasSanitarioPanel,
     hasJockey,
     jockeyCount,
@@ -486,15 +516,20 @@ export const itemAppliesToBuilding = (label: string, scope: BuildingScope) => {
     // contra el conteo de BOMBAS, así que 2 bombas mostraban 2 fosos (el bug que reportó).
     if (sys === "achique_pluvial") {
       const bombaCount = scope.pumpCounts.get("achique_pluvial") ?? 0;
-      // Nº de fosos. Tres fuentes, se toma la MAYOR (nunca esconder equipo real):
-      //  1. Los paneles pluviales inventariados (1 panel por foso — regla de William).
-      //  2. La CAPACIDAD: el template solo siembra 4 bombas por foso, así que un edificio con
+      const porFoso = scope.pluvialBombasPorFoso;
+      // Nº de fosos. Cuatro fuentes, se toma la MAYOR (nunca esconder equipo real):
+      //  1. Las UBICACIONES distintas de las bombas ("Cuarto de bombas", "Estacionamientos").
+      //     Es la única que dice qué bomba va en qué foso — las demás solo cuentan fosos.
+      //  2. Los paneles pluviales inventariados (1 panel por foso — regla de William 29-jul),
+      //     que sigue siendo el respaldo cuando nadie llenó la ubicación.
+      //  3. La CAPACIDAD: el template solo siembra 4 bombas por foso, así que un edificio con
       //     más bombas que eso necesita más fosos aunque el levantamiento traiga un solo panel.
-      //     Es el caso de GREENWOOD PLAZA (21-ago-2026): 6 bombas pluviales cargadas y un único
-      //     "Panel de Control de Bombas Sumergibles" (sin sistema asignado) → fosoCount valía 1
-      //     y a William le salían 4 de 6. Las 2 que faltaban no tenían dónde ir.
-      //  3. Si hay bombas, hay al menos 1 foso.
+      //     Es lo que pasó en GREENWOOD PLAZA (21-ago-2026): 6 bombas pluviales cargadas y un
+      //     único "Panel de Control de Bombas Sumergibles" (sin sistema asignado) → fosoCount
+      //     valía 1 y salían 4 de 6. Las 2 que faltaban no tenían dónde ir.
+      //  4. Si hay bombas, hay al menos 1 foso.
       const fosoCount = Math.max(
+        porFoso.length,
         scope.pluvialPanelCount,
         Math.ceil(bombaCount / PLUVIAL_BOMBAS_SEMBRADAS_POR_FOSO),
         bombaCount > 0 ? 1 : 0
@@ -504,15 +539,18 @@ export const itemAppliesToBuilding = (label: string, scope: BuildingScope) => {
       if (foso > fosoCount) return false; // foso gate
       const bombaMatch = (parts[3] ?? "").trim().match(/^Bomba (\d+)$/i);
       if (!bombaMatch) return true; // "Estado del foso" / "Panel de control" → nivel foso
-      // Bombas por foso. El inventario guarda bombas sueltas, no dice a qué foso va cada una,
-      // así que solo se aprieta cuando el reparto PAREJO es la única lectura posible: si el
-      // total divide exacto entre los fosos (6 bombas / 3 fosos = 2 c/u, lo que William dictó
-      // para Greenwood; 6 / 2 = 3). Si no divide exacto (3 bombas en 2 fosos → ¿2+1 o 1+2?),
-      // se muestran todos los slots sembrados y el técnico deja el que sobre en blanco:
-      // mostrar de más se ignora, mostrar de menos se PIERDE.
-      if (bombaCount % fosoCount === 0) {
-        return Number(bombaMatch[1]) <= bombaCount / fosoCount;
-      }
+      const bomba = Number(bombaMatch[1]);
+
+      // Cuántas bombas caben en ESTE foso, en orden de qué tan buena es la evidencia:
+      //  a. Ubicación: cada foso muestra exactamente las bombas que están ahí. Greenwood son
+      //     2 en el cuarto de bombas y 2 en estacionamientos → Foso 1 y Foso 2 con 2 c/u.
+      //     Solo se usa si las ubicaciones explican TODOS los fosos que se van a mostrar; si
+      //     los paneles o la capacidad piden más, no sabemos qué va en los de más.
+      //  b. Reparto parejo, cuando el total divide exacto entre los fosos (6 en 3 fosos = 2).
+      //  c. Ni idea (3 bombas en 2 fosos → ¿2+1 o 1+2?): salen todos los slots sembrados y el
+      //     técnico deja en blanco el que sobre. Mostrar de más se ignora, de menos se PIERDE.
+      if (porFoso.length === fosoCount) return bomba <= porFoso[foso - 1];
+      if (bombaCount % fosoCount === 0) return bomba <= bombaCount / fosoCount;
       return true;
     }
 

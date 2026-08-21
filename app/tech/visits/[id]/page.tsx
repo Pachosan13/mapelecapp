@@ -192,7 +192,7 @@ async function handleResponses(formData: FormData) {
   if (visit.building_id) {
     const { data: buildingEquipmentRows } = await supabase
       .from("equipment")
-      .select("name,system,kind,specs")
+      .select("name,system,kind,location,specs")
       .eq("building_id", visit.building_id)
       .eq("is_active", true);
     buildingScope = buildBuildingScope(buildingEquipmentRows ?? []);
@@ -555,7 +555,7 @@ export default async function TechVisitPage({
     ? (
         await supabase
           .from("equipment")
-          .select("id,name,system,kind,manufacturer,model,specs")
+          .select("id,name,system,kind,location,manufacturer,model,specs")
           .eq("building_id", visit.building_id)
           .eq("is_active", true)
           .order("system", { ascending: true })
