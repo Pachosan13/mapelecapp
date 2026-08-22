@@ -19,6 +19,11 @@ export const SYSTEM_LABELS: Record<string, string> = {
   achique_elevador: "Achique elevador",
   achique_pluvial: "Achique pluvial",
   sanitario: "Sanitario",
+  // Riego. Sistema presurizado, se comporta como un reforzador chico: casi siempre UNA
+  // bomba y un tanque de presión. William lo trajo el 21-ago-2026 ("hay un sistema de riego
+  // en 2 proyectos específicos… es un nuevo sistema como si fuera un reforzador, entonces no
+  // sé cómo hacer para diferenciarlo") — sin este sistema no había ni dónde registrarlo.
+  riego: "Riego",
   planta_diesel: "Planta diésel",
   // Ventiladores de presurización de escaleras. La plantilla de presurización trae
   // "Ventilador 1..4" fijos; sin este sistema no había forma de saber cuántos tiene el
@@ -37,6 +42,7 @@ export const SYSTEMS: [string, string][] = [
   "achique_elevador",
   "achique_pluvial",
   "sanitario",
+  "riego",
   "planta_diesel",
   "presurizacion_escaleras",
 ].map((key) => [key, SYSTEM_LABELS[key]] as [string, string]);

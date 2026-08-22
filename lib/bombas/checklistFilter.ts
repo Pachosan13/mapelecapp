@@ -181,6 +181,15 @@ const panelUnitOf = (groupName: string, base: string) => {
   return m[1] ? Number(m[1]) : 1;
 };
 
+// Nº de unidad de una bomba de riego: grupo "Bomba de riego N". null si no aplica.
+// El riego se inspecciona en tres puntos (William, 21-ago-2026): el tanque de presión, la
+// bomba (que "la mayoría de las veces es una") y el contactor/térmica. No lleva sección de
+// tablero aparte — el contactor/térmica va dentro de la bomba, que es donde él lo mira.
+const riegoUnitOf = (groupName: string) => {
+  const m = groupName.match(/^Bomba de riego (\d+)$/i);
+  return m ? Number(m[1]) : null;
+};
+
 // Nº de unidad de un ventilador de presurización: grupo "Ventilador N". null si no aplica.
 // La plantilla de presurización de escaleras trae "Ventilador 1..12" sembrados (se extendió
 // de 4 a 12 el 29-jul: edificios con más de 4 ventiladores, pregunta de William). Metro View
@@ -479,6 +488,10 @@ export const itemAppliesToBuilding = (label: string, scope: BuildingScope) => {
     const unit = panelUnitOf(group, base);
     if (unit !== null) return unit <= count;
   }
+
+  // Bombas de riego: una sección por unidad, recortada al nº de bombas de riego del edificio.
+  const riegoUnit = riegoUnitOf(group);
+  if (riegoUnit !== null) return riegoUnit <= (scope.pumpCounts.get("riego") ?? 0);
 
   // Ventiladores de presurización: un grupo por unidad, como las reforzadoras, PERO con
   // una regla asimétrica a propósito.

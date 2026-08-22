@@ -677,6 +677,38 @@ describe("bombas sumergibles pluviales — foso = panel", () => {
   });
 });
 
+// Riego (21-ago-2026, William): sistema nuevo, presurizado, "como si fuera un reforzador".
+// Casi siempre UNA bomba. Se siembran 2 unidades y el filtro recorta al inventario real.
+describe("bombas de riego", () => {
+  it("un edificio con 1 bomba de riego ve la sección 1 y no la 2", () => {
+    const rows = [bomba("Bomba de Riego", "riego")];
+    assert.equal(applies("Bomba de riego 1 - Tanque de presión", rows), true);
+    assert.equal(applies("Bomba de riego 1 - Contactor/Térmica", rows), true);
+    assert.equal(applies("Bomba de riego 1 - Voltaje L1-L2", rows), true);
+    assert.equal(applies("Bomba de riego 2 - Tanque de presión", rows), false);
+  });
+
+  it("con 2 bombas de riego salen las dos secciones", () => {
+    const rows = [bomba("Riego #1", "riego"), bomba("Riego #2", "riego")];
+    assert.equal(applies("Bomba de riego 2 - Presion arranque", rows), true);
+  });
+
+  it("un edificio SIN riego no ve nada de riego", () => {
+    const rows = [bomba("Bomba Reforzadora #1", "reforzador_agua_potable")];
+    assert.equal(applies("Bomba de riego 1 - Tanque de presión", rows), false);
+  });
+
+  it("el riego no se cuela en los conteos de otros sistemas ni al revés", () => {
+    const rows = [
+      bomba("Bomba Reforzadora #1", "reforzador_agua_potable"),
+      bomba("Bomba de Riego", "riego"),
+    ];
+    // La reforzadora 2 no existe aunque haya 2 bombas en total.
+    assert.equal(applies("Bomba reforzadora 2 - Voltaje L1-L2", rows), false);
+    assert.equal(applies("Bomba de riego 1 - Voltaje L1-L2", rows), true);
+  });
+});
+
 // --- Guarda de inventario sin verificar (28-jul-2026) ---
 //
 // Al cargar 97 edificios leídos de las hojas escaneadas, sus formularios pasarían a
