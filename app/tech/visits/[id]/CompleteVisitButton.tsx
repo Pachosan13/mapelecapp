@@ -93,8 +93,20 @@ export default function CompleteVisitButton({
       return;
     }
 
+    // Un ítem dentro de un bloque escondido por periodicidad (rociadores NFPA 25: el
+    // técnico eligió "Mensual" y los bloques Trimestral/Anual/… no se llenan) NO cuenta
+    // como faltante. El server action aplica el mismo filtro al guardar, así que exigirlo
+    // acá dejaría la visita imposible de cerrar. Ver lib/fire/frecuencia.ts.
+    const estaEnBloqueEscondido = (itemId: string) => {
+      const row =
+        document.getElementById(`item-row-${itemId}`) ??
+        document.getElementById(`item-${itemId}`);
+      return Boolean(row?.closest("details[data-frecuencia][hidden]"));
+    };
+
     const formData = new FormData(form);
     const missingIds = requiredChecklistItemIds.filter((itemId) => {
+      if (estaEnBloqueEscondido(itemId)) return false;
       const value = formData.get(`item-${itemId}`);
       return value !== "approved" && value !== "failed" && value !== "na";
     });

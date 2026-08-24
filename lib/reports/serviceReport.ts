@@ -5,6 +5,13 @@ import {
   isBombasTemplate,
   itemAppliesToBuilding,
 } from "@/lib/bombas/checklistFilter";
+import {
+  esItemTipoInspeccion,
+  indiceFrecuencia,
+  itemAplicaAFrecuencia,
+  parseFrecuencia,
+  type Frecuencia,
+} from "@/lib/fire/frecuencia";
 import { fetchAllRows } from "@/lib/db/fetchAllRows";
 
 type TemplateItem = {
@@ -354,6 +361,51 @@ export async function getServiceReportData(params: {
       .filter(Boolean) as string[]
   );
 
+  // Recorte por PERIODICIDAD (rociadores NFPA 25, feedback William 24-ago). El técnico
+  // declara "Tipo de inspección"; si dijo Mensual, los bloques Trimestral/Semestral/Anual
+  // no se llenaron y no deben salir en el informe como una pared de "—".
+  // Un informe por edificio puede juntar varias visitas del mismo formato: se toma la
+  // periodicidad MÁS LARGA declarada entre ellas, para no esconderle a nadie lo que sí
+  // llenó. Sin periodicidad reconocida en ninguna → no se filtra (comportamiento previo).
+  const itemTipoInspeccionPorTemplate = new Map<string, string>();
+  templateItems.forEach((item) => {
+    if (!item.template_id) return;
+    if (!esItemTipoInspeccion(item.label ?? "")) return;
+    itemTipoInspeccionPorTemplate.set(item.template_id, item.id);
+  });
+  const frecuenciaPorTemplate = new Map<string, Frecuencia>();
+  if (itemTipoInspeccionPorTemplate.size > 0) {
+    const templatePorItemId = new Map(
+      Array.from(itemTipoInspeccionPorTemplate.entries()).map(
+        ([templateId, itemId]) => [itemId, templateId]
+      )
+    );
+    // `visit_responses` es append-only: para cada visita vale la ÚLTIMA respuesta del
+    // campo, no la primera (si el técnico corrigió de Anual a Mensual, manda Mensual).
+    const ultimaPorVisita = new Map<string, VisitResponse>();
+    responses.forEach((response) => {
+      if (!response.item_id || !response.visit_id) return;
+      if (!templatePorItemId.has(response.item_id)) return;
+      const previa = ultimaPorVisita.get(response.visit_id);
+      if (
+        !previa ||
+        (response.created_at ?? "") >= (previa.created_at ?? "")
+      ) {
+        ultimaPorVisita.set(response.visit_id, response);
+      }
+    });
+    ultimaPorVisita.forEach((response) => {
+      const templateId = templatePorItemId.get(response.item_id ?? "");
+      if (!templateId) return;
+      const frecuencia = parseFrecuencia(response.value_text);
+      if (!frecuencia) return;
+      const actual = frecuenciaPorTemplate.get(templateId);
+      if (!actual || indiceFrecuencia(frecuencia) > indiceFrecuencia(actual)) {
+        frecuenciaPorTemplate.set(templateId, frecuencia);
+      }
+    });
+  }
+
   const templateItemsByTemplateId = new Map<string, TemplateItem[]>();
   templateItems.forEach((item) => {
     if (!item.template_id) return;
@@ -362,6 +414,14 @@ export async function getServiceReportData(params: {
       applyBombasFilter &&
       bombasTemplateIds.has(item.template_id) &&
       !itemAppliesToBuilding(item.label ?? "", buildingScope)
+    ) {
+      return;
+    }
+    if (
+      !itemAplicaAFrecuencia(
+        item.label ?? "",
+        frecuenciaPorTemplate.get(item.template_id) ?? null
+      )
     ) {
       return;
     }

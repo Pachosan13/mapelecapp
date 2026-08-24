@@ -11,6 +11,11 @@ import {
   itemAppliesToBuilding,
 } from "@/lib/bombas/checklistFilter";
 import {
+  esItemTipoInspeccion,
+  itemAplicaAFrecuencia,
+  parseFrecuencia,
+} from "@/lib/fire/frecuencia";
+import {
   MEDIA_BUCKET,
   createSignedMediaUrl,
   listMedia,
@@ -253,7 +258,7 @@ export default async function OpsVisitReportPage({
   const applyBuildingFilter =
     isBombasTemplate(templateMeta?.name, templateMeta?.category) &&
     buildingScope.systems.size > 0;
-  const templateItems = applyBuildingFilter
+  const itemsPorEdificio = applyBuildingFilter
     ? (allTemplateItems ?? []).filter((item) =>
         itemAppliesToBuilding(String(item.label ?? ""), buildingScope)
       )
@@ -291,6 +296,22 @@ export default async function OpsVisitReportPage({
       latestResponseByItemId.set(response.item_id, response);
     }
   });
+
+  // Mismo recorte por periodicidad que llenó el técnico (rociadores NFPA 25): si declaró
+  // una inspección mensual, el informe no debe mostrarle al cliente 64 filas en "—" de
+  // los bloques trimestral/semestral/anual que no tocaba hacer. Feedback William 24-ago.
+  // Sin periodicidad reconocida (visitas viejas con "Nfpa25") → se muestra todo.
+  const itemTipoInspeccion = itemsPorEdificio.find((item: TemplateItem) =>
+    esItemTipoInspeccion(String(item.label ?? ""))
+  );
+  const frecuenciaVisita = itemTipoInspeccion
+    ? parseFrecuencia(
+        latestResponseByItemId.get(itemTipoInspeccion.id)?.value_text ?? null
+      )
+    : null;
+  const templateItems = itemsPorEdificio.filter((item: TemplateItem) =>
+    itemAplicaAFrecuencia(String(item.label ?? ""), frecuenciaVisita)
+  );
 
   const { data: buildingRow } = visit.building_id
     ? await supabase

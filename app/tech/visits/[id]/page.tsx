@@ -12,6 +12,17 @@ import {
   EMPTY_SCOPE,
   type BuildingScope,
 } from "@/lib/bombas/checklistFilter";
+import {
+  FRECUENCIAS,
+  esItemTipoInspeccion,
+  frecuenciaDeItem,
+  indiceFrecuencia,
+  frecuenciasPresentes,
+  itemAplicaAFrecuencia,
+  parseFrecuencia,
+  tieneBloquesPorFrecuencia,
+  type Frecuencia,
+} from "@/lib/fire/frecuencia";
 import { SYSTEM_LABELS } from "@/lib/equipment/systems";
 import {
   MEDIA_BUCKET,
@@ -25,6 +36,7 @@ import AutosaveManager from "./AutosaveManager";
 import VisitToast from "./VisitToast";
 import RecorridoTable from "./RecorridoTable";
 import CompleteVisitButton from "./CompleteVisitButton";
+import FrecuenciaSelector from "./FrecuenciaSelector";
 import OfflinePhotoCapture from "./OfflinePhotoCapture";
 import SignaturePad from "./SignaturePad";
 import type { Database } from "@/lib/database.types";
@@ -204,11 +216,28 @@ async function handleResponses(formData: FormData) {
     (isBombasTemplate(templateMeta?.name, templateMeta?.category) ||
       isPresurizacionTemplate(templateMeta?.name)) &&
     buildingScope.systems.size > 0;
-  const scopedItems = applyBuildingFilter
+  const itemsPorEdificio = applyBuildingFilter
     ? (templateItemsData ?? []).filter((item) =>
         itemAppliesToBuilding(String(item.label ?? ""), buildingScope)
       )
     : templateItemsData ?? [];
+
+  // Filtro por FRECUENCIA (feedback William 24-ago): en el formato de rociadores, una
+  // inspección mensual solo llena 12 de los 76 ítems. La frecuencia viaja en el propio
+  // formulario ("Tipo de inspección"), así que se lee del formData: los bloques que no
+  // aplican NO se validan y NO se guardan, y el informe del cliente deja de salir con
+  // decenas de filas en "—". Sin frecuencia reconocida → no se filtra (visitas viejas).
+  const itemTipoInspeccion = (templateItemsData ?? []).find((item) =>
+    esItemTipoInspeccion(String(item.label ?? ""))
+  );
+  const frecuenciaSeleccionada: Frecuencia | null =
+    itemTipoInspeccion &&
+    tieneBloquesPorFrecuencia((templateItemsData ?? []).map((i) => i.label))
+      ? parseFrecuencia(String(formData.get(`item-${itemTipoInspeccion.id}`) ?? ""))
+      : null;
+  const scopedItems = itemsPorEdificio.filter((item) =>
+    itemAplicaAFrecuencia(String(item.label ?? ""), frecuenciaSeleccionada)
+  );
 
   const errors: string[] = [];
   const responses = scopedItems.map((item) => {
@@ -618,6 +647,32 @@ export default async function TechVisitPage({
         .map((i) => i.id)
     : [];
 
+  // Bloques por frecuencia (rociadores NFPA 25). El técnico declara "Tipo de inspección"
+  // y el formulario se recorta a esa periodicidad — acumulativa: la trimestral arrastra la
+  // mensual. Se esconde en el cliente (sin recargar: en un sótano no hay señal para pedir
+  // otra página) y el server action vuelve a aplicar el mismo filtro al guardar.
+  const hayBloquesPorFrecuencia = tieneBloquesPorFrecuencia(
+    templateItems.filter(itemInScope).map((i) => i.label)
+  );
+  const itemTipoInspeccion = hayBloquesPorFrecuencia
+    ? templateItems.find((i) => esItemTipoInspeccion(String(i.label ?? "")))
+    : undefined;
+  const frecuenciasDelFormato = hayBloquesPorFrecuencia
+    ? frecuenciasPresentes(templateItems.filter(itemInScope).map((i) => i.label))
+    : [];
+  // Lo ya guardado manda: al volver a abrir la visita el formulario aparece recortado
+  // igual que la dejó, sin esperar a que monte el JS.
+  const tipoInspeccionGuardado = itemTipoInspeccion
+    ? (responseMap.get(itemTipoInspeccion.id)?.value_text ?? "").trim()
+    : "";
+  const frecuenciaGuardada = parseFrecuencia(tipoInspeccionGuardado);
+  // Texto que no es una periodicidad ("Nfpa25" en las visitas de febrero): se conserva
+  // como opción del selector en vez de borrarlo al guardar.
+  const tipoInspeccionLibre =
+    tipoInspeccionGuardado && frecuenciaGuardada === null
+      ? tipoInspeccionGuardado
+      : null;
+
   const normalizedStatus = String(visit.status ?? "")
     .trim()
     .toLowerCase()
@@ -637,6 +692,7 @@ export default async function TechVisitPage({
   const itemGroups: { name: string; items: typeof templateItems }[] = [];
   for (const item of templateItems) {
     if (!itemInScope(item)) continue;
+    if (itemTipoInspeccion && item.id === itemTipoInspeccion.id) continue;
     const g = groupOf(String(item.label ?? ""));
     let bucket = itemGroups.find((x) => x.name === g);
     if (!bucket) {
@@ -644,6 +700,31 @@ export default async function TechVisitPage({
       itemGroups.push(bucket);
     }
     bucket.items.push(item);
+  }
+
+  // En los formatos por periodicidad, el `sort_order` de la base intercala el bloque de
+  // cierre con el mensual (Comentarios/Recibido por/Realizado por están en 140-160, entre
+  // los ítems mensuales) → "Cierre" quedaba en medio del formulario, antes de Trimestral.
+  // Se reordena acá y no en la base para no tocar labels ni respuestas históricas:
+  // primero lo administrativo de entrada, luego las periodicidades de menor a mayor, y el
+  // cierre —donde va la firma— siempre de último.
+  if (hayBloquesPorFrecuencia) {
+    const primerBloquePorFrecuencia = itemGroups.findIndex((g) =>
+      frecuenciaDeItem(g.items[0]?.label)
+    );
+    const rango = (grupo: (typeof itemGroups)[number], posicion: number) => {
+      const frecuencia = frecuenciaDeItem(grupo.items[0]?.label);
+      if (frecuencia) return 1 + indiceFrecuencia(frecuencia);
+      // Grupo sin periodicidad: antes del primer bloque → encabezado; después → cierre.
+      return posicion < primerBloquePorFrecuencia ? 0 : 1 + FRECUENCIAS.length;
+    };
+    const conPosicion = itemGroups.map((grupo, posicion) => ({ grupo, posicion }));
+    conPosicion.sort(
+      (a, b) =>
+        rango(a.grupo, a.posicion) - rango(b.grupo, b.posicion) ||
+        a.posicion - b.posicion
+    );
+    itemGroups.splice(0, itemGroups.length, ...conPosicion.map((x) => x.grupo));
   }
 
   // #2 (feedback William): la lista de equipos solo aplica al mantenimiento de bombas,
@@ -845,10 +926,27 @@ export default async function TechVisitPage({
                 </div>
               </div>
             ) : null}
-            {itemGroups.map((group, gi) => (
+            {itemTipoInspeccion ? (
+              <FrecuenciaSelector
+                fieldName={`item-${itemTipoInspeccion.id}`}
+                fieldId={`item-${itemTipoInspeccion.id}`}
+                frecuencias={frecuenciasDelFormato}
+                seleccionada={frecuenciaGuardada}
+                valorLibre={tipoInspeccionLibre}
+                disabled={isCompleted}
+              />
+            ) : null}
+            {itemGroups.map((group, gi) => {
+              const frecuenciaGrupo = frecuenciaDeItem(group.items[0]?.label);
+              const grupoOculto =
+                frecuenciaGuardada !== null &&
+                !itemAplicaAFrecuencia(String(group.items[0]?.label ?? ""), frecuenciaGuardada);
+              return (
               <details
                 key={group.name}
-                open={gi === 0}
+                open={gi === 0 && !grupoOculto}
+                hidden={grupoOculto}
+                data-frecuencia={frecuenciaGrupo ?? undefined}
                 className="overflow-hidden rounded-lg border border-slate-200 bg-white"
               >
                 <summary className="cursor-pointer list-none bg-slate-800 px-4 py-3 font-semibold text-white">
@@ -994,7 +1092,8 @@ export default async function TechVisitPage({
             })}
                 </div>
               </details>
-            ))}
+              );
+            })}
 
             <div className="rounded border p-4">
               <label className="mb-2 block text-sm font-medium">
