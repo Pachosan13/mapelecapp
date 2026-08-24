@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import { hojaAEquipos, type HojaLeida } from "@/lib/levantamiento/hojaAEquipos";
+import BuildingCombobox from "@/components/BuildingCombobox";
 
 // Bandeja de hojas de mantenimiento que la lectura automática NO pudo asignar a un
 // edificio: el nombre manuscrito matchea con dos ("Santa maria Village" -> FASE 1 o
@@ -26,7 +27,14 @@ async function asignarHoja(formData: FormData) {
   const hojaId = String(formData.get("hoja_id") ?? "");
   const buildingId = String(formData.get("building_id") ?? "");
   if (!buildingId) {
-    volverConError("Elegí un edificio antes de asignar.");
+    // Con el buscador se puede escribir sin llegar a elegir de la lista: el nombre
+    // queda en el input pero el id va vacío. El mensaje tiene que decir eso, no
+    // "elige un edificio" a secas, que suena a que no escribió nada.
+    volverConError(
+      "Escoge el edificio de la lista que aparece al escribir. Si solo escribiste el " +
+        "nombre sin tocar la lista, no queda seleccionado. Y si el edificio no existe " +
+        "todavía, usa «…o edificio nuevo» y «Crear y cargar»."
+    );
   }
   await cargarHojaEnEdificio(hojaId, buildingId, user.id);
 }
@@ -44,7 +52,7 @@ async function crearEdificioYAsignar(formData: FormData) {
   const hojaId = String(formData.get("hoja_id") ?? "");
   const nombre = String(formData.get("nuevo_nombre") ?? "").trim();
   if (!nombre) {
-    volverConError("Escribí el nombre del edificio nuevo.");
+    volverConError("Escribe el nombre del edificio nuevo.");
   }
 
   const db = (await createClient()).schema("public");
@@ -106,7 +114,7 @@ async function cargarHojaEnEdificio(
     // TORRE A/B o P.H PRIVAL TORRE A/B. Ver decision_mapelec_carga_primero_verifica_despues.
     volverConError(
       "Ese edificio ya tiene equipos cargados y no cargo encima. Si esta hoja es de OTRA " +
-        "área o torre del mismo PH, creala como edificio aparte con «Crear y cargar» " +
+        "área o torre del mismo PH, créala como edificio aparte con «Crear y cargar» " +
         "(ej. «PH AQUAPOINT ALTOS»), igual que METRO VIEW TORRE A y TORRE B. El formulario " +
         "solo tiene 3 cupos por sistema, así que juntar dos áreas dejaría bombas sin " +
         "aparecer en el formulario del técnico."
@@ -185,9 +193,9 @@ export default async function LevantamientoPage({
         </Link>
         <h1 className="mt-2 text-2xl font-bold">Hojas por identificar</h1>
         <p className="mt-1 text-gray-600">
-          Hojas de mantenimiento que no pude asignar a un edificio. Elegí cuál es y se cargan
-          sus equipos. Si el edificio todavía no existe en la app, escribí su nombre en el
-          campo de abajo y «Crear y cargar» lo crea y le mete los equipos de una vez.
+          Hojas de mantenimiento que no pude asignar a un edificio. Escribe para buscar cuál es
+          y se cargan sus equipos. Si el edificio todavía no existe en la app, pon su nombre
+          en el campo de al lado y «Crear y cargar» lo crea y le mete los equipos de una vez.
         </p>
         <p className="mt-2 text-sm text-gray-500">
           {hojas?.length ?? 0} pendientes · {asignadas ?? 0} ya resueltas
@@ -235,18 +243,16 @@ export default async function LevantamientoPage({
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <form action={asignarHoja} className="flex flex-wrap items-center gap-2">
                       <input type="hidden" name="hoja_id" value={h.id} />
-                      <select
+                      {/* Era un <select> con los ~240 edificios: había que bajar a pulso
+                          y el popup nativo de macOS se devolvía solo al soltar la rueda
+                          (reporte de William, 24-ago). Ahora se escribe y filtra, y los
+                          "Se parece a" quedan a un clic. */}
+                      <BuildingCombobox
                         name="building_id"
-                        defaultValue=""
-                        className="rounded border px-2 py-1 text-sm"
-                      >
-                        <option value="">Elegir edificio…</option>
-                        {buildings?.map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {b.name}
-                          </option>
-                        ))}
-                      </select>
+                        buildings={buildings ?? []}
+                        sugerencias={candidatos}
+                        placeholder="Busca el edificio…"
+                      />
                       <button type="submit" className="rounded bg-black px-3 py-1 text-sm text-white">
                         Asignar y cargar
                       </button>
