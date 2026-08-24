@@ -67,7 +67,14 @@ export type MediaRow = {
   created_by: string;
   created_at: string;
   system: string | null;
+  /** Pie de foto que SÍ sale impreso en el PDF del cliente. Lo escribe el gerente. */
   label: string | null;
+  /**
+   * Nota interna del técnico sobre la foto (pedido vía William, 24-ago-2026).
+   * La lee SOLO el gerente: nunca se imprime en el informe del cliente. Ver la
+   * migración 20260824210000 para por qué no se reusó `label`.
+   */
+  nota_tecnico: string | null;
   signer_role: SignerRole | null;
 };
 
@@ -222,7 +229,7 @@ export async function uploadMedia(params: UploadMediaParams): Promise<{
       signer_role: params.signerRole ?? null,
     })
     .select(
-      "id,building_id,visit_id,service_report_id,equipment_id,kind,storage_path,mime_type,size_bytes,captured_at,created_by,created_at,system,label,signer_role"
+      "id,building_id,visit_id,service_report_id,equipment_id,kind,storage_path,mime_type,size_bytes,captured_at,created_by,created_at,system,label,nota_tecnico,signer_role"
     )
     .maybeSingle();
 
@@ -242,7 +249,7 @@ export async function listMedia(params: ListMediaParams): Promise<{
   let query = supabase
     .from("media")
     .select(
-      "id,building_id,visit_id,service_report_id,equipment_id,kind,storage_path,mime_type,size_bytes,captured_at,created_by,created_at,system,label,signer_role"
+      "id,building_id,visit_id,service_report_id,equipment_id,kind,storage_path,mime_type,size_bytes,captured_at,created_by,created_at,system,label,nota_tecnico,signer_role"
     )
     .order("created_at", { ascending: false });
 

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/requireRole";
 import { createClient, getCurrentUser } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { isCoreChecklistTemplateId } from "@/lib/constants/coreChecklist";
 import {
   groupOf,
@@ -37,6 +38,7 @@ import VisitToast from "./VisitToast";
 import RecorridoTable from "./RecorridoTable";
 import CompleteVisitButton from "./CompleteVisitButton";
 import FrecuenciaSelector from "./FrecuenciaSelector";
+import NotaFoto from "./NotaFoto";
 import OfflinePhotoCapture from "./OfflinePhotoCapture";
 import SignaturePad from "./SignaturePad";
 import type { Database } from "@/lib/database.types";
@@ -428,6 +430,56 @@ async function handleResponses(formData: FormData) {
   redirect(`/tech/visits/${visitId}?saved=1`);
 }
 
+
+/**
+ * Guarda la nota interna que el técnico le pone a una foto ya subida.
+ *
+ * Pedido de un técnico vía William (24-ago-2026). La nota NO sale en el informe del
+ * cliente — para eso está `media.label`, que escribe el gerente. Ver la migración
+ * 20260824210000 y el comentario de NotaFoto.tsx.
+ *
+ * Permiso en dos tiempos, porque `media` no tiene policy RLS de UPDATE para el técnico:
+ *   1. Se LEE la foto con el cliente del USUARIO. La policy de SELECT ya limita a las
+ *      visitas de su cuadrilla, así que si la lectura devuelve la fila es porque le
+ *      corresponde. Si no, no existe para él y se corta acá.
+ *   2. Se ESCRIBE con `createAdminClient()`, y solo la columna `nota_tecnico`.
+ * Es el mismo patrón que `createCrew` en app/ops/staff/actions.ts, donde a `crews` le
+ * faltaba la policy de INSERT. Evita abrirle UPDATE sobre toda la fila al técnico.
+ *
+ * Devuelve un resultado en vez de redirigir: se llama desde un componente cliente que
+ * pinta "Nota guardada" sin recargar, para no perder lo que el técnico tenga a medio
+ * llenar en el formulario de arriba.
+ */
+async function guardarNotaFoto(
+  mediaId: string,
+  nota: string
+): Promise<{ ok: boolean; error?: string }> {
+  "use server";
+
+  await requireRole(["tech"]);
+
+  const limpia = nota.trim().slice(0, 500);
+  if (!mediaId) return { ok: false, error: "Falta la foto." };
+
+  const supabase = await createClient();
+  const { data: mediaRow } = await supabase
+    .from("media")
+    .select("id")
+    .eq("id", mediaId)
+    .maybeSingle();
+
+  if (!mediaRow) {
+    return { ok: false, error: "Esa foto no es de una visita tuya." };
+  }
+
+  const { error } = await createAdminClient()
+    .from("media")
+    .update({ nota_tecnico: limpia || null })
+    .eq("id", mediaId);
+
+  if (error) return { ok: false, error: "No se pudo guardar la nota." };
+  return { ok: true };
+}
 
 async function handleMediaDelete(formData: FormData) {
   "use server";
@@ -1160,8 +1212,9 @@ export default async function TechVisitPage({
                   {mediaWithUrls.map((media) => (
                     <li
                       key={media.id}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded border px-3 py-2 text-sm"
+                      className="rounded border px-3 py-2 text-sm"
                     >
+                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate font-medium">{media.storage_path.split("/").pop()}</p>
                         <p className="text-xs text-gray-500">
@@ -1197,6 +1250,15 @@ export default async function TechVisitPage({
                           </form>
                         ) : null}
                       </div>
+                     </div>
+                      {/* Nota interna del técnico sobre ESTA foto. La lee el gerente;
+                          nunca sale en el informe del cliente. */}
+                      <NotaFoto
+                        mediaId={media.id}
+                        inicial={media.nota_tecnico ?? ""}
+                        disabled={isCompleted}
+                        guardar={guardarNotaFoto}
+                      />
                     </li>
                   ))}
                 </ul>

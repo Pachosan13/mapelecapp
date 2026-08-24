@@ -454,6 +454,17 @@ export default async function OpsVisitReportPage({
                   {media.label ? (
                     <p className="truncate text-xs text-gray-600">{media.label}</p>
                   ) : null}
+                  {/* Lo que anotó el TÉCNICO en campo. Se marca como interno a
+                      propósito: esta pantalla es la vista previa del informe del
+                      cliente, y esa nota NO se imprime en el PDF. Escrita en campo,
+                      sin corregir. Si algo de ahí debe llegarle al cliente, lo
+                      redacta el gerente en el pie de foto (`label`). */}
+                  {media.nota_tecnico ? (
+                    <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-900">
+                      <span className="font-semibold">Nota del técnico (interna):</span>{" "}
+                      {media.nota_tecnico}
+                    </p>
+                  ) : null}
                   <p className="truncate text-xs text-gray-500">
                     {media.storage_path.split("/").pop()} · {media.mime_type} ·{" "}
                     {(media.size_bytes / 1024 / 1024).toFixed(2)} MB

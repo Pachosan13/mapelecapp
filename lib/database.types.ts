@@ -225,6 +225,7 @@ export type Database = {
           visit_id: string | null
           system: string | null
           label: string | null
+          nota_tecnico: string | null
           signer_role: string | null
         }
         Insert: {
@@ -242,6 +243,7 @@ export type Database = {
           visit_id?: string | null
           system?: string | null
           label?: string | null
+          nota_tecnico?: string | null
           signer_role?: string | null
         }
         Update: {
@@ -259,6 +261,7 @@ export type Database = {
           visit_id?: string | null
           system?: string | null
           label?: string | null
+          nota_tecnico?: string | null
           signer_role?: string | null
         }
         Relationships: [
