@@ -59,8 +59,27 @@ export async function middleware(request: NextRequest) {
     ReturnType<typeof supabase.auth.getUser>
   >["data"]["user"] = null;
   let authError: AuthErrLike | null = null;
+  // Vercel MATA la invocación del middleware si se pasa de su límite, y getUser()
+  // sale a la RED contra el servidor de Auth en cada request. Con Supabase degradado
+  // (incidente abierto desde el 27-ago-2026) esa llamada se cuelga y el técnico ve un
+  // 504 MIDDLEWARE_INVOCATION_TIMEOUT en vez de su pantalla. Le ponemos reloj propio:
+  // si Auth no contesta en AUTH_TIMEOUT_MS lo tratamos como fallo de red, que es la
+  // rama que ya deja pasar al técnico mientras traiga su cookie de sesión.
+  const AUTH_TIMEOUT_MS = 3000;
   try {
-    const res = await supabase.auth.getUser();
+    const res = await Promise.race([
+      supabase.auth.getUser(),
+      new Promise<never>((_, reject) =>
+        setTimeout(
+          () =>
+            reject({
+              name: "AuthTimeoutError",
+              message: `getUser timeout after ${AUTH_TIMEOUT_MS}ms`,
+            }),
+          AUTH_TIMEOUT_MS
+        )
+      ),
+    ]);
     user = res.data.user;
     authError = res.error;
   } catch (e) {
