@@ -15,8 +15,21 @@ export async function createClient(): Promise<ServerSupabaseClient> {
         getAll: () =>
           cookieStore.getAll().map(({ name, value }) => ({ name, value })),
         setAll: (cookiesToSet) => {
-          for (const { name, value, options } of cookiesToSet) {
-            cookieStore.set({ name, value, ...options });
+          // Next NO deja escribir cookies durante el render de un Server Component:
+          // cookies().set() lanza "Cookies can only be modified in a Server Action or
+          // Route Handler". Y supabase-ssr llama a setAll solo cuando le toca RENOVAR el
+          // token, o sea cada tanto y no siempre: por eso la pantalla fallaba a ratos y
+          // parecía cosa de suerte.
+          //
+          // Se puede ignorar sin perder la sesión porque el MIDDLEWARE ya escribe las
+          // cookies renovadas en la respuesta (middleware.ts, setAll sobre request y
+          // response). Este cliente solo LEE; quien persiste es el middleware.
+          try {
+            for (const { name, value, options } of cookiesToSet) {
+              cookieStore.set({ name, value, ...options });
+            }
+          } catch {
+            // Render de Server Component: el middleware ya se encargó.
           }
         },
       },
@@ -35,12 +48,17 @@ export interface CurrentUser {
 async function getCurrentUser(): Promise<CurrentUser | null> {
   const supabase = await createClient();
   
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
+  // getUser() sale por RED al servidor de Auth. Si esa llamada falla de verdad (no
+  // devuelve error: TIRA) la excepción sube hasta el render y el usuario ve la pantalla
+  // de "Application error". Ya nos pasó en el middleware con Supabase degradado el
+  // 27-ago y allá se resolvió con un reloj; acá no había ninguna guarda.
+  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>["data"]["user"] = null;
+  try {
+    const res = await supabase.auth.getUser();
+    if (res.error || !res.data.user) return null;
+    user = res.data.user;
+  } catch (e) {
+    console.log("[getCurrentUser] getUser lanzó:", (e as Error)?.message);
     return null;
   }
 
