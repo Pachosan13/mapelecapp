@@ -43,6 +43,11 @@ import OfflinePhotoCapture from "./OfflinePhotoCapture";
 import SignaturePad from "./SignaturePad";
 import type { Database } from "@/lib/database.types";
 import { fetchAllRows } from "@/lib/db/fetchAllRows";
+import {
+  isNivelLabel,
+  isEstadoFosoLabel,
+  isEstadoGeneralPanelLabel,
+} from "@/lib/formatters/checklistLabels";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -83,19 +88,14 @@ const isEscalerasTemplate = (templateName?: string | null) => {
 const isFireTemplate = (templateCategory?: string | null) =>
   (templateCategory ?? "").trim().toLowerCase() === "fire";
 
-// "Estado del foso" usa opciones propias (Aprobado / Requiere limpieza) en vez de
-// Aprobado/Falla/N/A. El valor guardado sigue siendo approved/failed/na para no romper
-// validación ni almacenamiento — solo cambian las etiquetas visibles.
-const isEstadoFosoLabel = (label?: string | null) =>
-  (label ?? "").trim().toLowerCase().endsWith("estado del foso");
-
-// "Estado general del panel" (paneles de control BCI/Jockey) usa Bueno/Regular/Malo en vez
-// de Aprobado/Falla/N/A. Se guarda igual (approved/failed/na → value_bool true/false/null)
-// para no romper validación ni almacenamiento; solo cambian las etiquetas visibles.
-const isEstadoGeneralPanelLabel = (label?: string | null) =>
-  (label ?? "").trim().toLowerCase().endsWith("estado general del panel");
-
 const checklistOptions = (label?: string | null) =>
+  isNivelLabel(label)
+    ? [
+        { value: "approved", text: "Buen nivel" },
+        { value: "failed", text: "Bajo nivel" },
+        { value: "na", text: "N/A" },
+      ]
+    :
   isEstadoFosoLabel(label)
     ? [
         { value: "approved", text: "Aprobado" },

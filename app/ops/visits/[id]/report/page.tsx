@@ -23,6 +23,7 @@ import {
 import { systemLabel } from "@/lib/equipment/systems";
 import type { Database } from "@/lib/database.types";
 import { fetchAllRows } from "@/lib/db/fetchAllRows";
+import { formatChecklistValue } from "@/lib/formatters/checklistLabels";
 
 // Borrado de evidencia por el gerente: para quitar fotos duplicadas o de otro proyecto
 // ANTES de enviar el informe al cliente, sin depender de editar el PDF a mano.
@@ -114,20 +115,7 @@ const formatResponseValue = (
   }
 
   if (itemType === "checkbox") {
-    // "Estado general del panel" usa Bueno/Regular/Malo (approved/na/failed). Va antes del
-    // chequeo de null porque "Regular" ES el estado na y no debe leerse como "N/A".
-    if ((label ?? "").trim().toLowerCase().endsWith("estado general del panel")) {
-      if (response.value_bool === true) return "Bueno";
-      if (response.value_bool === false) return "Malo";
-      return response.value_text === "na" ? "Regular" : "—";
-    }
-    if (response.value_bool === null) {
-      return response.value_text === "na" ? "N/A" : "—";
-    }
-    if ((label ?? "").trim().toLowerCase().endsWith("estado del foso")) {
-      return response.value_bool ? "Aprobado" : "Requiere limpieza";
-    }
-    return response.value_bool ? "Sí" : "No";
+    return formatChecklistValue(response.value_bool, response.value_text, label);
   }
 
   if (itemType === "number") {

@@ -193,16 +193,17 @@ function ensure(c: Ctx, needed: number) {
   if (c.y - needed < CONTENT_BOTTOM) newPage(c);
 }
 
+// Las casillas con etiquetas propias (nivel, foso, panel) no dicen "Sí"/"No", así que se
+// colorean por lo que SIGNIFICAN. Sin esto salían todas en gris y el que lee el informe
+// perdía la señal de qué está bien y qué no.
+const BIEN = ["sí", "si", "aprobado", "buen nivel", "bueno", "ok", "bien"];
+const MAL = ["no", "bajo nivel", "requiere limpieza", "malo", "falla", "no ok", "mal"];
+
 function valueColor(v: PdfResponseValue): RGB {
-  if (v.kind === "checkbox") {
-    const t = v.value.toLowerCase();
-    if (t === "sí" || t === "si") return GREEN;
-    if (t === "no") return AMBER;
-    return MUTED; // N/A / —
-  }
   const t = v.value.trim().toLowerCase();
-  if (["aprobado", "ok", "bien"].includes(t)) return GREEN;
-  if (["falla", "no ok", "mal"].includes(t)) return AMBER;
+  if (BIEN.includes(t)) return GREEN;
+  if (MAL.includes(t)) return AMBER;
+  if (v.kind === "checkbox") return MUTED; // N/A / — / Regular
   return INK;
 }
 
