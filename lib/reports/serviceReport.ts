@@ -13,6 +13,7 @@ import {
   type Frecuencia,
 } from "@/lib/fire/frecuencia";
 import { fetchAllRows } from "@/lib/db/fetchAllRows";
+import { formatChecklistValue } from "@/lib/formatters/checklistLabels";
 
 type TemplateItem = {
   id: string;
@@ -140,14 +141,7 @@ export const formatResponseValue = (
   }
 
   if (itemType === "checkbox") {
-    if (response.value_bool === null) {
-      return response.value_text === "na" ? "N/A" : "—";
-    }
-    // "Estado del foso" usa etiquetas propias: Aprobado / Requiere limpieza.
-    if ((label ?? "").trim().toLowerCase().endsWith("estado del foso")) {
-      return response.value_bool ? "Aprobado" : "Requiere limpieza";
-    }
-    return response.value_bool ? "Sí" : "No";
+    return formatChecklistValue(response.value_bool, response.value_text, label);
   }
 
   if (itemType === "number") {

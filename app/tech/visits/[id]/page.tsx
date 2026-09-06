@@ -43,6 +43,11 @@ import OfflinePhotoCapture from "./OfflinePhotoCapture";
 import SignaturePad from "./SignaturePad";
 import type { Database } from "@/lib/database.types";
 import { fetchAllRows } from "@/lib/db/fetchAllRows";
+import {
+  isNivelLabel,
+  isEstadoFosoLabel,
+  isEstadoGeneralPanelLabel,
+} from "@/lib/formatters/checklistLabels";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -82,36 +87,6 @@ const isEscalerasTemplate = (templateName?: string | null) => {
 // tener que acordarse de registrar el UUID.
 const isFireTemplate = (templateCategory?: string | null) =>
   (templateCategory ?? "").trim().toLowerCase() === "fire";
-
-// "Estado del foso" usa opciones propias (Aprobado / Requiere limpieza) en vez de
-// Aprobado/Falla/N/A. El valor guardado sigue siendo approved/failed/na para no romper
-// validación ni almacenamiento — solo cambian las etiquetas visibles.
-const isEstadoFosoLabel = (label?: string | null) =>
-  (label ?? "").trim().toLowerCase().endsWith("estado del foso");
-
-// "Estado general del panel" (paneles de control BCI/Jockey) usa Bueno/Regular/Malo en vez
-// de Aprobado/Falla/N/A. Se guarda igual (approved/failed/na → value_bool true/false/null)
-// para no romper validación ni almacenamiento; solo cambian las etiquetas visibles.
-const isEstadoGeneralPanelLabel = (label?: string | null) =>
-  (label ?? "").trim().toLowerCase().endsWith("estado general del panel");
-
-// Niveles (aceite, refrigerante, combustible, electrolitos): "Buen nivel / Bajo nivel" en vez de
-// Aprobado/Falla. Pedido de William por correo el 5-sep-2026: *"muchas veces no tienen indicadores
-// del nivel, así que mejor procedamos con afirmaciones Bajo nivel / buen nivel de refrigerante,
-// combustible"*. Un visor sin marcas no se puede declarar "aprobado" con honestidad; sí se puede
-// decir si está bien o bajo.
-// 🔑 Igual que los otros dos casos de abajo, SOLO cambian las etiquetas visibles: se sigue
-// guardando approved/failed/na → value_bool true/false/null. Por eso los informes ya llenados
-// se siguen leyendo bien y no hace falta migrar nada.
-const isNivelLabel = (label?: string | null) => {
-  const l = (label ?? "").trim().toLowerCase();
-  return (
-    /el nivel de (aceite|agua de refrigeraci|electrolitos)/.test(l) ||
-    /el tanque de combustible/.test(l) ||
-    /nivel de (aceite|refrigerante|combustible) ok$/.test(l) ||
-    /- combustible ok$/.test(l)
-  );
-};
 
 const checklistOptions = (label?: string | null) =>
   isNivelLabel(label)
