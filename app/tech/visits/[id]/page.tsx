@@ -95,7 +95,32 @@ const isEstadoFosoLabel = (label?: string | null) =>
 const isEstadoGeneralPanelLabel = (label?: string | null) =>
   (label ?? "").trim().toLowerCase().endsWith("estado general del panel");
 
+// Niveles (aceite, refrigerante, combustible, electrolitos): "Buen nivel / Bajo nivel" en vez de
+// Aprobado/Falla. Pedido de William por correo el 5-sep-2026: *"muchas veces no tienen indicadores
+// del nivel, así que mejor procedamos con afirmaciones Bajo nivel / buen nivel de refrigerante,
+// combustible"*. Un visor sin marcas no se puede declarar "aprobado" con honestidad; sí se puede
+// decir si está bien o bajo.
+// 🔑 Igual que los otros dos casos de abajo, SOLO cambian las etiquetas visibles: se sigue
+// guardando approved/failed/na → value_bool true/false/null. Por eso los informes ya llenados
+// se siguen leyendo bien y no hace falta migrar nada.
+const isNivelLabel = (label?: string | null) => {
+  const l = (label ?? "").trim().toLowerCase();
+  return (
+    /el nivel de (aceite|agua de refrigeraci|electrolitos)/.test(l) ||
+    /el tanque de combustible/.test(l) ||
+    /nivel de (aceite|refrigerante|combustible) ok$/.test(l) ||
+    /- combustible ok$/.test(l)
+  );
+};
+
 const checklistOptions = (label?: string | null) =>
+  isNivelLabel(label)
+    ? [
+        { value: "approved", text: "Buen nivel" },
+        { value: "failed", text: "Bajo nivel" },
+        { value: "na", text: "N/A" },
+      ]
+    :
   isEstadoFosoLabel(label)
     ? [
         { value: "approved", text: "Aprobado" },
