@@ -9,7 +9,7 @@ import {
   uploadMedia,
 } from "@/lib/media/service";
 import type { Json } from "@/lib/database.types";
-import { buildSpecs, equipmentTypeFor } from "@/lib/equipment/specs";
+import { buildSpecs, equipmentTypeFor, mergeSpecsAlEditar } from "@/lib/equipment/specs";
 import EquipmentForm from "@/components/EquipmentForm";
 import DeleteEquipmentButton from "./DeleteEquipmentButton";
 import EquipmentPhotoUpload from "./EquipmentPhotoUpload";
@@ -125,18 +125,10 @@ export default async function EditEquipmentPage({
       );
     }
 
-    // specs se reemplaza, no se mezcla: al cambiar el tipo, los datos de placa
-    // del tipo viejo (ej. GPM de una bomba) no aplican al nuevo.
-    // `buildSpecs` reemplaza el objeto entero. Se preserva `origen` (de qué hoja de
-    // mantenimiento salió el equipo) porque es lo que permite revertir una carga mal
-    // leída por lote; editar un dato de placa no debería borrar esa trazabilidad.
-    // `verificado` NO se preserva a propósito: si alguien de SEMCO editó el equipo, ya
-    // lo miró.
-    const origenPrevio = (equipment?.specs as { origen?: Json } | null)?.origen;
-    const specs = {
-      ...buildSpecs(formData, kind),
-      ...(origenPrevio ? { origen: origenPrevio } : {}),
-    };
+    // Los datos de placa se reemplazan (al cambiar el tipo, los del tipo viejo no aplican);
+    // las claves que describen al equipo y no a su placa sobreviven. Cuáles y por qué:
+    // SPECS_CLAVES_PERSISTENTES en lib/equipment/specs.ts.
+    const specs = mergeSpecsAlEditar(equipment?.specs, buildSpecs(formData, kind));
 
     const { error } = await supabaseDb
       .from("equipment")

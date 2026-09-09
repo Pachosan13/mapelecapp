@@ -1,4 +1,4 @@
-import type { Database } from "@/lib/database.types";
+import type { Database, Json } from "@/lib/database.types";
 import { isFireSystem } from "../bombas/checklistFilter.ts";
 
 type Category = Database["public"]["Tables"]["equipment"]["Row"]["equipment_type"];
@@ -38,6 +38,48 @@ export function buildSpecs(formData: FormData, kind: string): Record<string, num
   }
 
   return specs;
+}
+
+/**
+ * Claves de `specs` que NO son datos de placa y por lo tanto SOBREVIVEN a una edición.
+ *
+ * `buildSpecs` reconstruye el objeto entero a propósito: al cambiar el tipo de equipo, los
+ * datos de placa del tipo viejo (los GPM de una bomba, por ejemplo) no aplican al nuevo. Pero
+ * hay claves que no describen la placa sino al equipo, y borrarlas al editar es perder un dato
+ * que nadie escribió dos veces.
+ *
+ * - `origen` — de qué hoja de mantenimiento salió el equipo. Es lo que permite revertir una
+ *   carga mal leída por lote.
+ * - `combustible` / `combustible_fuente` — si la bomba contra incendio es diésel, y quién lo
+ *   dijo. Es una clasificación del equipo, no una medida de su placa: no cambia porque alguien
+ *   corrija los HP.
+ *
+ * 🪤 **Por qué existe esta lista** (9-sep-2026): `combustible` no estaba, y bastó con que
+ * William editara PH Costanera para que la marca de diésel desapareciera y con ella la sección
+ * del manual Clarke de ese edificio — en silencio, sin error y sin que nadie lo notara. Una
+ * clave nueva en `specs` que deba durar se agrega ACÁ, o se pierde en la primera edición.
+ *
+ * `verificado` NO está en la lista, a propósito: si alguien de SEMCO editó el equipo, ya lo miró.
+ */
+export const SPECS_CLAVES_PERSISTENTES = ["origen", "combustible", "combustible_fuente"] as const;
+
+/**
+ * Specs que se guardan al EDITAR: los datos de placa nuevos, más las claves persistentes que
+ * ya traía el equipo.
+ */
+export function mergeSpecsAlEditar(
+  specsPrevias: unknown,
+  specsNuevas: Record<string, number | string>
+): { [k: string]: Json | undefined } {
+  const prev =
+    typeof specsPrevias === "object" && specsPrevias !== null
+      ? (specsPrevias as Record<string, Json>)
+      : {};
+  const out: { [k: string]: Json | undefined } = { ...specsNuevas };
+  for (const k of SPECS_CLAVES_PERSISTENTES) {
+    if (prev[k] !== undefined) out[k] = prev[k];
+  }
+  return out;
 }
 
 /** equipment_type legacy: "fire" para contra incendios (normada o no), "pump" para el resto. */
