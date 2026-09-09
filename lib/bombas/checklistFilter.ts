@@ -76,6 +76,25 @@ export const FIRE_SYSTEMS = new Set<string>([
 export const isFireSystem = (system: string | null | undefined): boolean =>
   system != null && FIRE_SYSTEMS.has(system);
 
+// ¿Es una bomba contra incendio con motor DIÉSEL? Se marca en `specs.combustible`
+// (camino A, decidido por Pacho el 5-sep-2026): el inventario es quien sabe el
+// combustible, no el técnico contestando en cada visita.
+//
+// El dato lo dictó William por WhatsApp el 8-sep-2026 y quedó con `combustible_fuente`
+// dentro de las mismas specs. Eso importa para la excepción de `buildBuildingScope`:
+// NO viene de la lectura automática de hojas, así que no le aplica la cuarentena de
+// `equipoSinVerificar`.
+export const esBombaIncendioDiesel = (row: EquipmentRow): boolean => {
+  if (!isFireSystem(row.system)) return false;
+  if (classifyEquipment(row) !== "bomba") return false;
+  const specs = row.specs;
+  return (
+    typeof specs === "object" &&
+    specs !== null &&
+    norm(String((specs as { combustible?: unknown }).combustible ?? "")) === "diesel"
+  );
+};
+
 export type EquipmentClass =
   | "panel"
   | "jockey"
@@ -154,6 +173,14 @@ const reforzadoraUnitOf = (groupName: string) => {
 // migración no lo renumere — deploy va antes que la migración).
 const fireUnitOf = (groupName: string) => {
   const m = groupName.match(/^Bomba contra incendio (\d+)$/i);
+  return m ? Number(m[1]) : null;
+};
+
+// Nº de unidad de una bomba contra incendio DIÉSEL: grupo "Bomba contra incendio diésel N".
+// Acepta con y sin tilde porque el template de prod trae ambas grafías del mismo grupo
+// (mismo motivo que `norm`: "Planta electrica" / "Planta eléctrica" conviven).
+const dieselFireUnitOf = (groupName: string) => {
+  const m = norm(groupName).match(/^bomba contra incendio diesel (\d+)$/);
   return m ? Number(m[1]) : null;
 };
 
@@ -248,6 +275,15 @@ export type BuildingScope = {
   jockeyCount: number; // nº de bombas jockey (Sótano, Azotea…) para la sección por unidad
   hasFirePump: boolean; // bomba contra incendios NORMADA (NFPA)
   hasFireNoNormada: boolean; // bomba contra incendios NO normada (checklist propio)
+  // Nº de bombas contra incendio con motor DIÉSEL, para la sección por unidad
+  // "Bomba contra incendio diésel N" (manual Clarke: filtro de aire, banda, mangueras,
+  // combustible, baterías…). Las jockey NO cuentan: son eléctricas incluso en un sistema
+  // con principal diésel — confirmado por William y visible en la hoja 16845 de Victory
+  // Wellness, donde la jockey trae voltajes medidos y la principal los trae tachados.
+  //
+  // ⚠️ Este contador SOBREVIVE a la cuarentena de inventario sin verificar. Ver la nota
+  // en buildBuildingScope.
+  dieselFireCount: number;
   hasGenerator: boolean;
   // Ventiladores de presurización de escaleras registrados en el edificio.
   // 0 significa "no sabemos", NO "no tiene" — ver la regla en itemAppliesToBuilding.
@@ -275,6 +311,7 @@ export const EMPTY_SCOPE: BuildingScope = {
   jockeyCount: 0,
   hasFirePump: false,
   hasFireNoNormada: false,
+  dieselFireCount: 0,
   hasGenerator: false,
   fanCount: 0,
 };
@@ -289,7 +326,25 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
   // bomba que la lectura se comió le BORRARÍA la sección al técnico en campo. Mostrar de
   // más se ignora; mostrar de menos se pierde. El filtro se activa cuando William
   // termina de revisar el edificio.
-  if (rows.some(equipoSinVerificar)) return EMPTY_SCOPE;
+  //
+  // 🔑 EXCEPCIÓN (8-sep-2026): el marcador de bomba diésel SÍ atraviesa la cuarentena.
+  //
+  // La cuarentena existe porque el inventario entró por lectura automática de hojas y nadie
+  // lo revisó. `specs.combustible` no salió de ahí: lo dictó William, el gerente de
+  // operaciones, por WhatsApp, y queda con `combustible_fuente` al lado.
+  //
+  // Sin esta excepción, los 59 edificios con inventario sin verificar tendrían
+  // dieselFireCount = 0 y su sección diésel NO saldría — mostrar de MENOS, que es lo que
+  // esta misma función declara inaceptable. (Medido: EMPTY_SCOPE no "muestra la plantilla
+  // entera" como sugiere la nota de arriba; oculta todo lo que va por conteo o presencia,
+  // incluida esta sección. El riesgo aquí es perder la sección, no repetirla.)
+  //
+  // En sentido contrario no hay riesgo: un edificio sin verificar y sin marca sigue con
+  // dieselFireCount = 0 y no ve nada. La excepción solo puede mostrar de más si alguien
+  // marcó esa bomba a mano.
+  const dieselFireCount = rows.filter(esBombaIncendioDiesel).length;
+
+  if (rows.some(equipoSinVerificar)) return { ...EMPTY_SCOPE, dieselFireCount };
 
   const systems = new Set<string>();
   const pumpCounts = new Map<string, number>();
@@ -404,6 +459,7 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
     jockeyCount,
     hasFirePump,
     hasFireNoNormada,
+    dieselFireCount,
     hasGenerator,
     fanCount,
   };
@@ -454,6 +510,15 @@ export const itemAppliesToBuilding = (label: string, scope: BuildingScope) => {
   if (refUnit !== null) {
     const count = scope.pumpCounts.get("reforzador_agua_potable") ?? 0;
     return refUnit <= count;
+  }
+
+  // Bombas contra incendio DIÉSEL: una sección por cada bomba diésel del edificio, con los
+  // ítems del manual Clarke. Va ANTES del bloque de incendio normado a propósito: el regex
+  // de aquel es anclado (`^Bomba contra incendio (\d+)$`) y no casaría "…diésel 1", pero
+  // dejarlo primero hace explícita la precedencia y evita que un cambio futuro los cruce.
+  const dieselUnit = dieselFireUnitOf(group);
+  if (dieselUnit !== null) {
+    return dieselUnit <= scope.dieselFireCount;
   }
 
   // Bombas contra incendio normadas: igual que reforzadoras, una "Bomba contra incendio N"

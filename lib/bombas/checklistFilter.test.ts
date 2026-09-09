@@ -852,3 +852,80 @@ describe("tableros por unidad", () => {
     assert.equal(itemAppliesToBuilding("Panel jockey 1 - Voltaje", scope), false);
   });
 });
+
+describe("grupo Bomba contra incendio diésel (manual Clarke, 8-sep-2026)", () => {
+  const label = "Bomba contra incendio diésel 1 - Filtro de aire";
+  const label2 = "Bomba contra incendio diésel 2 - Filtro de aire";
+  const diesel = (name: string, extra: Record<string, unknown> = {}): EquipmentRow => ({
+    name,
+    system: "contra_incendios",
+    kind: "bomba",
+    specs: { combustible: "diesel", ...extra },
+  });
+
+  it("se muestra cuando la bomba está marcada como diésel en el inventario", () => {
+    assert.equal(applies(label, [diesel("Bomba Contra Incendios")]), true);
+  });
+
+  it("NO se muestra si la bomba contra incendio no trae la marca (eléctrica)", () => {
+    assert.equal(applies(label, [bomba("Bomba Contra Incendios", "contra_incendios")]), false);
+  });
+
+  it("una unidad por bomba diésel: Elite 500 tiene dos, la tercera no sale", () => {
+    const rows = [diesel("Bomba Contra Incendios AZOTEA"), diesel("Bomba Contra Incendios PLANTA BAJA")];
+    assert.equal(applies(label, rows), true);
+    assert.equal(applies(label2, rows), true);
+    assert.equal(applies("Bomba contra incendio diésel 3 - Filtro de aire", rows), false);
+  });
+
+  it("la jockey NO cuenta como diésel aunque le pusieran la marca (siempre es eléctrica)", () => {
+    assert.equal(applies(label, [diesel("Bomba Jockey")]), false);
+  });
+
+  it("una bomba de otro sistema con la marca no activa la sección", () => {
+    const reforzadora: EquipmentRow = {
+      name: "Reforzadora #1",
+      system: "reforzador_agua_potable",
+      kind: "bomba",
+      specs: { combustible: "diesel" },
+    };
+    assert.equal(applies(label, [reforzadora]), false);
+  });
+
+  it("acepta la grafía sin tilde del grupo (el template de prod trae las dos)", () => {
+    assert.equal(applies("Bomba contra incendio diesel 1 - Banda", [diesel("Bomba Contra Incendios")]), true);
+  });
+
+  // La razón de ser de la excepción: sin ella, los 59 edificios con inventario sin
+  // verificar tendrían dieselFireCount = 0 y su sección diésel no saldría, aunque la
+  // bomba esté marcada. Cuatro de los siete edificios diésel de William están en ese
+  // grupo (Ivy, Downtown, Costanera, Los Pueblos Towers).
+  describe("atraviesa la cuarentena de inventario sin verificar", () => {
+    const sinVerificar = (name: string): EquipmentRow => ({
+      name,
+      system: "contra_incendios",
+      kind: "bomba",
+      specs: { verificado: false },
+    });
+
+    it("un edificio sin verificar SÍ ve la sección si su bomba está marcada diésel", () => {
+      const rows = [diesel("Bomba Contra Incendios", { verificado: false }), sinVerificar("Bomba Jockey")];
+      assert.equal(applies(label, rows), true);
+    });
+
+    it("un edificio sin verificar NO ve la sección si ninguna bomba está marcada", () => {
+      assert.equal(applies(label, [sinVerificar("Bomba Contra Incendios")]), false);
+    });
+
+    it("la cuarentena sigue intacta para el resto del formulario", () => {
+      // El resto del scope sigue vacío: la excepción solo rescata dieselFireCount.
+      // "Bombas principales" va por conteo y con EMPTY_SCOPE se oculta — comportamiento
+      // previo, sin cambios.
+      const rows = [diesel("Bomba Contra Incendios", { verificado: false })];
+      assert.equal(applies("Bombas principales - Voltaje L1-L2", rows), false);
+      assert.equal(applies("Bomba contra incendio 1 - Voltaje L1-L2", rows), false);
+      // …y lo único que la excepción habilita es su propia sección.
+      assert.equal(applies(label, rows), true);
+    });
+  });
+});
