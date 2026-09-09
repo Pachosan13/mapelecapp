@@ -217,6 +217,15 @@ const riegoUnitOf = (groupName: string) => {
   return m ? Number(m[1]) : null;
 };
 
+// Nº de unidad de una bomba de piscina: grupo "Bomba de piscina N". null si no aplica.
+// Lo que se le revisa, dictado por William el 8-sep-2026: *"se revisa voltajes L1-L2 L2-L3
+// L1-L3, amperaje L1-L2 L2-L3 L1-L3"* y *"limpieza general"*. Es una bomba eléctrica de
+// superficie: no lleva presiones de arranque/parada ni tanque, a diferencia del riego.
+const piscinaUnitOf = (groupName: string) => {
+  const m = groupName.match(/^Bomba de piscina (\d+)$/i);
+  return m ? Number(m[1]) : null;
+};
+
 // Nº de unidad de un ventilador de presurización: grupo "Ventilador N". null si no aplica.
 // La plantilla de presurización de escaleras trae "Ventilador 1..12" sembrados (se extendió
 // de 4 a 12 el 29-jul: edificios con más de 4 ventiladores, pregunta de William). Metro View
@@ -557,6 +566,10 @@ export const itemAppliesToBuilding = (label: string, scope: BuildingScope) => {
   // Bombas de riego: una sección por unidad, recortada al nº de bombas de riego del edificio.
   const riegoUnit = riegoUnitOf(group);
   if (riegoUnit !== null) return riegoUnit <= (scope.pumpCounts.get("riego") ?? 0);
+
+  // Bombas de piscina: una sección por unidad, recortada al nº de bombas de piscina.
+  const piscinaUnit = piscinaUnitOf(group);
+  if (piscinaUnit !== null) return piscinaUnit <= (scope.pumpCounts.get("piscina") ?? 0);
 
   // Ventiladores de presurización: un grupo por unidad, como las reforzadoras, PERO con
   // una regla asimétrica a propósito.

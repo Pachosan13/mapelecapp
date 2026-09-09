@@ -24,6 +24,12 @@ export const SYSTEM_LABELS: Record<string, string> = {
   // en 2 proyectos específicos… es un nuevo sistema como si fuera un reforzador, entonces no
   // sé cómo hacer para diferenciarlo") — sin este sistema no había ni dónde registrarlo.
   riego: "Riego",
+  // Piscina. William, 8-sep-2026: *"hay un proyecto que vemos la bomba de Piscina, para esta
+  // bomba no hay formato actualmente, habría que crearlo para este proyecto y en futuros
+  // proyectos que quieran el mantenimiento de la bomba de Piscina"*. El proyecto es PH La
+  // Alegría. Sin este sistema, sus dos bombas quedaron registradas como `achique_pluvial` y
+  // el técnico recibía el checklist de sumergibles pluviales, que no aplica.
+  piscina: "Piscina",
   planta_diesel: "Planta diésel",
   // Ventiladores de presurización de escaleras. La plantilla de presurización trae
   // "Ventilador 1..4" fijos; sin este sistema no había forma de saber cuántos tiene el
@@ -43,6 +49,7 @@ export const SYSTEMS: [string, string][] = [
   "achique_pluvial",
   "sanitario",
   "riego",
+  "piscina",
   "planta_diesel",
   "presurizacion_escaleras",
 ].map((key) => [key, SYSTEM_LABELS[key]] as [string, string]);
