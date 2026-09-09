@@ -962,3 +962,46 @@ describe("bombas de piscina (William, 8-sep-2026)", () => {
     assert.equal(applies(voltaje, [panel("Panel de Control Piscina", "piscina")]), false);
   });
 });
+
+describe("planta de emergencia cargada con el tipo equivocado (William, 9-sep-2026)", () => {
+  const plantaOk: EquipmentRow = { name: "Planta de Emergencia", system: "planta_diesel", kind: "generador" };
+  // Los tres que cargó ese día quedaron así: el formulario deja "Bomba" por defecto.
+  const plantaMalTipada: EquipmentRow = { name: "Planta de Emergencia", system: "planta_diesel", kind: "bomba" };
+  const label = "Planta electrica - Marca";
+
+  it("una planta con kind=generador activa su sección, como siempre", () => {
+    assert.equal(applies(label, [plantaOk]), true);
+  });
+
+  it("una planta guardada como kind='bomba' TAMBIÉN la activa", () => {
+    assert.equal(applies(label, [plantaMalTipada]), true);
+  });
+
+  it("y no se cuenta como bomba de ningún sistema", () => {
+    const rows = [plantaMalTipada, bomba("Bomba Contra Incendios", "contra_incendios")];
+    // Con la planta contada como bomba, "Bomba contra incendio 2" saldría de más.
+    assert.equal(applies("Bomba contra incendio 1 - Voltaje L1-L2", rows), true);
+    assert.equal(applies("Bomba contra incendio 2 - Voltaje L1-L2", rows), false);
+  });
+
+  it("el nombre basta aunque el sistema sea otro y el kind esté mal", () => {
+    const rows = [{ name: "Planta Eléctrica", system: "transferencia_agua_potable", kind: "bomba" } as EquipmentRow];
+    assert.equal(applies(label, rows), true);
+  });
+
+  // Límite preexistente, no introducido por esta corrección: buildBuildingScope arranca con
+  // `if (!r.system) continue`, así que un equipo SIN sistema no entra al alcance por ninguna
+  // vía. Si algún día aparece una planta cargada sin sistema, este es el motivo.
+  it("un equipo sin sistema queda fuera del alcance, venga como venga", () => {
+    assert.equal(applies(label, [{ name: "Planta Eléctrica", system: null, kind: "generador" }]), false);
+  });
+
+  it("el PANEL de la planta sigue siendo panel, no generador", () => {
+    const rows = [{ name: "Panel de Control de la Planta", system: "planta_diesel", kind: "bomba" } as EquipmentRow];
+    assert.equal(applies(label, rows), false);
+  });
+
+  it("un edificio sin planta sigue sin ver la sección", () => {
+    assert.equal(applies(label, [bomba("Bomba Contra Incendios", "contra_incendios")]), false);
+  });
+});

@@ -105,18 +105,32 @@ export type EquipmentClass =
 /**
  * Clasifica un equipo para decidir qué grupos del checklist activa.
  *
- * `kind` es la fuente de verdad, pero el inventario trae paneles guardados como
- * kind='bomba' (ej. "Panel de Control de Bomba Contra Incendios" en Evergreen Torre A).
- * Contarlos como bombas infla las unidades y activa grupos que el edificio no tiene,
- * así que un nombre que empieza por "Panel" gana sobre un kind dudoso.
+ * `kind` es la fuente de verdad, pero el inventario llega con el tipo equivocado más
+ * seguido de lo que parece, y el costo de creerle es que una sección entera del formulario
+ * no aparece — sin error, sin aviso, y el técnico no tiene cómo saber que falta.
  *
- * El orden importa: "Panel de Control de la Bomba Jockey" es un panel, no una jockey.
+ * Dos correcciones por nombre/sistema, las dos nacidas de casos reales:
+ *
+ * - **Paneles guardados como bomba** (ej. "Panel de Control de Bomba Contra Incendios" en
+ *   Evergreen Torre A). Contarlos como bombas infla las unidades y activa grupos que el
+ *   edificio no tiene.
+ * - **Plantas de emergencia guardadas como bomba** (9-sep-2026). William cargó cuatro y
+ *   tres quedaron con `kind='bomba'`; como la sección de planta se activa por
+ *   `hasGenerator`, no le salía: *"aquí tengo añadido planta de emergencia pero no sale
+ *   reflejado en el formato"*. El sistema `planta_diesel` y un nombre que empieza por
+ *   "Planta" son señales más fuertes que un `kind` que el formulario deja en "Bomba" por
+ *   defecto.
+ *
+ * El orden importa: "Panel de Control de la Bomba Jockey" es un panel, no una jockey, y
+ * "Panel de Control de la Planta" es un panel, no un generador — por eso el chequeo de
+ * panel va antes que el de planta.
  */
 export const classifyEquipment = (row: EquipmentRow): EquipmentClass => {
   const name = (row.name ?? "").trim();
   if (row.kind === "generador") return "generador";
   if (row.kind === "ventilador") return "ventilador";
   if (row.kind === "panel_control" || /^panel\b/i.test(name)) return "panel";
+  if (row.system === "planta_diesel" || /^planta\b/i.test(name)) return "generador";
   if (/\bjockey\b/i.test(name)) return "jockey";
   return "bomba";
 };
