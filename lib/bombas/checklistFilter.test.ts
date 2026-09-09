@@ -929,3 +929,36 @@ describe("grupo Bomba contra incendio diésel (manual Clarke, 8-sep-2026)", () =
     });
   });
 });
+
+describe("bombas de piscina (William, 8-sep-2026)", () => {
+  const piscina = (name: string): EquipmentRow => ({ name, system: "piscina", kind: "bomba" });
+  const voltaje = "Bomba de piscina 1 - Voltaje L1-L2";
+  const limpieza = "Bomba de piscina 1 - Limpieza general";
+
+  it("PH La Alegría tiene dos: ve la sección 1 y la 2, no la 3", () => {
+    const rows = [piscina("Bomba de Piscina #1"), piscina("Bomba de piscina #2")];
+    assert.equal(applies(voltaje, rows), true);
+    assert.equal(applies("Bomba de piscina 2 - Voltaje L1-L2", rows), true);
+    assert.equal(applies("Bomba de piscina 3 - Voltaje L1-L2", rows), false);
+  });
+
+  it("un edificio sin bomba de piscina no ve la sección", () => {
+    assert.equal(applies(voltaje, [bomba("Bomba Pluvial #1", "achique_pluvial")]), false);
+    assert.equal(applies(limpieza, [bomba("Bomba Pluvial #1", "achique_pluvial")]), false);
+  });
+
+  // La razón de que el sistema exista: sin él las bombas de piscina quedaban como
+  // achique_pluvial y el técnico recibía el checklist de sumergibles pluviales.
+  it("una bomba de piscina NO activa la sección de sumergibles pluviales", () => {
+    const rows = [piscina("Bomba de Piscina #1")];
+    assert.equal(applies("Bombas sumergibles - Sistema pluvial - Pluvial 1 - Bomba 1 - Voltaje", rows), false);
+  });
+
+  it("y una pluvial no activa la de piscina", () => {
+    assert.equal(applies(voltaje, [bomba("Bomba Pluvial #1", "achique_pluvial")]), false);
+  });
+
+  it("el panel no cuenta como bomba", () => {
+    assert.equal(applies(voltaje, [panel("Panel de Control Piscina", "piscina")]), false);
+  });
+});
