@@ -4,6 +4,7 @@ import {
   esItemTipoInspeccion,
   frecuenciaDeItem,
   frecuenciasPresentes,
+  frecuenciaPorDefecto,
   itemAplicaAFrecuencia,
   parseFrecuencia,
   tieneBloquesPorFrecuencia,
@@ -147,5 +148,39 @@ describe("esItemTipoInspeccion", () => {
     assert.equal(esItemTipoInspeccion("Datos generales - Tipo de inspección"), true);
     assert.equal(esItemTipoInspeccion("Tipo de inspección"), true);
     assert.equal(esItemTipoInspeccion("Datos generales - Información de estacas"), false);
+  });
+});
+
+// --- Periodicidad por defecto (William, 24-sep, video en VIVA PLAZA) ---
+describe("frecuenciaPorDefecto", () => {
+  const todas = ["Mensual", "Trimestral", "Semestral", "Anual", "Cada 5 años"] as const;
+
+  it("sin nada respondido arranca en Mensual", () => {
+    assert.equal(frecuenciaPorDefecto([], [...todas]), "Mensual");
+  });
+
+  it("respuestas solo de bloques sin periodicidad no cambian nada", () => {
+    assert.equal(
+      frecuenciaPorDefecto(["Rociadores · Datos - Información de estacas", "IPM · Bomba - Marca"], [...todas]),
+      "Mensual"
+    );
+  });
+
+  it("si ya llenaron algo del anual, arranca en Anual (no se esconde lo llenado)", () => {
+    assert.equal(
+      frecuenciaPorDefecto(
+        ["Rociadores · Mensual - Válvulas", "Rociadores · Anual - Rociadores de repuesto"],
+        [...todas]
+      ),
+      "Anual"
+    );
+  });
+
+  it("formato sin bloques por frecuencia → null (no se toca)", () => {
+    assert.equal(frecuenciaPorDefecto(["Rociadores · Anual - X"], []), null);
+  });
+
+  it("formato sin bloque mensual arranca en el más corto que tenga", () => {
+    assert.equal(frecuenciaPorDefecto([], ["Trimestral", "Anual"]), "Trimestral");
   });
 });

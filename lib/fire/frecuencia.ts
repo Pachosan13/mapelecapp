@@ -129,6 +129,31 @@ export const frecuenciasPresentes = (
 };
 
 /**
+ * Periodicidad con la que arranca el selector cuando el técnico todavía no eligió.
+ *
+ * William, 24-sep-2026 (video en P.H. VIVA PLAZA): *"solamente el mensual, ponlo pues"*.
+ * Con el campo vacío el formato salía completo y nadie lo cambiaba. Arranca en Mensual,
+ * salvo que la visita ya tenga respuestas en un bloque más alto: ahí arranca en ESE,
+ * para no esconder algo que el técnico ya llenó (acumulativo: lo de abajo sigue saliendo).
+ *
+ * `respondidas` = labels de los ítems que ya tienen algún valor en esta visita.
+ * Devuelve null si el formato no trae bloques por frecuencia.
+ */
+export const frecuenciaPorDefecto = (
+  respondidas: Array<string | null | undefined>,
+  presentes: Frecuencia[]
+): Frecuencia | null => {
+  if (presentes.length === 0) return null;
+  let mayor: Frecuencia | null = null;
+  for (const label of respondidas) {
+    const f = frecuenciaDeItem(label);
+    if (f && (mayor === null || indiceFrecuencia(f) > indiceFrecuencia(mayor))) mayor = f;
+  }
+  if (mayor) return mayor;
+  return presentes.includes("Mensual") ? "Mensual" : presentes[0];
+};
+
+/**
  * El ítem donde el técnico declara la frecuencia. En el template de rociadores se llama
  * "Datos generales - Tipo de inspección"; se detecta por el final del label para que
  * sobreviva a un cambio de prefijo de grupo.

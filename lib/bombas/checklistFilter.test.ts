@@ -6,6 +6,7 @@ import {
   isBombasTemplate,
   isPresurizacionTemplate,
   itemAppliesToBuilding,
+  itemAplicaPorInventario,
   type EquipmentRow,
 } from "./checklistFilter.ts";
 
@@ -1055,5 +1056,64 @@ describe("planta de emergencia cargada con el tipo equivocado (William, 9-sep-20
 
   it("un edificio sin planta sigue sin ver la sección", () => {
     assert.equal(applies(label, [bomba("Bomba Contra Incendios", "contra_incendios")]), false);
+  });
+});
+
+// --- IPM eléctricas en edificios solo diésel (William, 24-sep, video en VIVA PLAZA) ---
+describe("IPM · Sistema de bombas eléctricas según inventario", () => {
+  const diesel = { combustible: "diesel" };
+  const vivaPlaza = buildBuildingScope([
+    { name: "Bomba Contra Incendios", system: "contra_incendios", kind: "bomba", specs: diesel },
+    { name: "Bomba Jockey", system: "contra_incendios", kind: "bomba" },
+    { name: "Panel de control Bomba Contra Incendios", system: "contra_incendios", kind: "panel_control" },
+  ]);
+  const electrica = buildBuildingScope([
+    { name: "Bomba Contra Incendios", system: "contra_incendios", kind: "bomba" },
+  ]);
+  const mixta = buildBuildingScope([
+    { name: "Bomba Contra Incendios #1", system: "contra_incendios", kind: "bomba", specs: diesel },
+    { name: "Bomba Contra Incendios #2", system: "contra_incendios", kind: "bomba" },
+  ]);
+  const sinInventario = buildBuildingScope([]);
+  const elec = "IPM · Sistema de bombas eléctricas - Voltaje L1-L2";
+  const dies = "IPM · Sistema de bombas diésel - Nivel de aceite";
+
+  it("edificio con su bomba principal diésel (la jockey no cuenta): se esconde eléctricas", () => {
+    assert.equal(vivaPlaza.soloIncendioDiesel, true);
+    assert.equal(itemAplicaPorInventario(elec, vivaPlaza, false), false);
+    assert.equal(itemAplicaPorInventario(dies, vivaPlaza, false), true);
+  });
+
+  it("el bloque diésel NUNCA se esconde, aunque no haya marca de diésel", () => {
+    assert.equal(itemAplicaPorInventario(dies, electrica, false), true);
+    assert.equal(itemAplicaPorInventario(dies, sinInventario, false), true);
+  });
+
+  it("una bomba eléctrica en el edificio mantiene el bloque eléctrico", () => {
+    assert.equal(itemAplicaPorInventario(elec, electrica, false), true);
+    assert.equal(itemAplicaPorInventario(elec, mixta, false), true);
+  });
+
+  it("sin inventario no se esconde nada", () => {
+    assert.equal(itemAplicaPorInventario(elec, sinInventario, false), true);
+  });
+
+  it("el resto del formato de red húmeda no se toca", () => {
+    assert.equal(itemAplicaPorInventario("Rociadores · Mensual - Válvulas", vivaPlaza, false), true);
+    assert.equal(itemAplicaPorInventario("IPM · Bomba - Marca", vivaPlaza, false), true);
+  });
+
+  it("la regla sobrevive a la cuarentena de inventario sin verificar", () => {
+    const enCuarentena = buildBuildingScope([
+      { name: "Bomba Contra Incendios", system: "contra_incendios", kind: "bomba", specs: { ...diesel, verificado: false } },
+    ]);
+    assert.equal(enCuarentena.soloIncendioDiesel, true);
+  });
+
+  it("con filtro completo (plantilla de bombas) sigue mandando itemAppliesToBuilding", () => {
+    assert.equal(
+      itemAplicaPorInventario("Planta de Emergencia 1 - Marca", sinInventario, true),
+      itemAppliesToBuilding("Planta de Emergencia 1 - Marca", sinInventario)
+    );
   });
 });
