@@ -240,6 +240,17 @@ const piscinaUnitOf = (groupName: string) => {
   return m ? Number(m[1]) : null;
 };
 
+// Nº de unidad de una planta de emergencia: "Planta de Emergencia N - campo". Se mira la
+// ETIQUETA, no el grupo, porque el template traía labels sin espacio antes del guion
+// ("Planta de Emergencia- Modelo") que `groupOf` manda a "Datos generales". Devuelve 1 para
+// el label viejo SIN numerar, así el formato no cambia entre el deploy y la migración que
+// renumera (mismo truco que los tableros). null si no es un ítem de planta.
+const plantaUnitOf = (label: string) => {
+  const m = norm(label).match(/^planta (?:de emergencia|electrica)\s*(\d+)?\s*-/);
+  if (!m) return null;
+  return m[1] ? Number(m[1]) : 1;
+};
+
 // Nº de unidad de un ventilador de presurización: grupo "Ventilador N". null si no aplica.
 // La plantilla de presurización de escaleras trae "Ventilador 1..12" sembrados (se extendió
 // de 4 a 12 el 29-jul: edificios con más de 4 ventiladores, pregunta de William). Metro View
@@ -308,6 +319,10 @@ export type BuildingScope = {
   // en buildBuildingScope.
   dieselFireCount: number;
   hasGenerator: boolean;
+  // Nº de plantas de emergencia, para la sección por unidad "Planta de Emergencia N".
+  // Aquapoint tiene dos (Área Social y Apartamentos) y con el booleano solo salía una —
+  // feedback William 24-sep-2026.
+  generatorCount: number;
   // Ventiladores de presurización de escaleras registrados en el edificio.
   // 0 significa "no sabemos", NO "no tiene" — ver la regla en itemAppliesToBuilding.
   fanCount: number;
@@ -336,6 +351,7 @@ export const EMPTY_SCOPE: BuildingScope = {
   hasFireNoNormada: false,
   dieselFireCount: 0,
   hasGenerator: false,
+  generatorCount: 0,
   fanCount: 0,
 };
 
@@ -388,6 +404,7 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
   let hasFirePump = false;
   let hasFireNoNormada = false;
   let hasGenerator = false;
+  let generatorCount = 0;
   let fanCount = 0;
 
   for (const r of rows) {
@@ -432,6 +449,7 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
         break;
       case "generador":
         hasGenerator = true;
+        generatorCount += 1;
         break;
       case "ventilador":
         fanCount += 1;
@@ -484,6 +502,7 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
     hasFireNoNormada,
     dieselFireCount,
     hasGenerator,
+    generatorCount,
     fanCount,
   };
 };
@@ -674,9 +693,12 @@ export const itemAppliesToBuilding = (label: string, scope: BuildingScope) => {
   // Se mira la ETIQUETA completa, no el grupo: tres ítems del template vienen como
   // "Planta de Emergencia- Modelo" (sin espacio antes del guion), y `groupOf` los manda a
   // "Datos generales", donde ningún requisito los alcanzaba.
-  const labelNorm = norm(label);
-  if (labelNorm.startsWith("planta de emergencia") || labelNorm.startsWith("planta electrica")) {
-    return scope.hasGenerator;
+  //
+  // Desde el 24-sep-2026 es POR UNIDAD: una "Planta de Emergencia N" por cada planta del
+  // edificio (Aquapoint: Área Social + Apartamentos). El label viejo sin numerar cuenta como 1.
+  const plantaUnit = plantaUnitOf(label);
+  if (plantaUnit !== null) {
+    return plantaUnit <= scope.generatorCount;
   }
 
   const requirement = GROUP_TO_REQUIREMENT_NORM[groupNorm];

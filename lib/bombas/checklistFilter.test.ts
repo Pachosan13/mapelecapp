@@ -776,6 +776,58 @@ describe("grupo Planta de Emergencia", () => {
   });
 });
 
+// --- Plantas por unidad (William, 24-sep-2026: Aquapoint tiene dos) ---
+// "en aquapoint tengo 2 plantas de emergencia una para area social y otra para apartamentos
+// pero en el formato aunque coloco la ubicacion me sigue saliendo solo una planta".
+describe("Planta de Emergencia por unidad", () => {
+  const aquapoint = buildBuildingScope([
+    { name: "Bomba Principal #1", system: "transferencia_agua_potable", kind: "bomba" },
+    { name: "Planta de Emergencia #1 - AREA SOCIAL", system: "planta_diesel", kind: "generador", location: "Area Social" },
+    { name: "Planta de Emergencia #2 - Apartamentos", system: "planta_diesel", kind: "generador", location: "Apartamentos" },
+  ]);
+  const unaPlanta = buildBuildingScope([
+    { name: "Planta de Emergencia", system: "planta_diesel", kind: "generador" },
+  ]);
+  const sinPlanta = buildBuildingScope([
+    { name: "Bomba Principal #1", system: "transferencia_agua_potable", kind: "bomba" },
+  ]);
+
+  it("cuenta las plantas del edificio", () => {
+    assert.equal(aquapoint.generatorCount, 2);
+    assert.equal(unaPlanta.generatorCount, 1);
+    assert.equal(sinPlanta.generatorCount, 0);
+  });
+
+  it("con dos plantas salen la 1 y la 2, no la 3", () => {
+    assert.equal(itemAppliesToBuilding("Planta de Emergencia 1 - Marca", aquapoint), true);
+    assert.equal(itemAppliesToBuilding("Planta de Emergencia 2 - Marca", aquapoint), true);
+    assert.equal(itemAppliesToBuilding("Planta de Emergencia 3 - Marca", aquapoint), false);
+  });
+
+  it("con una planta sale solo la 1", () => {
+    assert.equal(itemAppliesToBuilding("Planta de Emergencia 1 - Horas de trabajo", unaPlanta), true);
+    assert.equal(itemAppliesToBuilding("Planta de Emergencia 2 - Horas de trabajo", unaPlanta), false);
+  });
+
+  it("sin planta no sale ninguna", () => {
+    assert.equal(itemAppliesToBuilding("Planta de Emergencia 1 - Marca", sinPlanta), false);
+  });
+
+  it("el label viejo sin numerar cuenta como la unidad 1 (deploy antes que migración)", () => {
+    assert.equal(itemAppliesToBuilding("Planta de Emergencia - Marca", unaPlanta), true);
+    assert.equal(itemAppliesToBuilding("Planta de Emergencia- Modelo", aquapoint), true);
+    assert.equal(itemAppliesToBuilding("Planta de Emergencia - Marca", sinPlanta), false);
+  });
+
+  it("un panel de la planta no cuenta como otra planta", () => {
+    const conPanel = buildBuildingScope([
+      { name: "Planta de Emergencia", system: "planta_diesel", kind: "generador" },
+      { name: "Panel de Control de la Planta", system: "planta_diesel", kind: "panel_control" },
+    ]);
+    assert.equal(conPanel.generatorCount, 1);
+  });
+});
+
 // ── Tableros por unidad (7-ago-2026) ────────────────────────────────────────────
 // Un edificio puede tener DOS paneles del mismo sistema. Con el booleano viejo salía una
 // sola sección y el segundo panel se perdía — William, Elite 400 (dos paneles de principales,
