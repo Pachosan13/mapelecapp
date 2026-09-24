@@ -42,20 +42,72 @@ self.addEventListener("install", (event) => {
   );
 });
 
+// Las versiones viejas ya NO se borran al activar (24-sep-2026). Borrarlas de golpe le
+// dejó a Edgar Zúñiga en P.H. VIVA PLAZA la pantalla de "sin conexión" sobre una visita
+// que tenía abierta: el deploy de las 12:58 cambió la versión, su tablet terminó de
+// instalar la nueva con la señal floja, el activate borró la copia guardada y no hubo
+// señal para bajarla otra vez. Ahora la copia vieja se queda hasta que la versión nueva
+// tiene TODAS esas páginas frescas (ver limpiarVersionesViejas).
+//
+// ⚠️ Por qué no volvemos al problema del 15/20-jul (HTML viejo con chunks inexistentes):
+// la copia vieja se guarda JUNTO con su caché estático (mismo sufijo de versión), así que
+// su HTML y su JS siguen siendo consistentes; y solo se sirve SIN señal — online manda
+// siempre la red (network-first), y la navegación prefiere la copia de la versión actual.
 self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((k) => !k.endsWith(VERSION))
-            .map((k) => caches.delete(k))
-        )
-      )
-      .then(() => self.clients.claim())
-  );
+  event.waitUntil(self.clients.claim().then(() => limpiarVersionesViejas()));
 });
+
+// Borra cada versión vieja SOLO cuando la actual ya tiene todas sus páginas. Corre al
+// activar y después de cada precalentado. Las estáticas viejas sin páginas se van de una.
+async function limpiarVersionesViejas() {
+  try {
+    const keys = await caches.keys();
+    const actual = await caches.open(PAGES_CACHE);
+    const viejas = keys.filter((k) => k.startsWith("semco-") && !k.endsWith(VERSION));
+    const versionesViejas = new Set(viejas.map((k) => k.replace(/^semco-(pages|static)-/, "")));
+    for (const v of versionesViejas) {
+      const nombrePaginas = `semco-pages-${v}`;
+      let cubiertas = true;
+      if (keys.includes(nombrePaginas)) {
+        const vieja = await caches.open(nombrePaginas);
+        for (const req of await vieja.keys()) {
+          if (!(await actual.match(req, { ignoreVary: true }))) {
+            cubiertas = false;
+            break;
+          }
+        }
+      }
+      if (cubiertas) {
+        await caches.delete(nombrePaginas);
+        await caches.delete(`semco-static-${v}`);
+      }
+    }
+  } catch {
+    // best-effort
+  }
+}
+
+// URLs que la versión vieja tenía guardadas y la actual todavía no: se re-bajan en el
+// próximo precalentado con señal, para poder soltar la copia vieja.
+async function paginasPorRenovar() {
+  const salida = [];
+  try {
+    const actual = await caches.open(PAGES_CACHE);
+    for (const k of await caches.keys()) {
+      if (!k.startsWith("semco-pages-") || k === PAGES_CACHE) continue;
+      const vieja = await caches.open(k);
+      for (const req of await vieja.keys()) {
+        if (!(await actual.match(req, { ignoreVary: true }))) {
+          const u = new URL(req.url);
+          salida.push(u.pathname + u.search);
+        }
+      }
+    }
+  } catch {
+    // best-effort
+  }
+  return salida;
+}
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
@@ -89,7 +141,15 @@ self.addEventListener("fetch", (event) => {
         } catch {
           // ignoreVary: Next agrega cabeceras Vary (RSC, Next-Router-*) que harían
           // fallar el match aunque la página SÍ esté cacheada. La ignoramos.
-          const cached = await caches.match(request, { ignoreVary: true });
+          // Primero la copia de ESTA versión; si no hay, la de la anterior (con su JS);
+          // y como último intento, la misma página sin query (`?saved=1` y similares
+          // no deben dejar al técnico en la pantalla de "sin conexión").
+          const actual = await caches.open(PAGES_CACHE);
+          const cached =
+            (await actual.match(request, { ignoreVary: true })) ||
+            (await caches.match(request, { ignoreVary: true })) ||
+            (await actual.match(request, { ignoreVary: true, ignoreSearch: true })) ||
+            (await caches.match(request, { ignoreVary: true, ignoreSearch: true }));
           if (cached) return cached;
           const offline = await caches.match(OFFLINE_URL);
           return offline || Response.error();
@@ -168,8 +228,9 @@ self.addEventListener("message", (event) => {
   event.waitUntil(
     (async () => {
       const cache = await caches.open(PAGES_CACHE);
+      const urls = Array.from(new Set([...data.urls, ...(await paginasPorRenovar())]));
       await Promise.all(
-        data.urls.map(async (u) => {
+        urls.map(async (u) => {
           try {
             const res = await fetch(u, { credentials: "same-origin" });
             const finalUrl = new URL(res.url || u, self.location.origin);
@@ -193,6 +254,7 @@ self.addEventListener("message", (event) => {
           }
         })
       );
+      await limpiarVersionesViejas();
     })()
   );
 });

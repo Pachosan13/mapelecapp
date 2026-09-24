@@ -7,7 +7,7 @@ import {
   groupOf,
   isBombasTemplate,
   isPresurizacionTemplate,
-  itemAppliesToBuilding,
+  itemAplicaPorInventario,
   EMPTY_SCOPE,
   type BuildingScope,
 } from "@/lib/bombas/checklistFilter";
@@ -91,8 +91,7 @@ export default async function BuildingFormatoPage({
 
   // Misma condición que el técnico: sin sistemas en el scope no se filtra nada.
   const seFiltra = scope.systems.size > 0;
-  const sale = (label: string) =>
-    !seFiltra || itemAppliesToBuilding(label, scope);
+  const sale = (label: string) => itemAplicaPorInventario(label, scope, seFiltra);
 
   const grupos = new Map<string, { sale: number; oculto: number }>();
   for (const it of items) {

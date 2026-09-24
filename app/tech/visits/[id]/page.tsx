@@ -7,7 +7,7 @@ import { isCoreChecklistTemplateId } from "@/lib/constants/coreChecklist";
 import {
   groupOf,
   buildBuildingScope,
-  itemAppliesToBuilding,
+  itemAplicaPorInventario,
   isBombasTemplate,
   isPresurizacionTemplate,
   EMPTY_SCOPE,
@@ -19,6 +19,7 @@ import {
   frecuenciaDeItem,
   indiceFrecuencia,
   frecuenciasPresentes,
+  frecuenciaPorDefecto,
   itemAplicaAFrecuencia,
   parseFrecuencia,
   tieneBloquesPorFrecuencia,
@@ -68,6 +69,11 @@ type VisitLatestResponse = Pick<
   Database["public"]["Views"]["visit_latest_responses"]["Row"],
   "item_id" | "value_text" | "value_number" | "value_bool"
 >;
+
+// ¿Esta respuesta trae algún valor? Un texto vacío o una casilla sin tocar no cuenta.
+const respondido = (r?: VisitLatestResponse | null) =>
+  Boolean(r) &&
+  ((r!.value_text ?? "").trim() !== "" || r!.value_bool !== null || r!.value_number !== null);
 
 const isRecorridoPorPisosLabel = (label?: string | null) =>
   (label ?? "").trim().toLowerCase().startsWith("recorrido por pisos");
@@ -218,11 +224,9 @@ async function handleResponses(formData: FormData) {
     (isBombasTemplate(templateMeta?.name, templateMeta?.category) ||
       isPresurizacionTemplate(templateMeta?.name)) &&
     buildingScope.systems.size > 0;
-  const itemsPorEdificio = applyBuildingFilter
-    ? (templateItemsData ?? []).filter((item) =>
-        itemAppliesToBuilding(String(item.label ?? ""), buildingScope)
-      )
-    : templateItemsData ?? [];
+  const itemsPorEdificio = (templateItemsData ?? []).filter((item) =>
+    itemAplicaPorInventario(String(item.label ?? ""), buildingScope, applyBuildingFilter)
+  );
 
   // Filtro por FRECUENCIA (feedback William 24-ago): en el formato de rociadores, una
   // inspección mensual solo llena 12 de los 76 ítems. La frecuencia viaja en el propio
@@ -689,8 +693,7 @@ export default async function TechVisitPage({
       isPresurizacionTemplate(templateMeta?.name)) &&
     buildingScope.systems.size > 0;
   const itemInScope = (item: (typeof templateItems)[number]) =>
-    !applyBuildingFilter ||
-    itemAppliesToBuilding(String(item.label ?? ""), buildingScope);
+    itemAplicaPorInventario(String(item.label ?? ""), buildingScope, applyBuildingFilter);
 
   const requiredChecklistItemIds = isChecklistTemplate
     ? templateItems
@@ -724,6 +727,22 @@ export default async function TechVisitPage({
     tipoInspeccionGuardado && frecuenciaGuardada === null
       ? tipoInspeccionGuardado
       : null;
+  // Sin periodicidad elegida el formato salía COMPLETO (mensual + trimestral + semestral +
+  // anual + cada 5 años) y el técnico no la elegía: William, 24-sep, video en VIVA PLAZA:
+  // *"solamente el mensual, ponlo pues"*. Ahora arranca en Mensual — o en el bloque más
+  // alto que la visita YA tenga respondido, para no esconderle nada que ya llenó. Solo
+  // aplica con el campo vacío: lo elegido o un texto libre viejo ("Nfpa25") se respeta.
+  const frecuenciaInicial =
+    frecuenciaGuardada ??
+    (itemTipoInspeccion && !tipoInspeccionGuardado && visit.status !== "completed"
+      ? frecuenciaPorDefecto(
+          templateItems
+            .filter(itemInScope)
+            .filter((i) => respondido(responseMap.get(i.id)))
+            .map((i) => String(i.label ?? "")),
+          frecuenciasDelFormato
+        )
+      : null);
 
   const normalizedStatus = String(visit.status ?? "")
     .trim()
@@ -983,7 +1002,7 @@ export default async function TechVisitPage({
                 fieldName={`item-${itemTipoInspeccion.id}`}
                 fieldId={`item-${itemTipoInspeccion.id}`}
                 frecuencias={frecuenciasDelFormato}
-                seleccionada={frecuenciaGuardada}
+                seleccionada={frecuenciaInicial}
                 valorLibre={tipoInspeccionLibre}
                 disabled={isCompleted}
               />
@@ -991,8 +1010,8 @@ export default async function TechVisitPage({
             {itemGroups.map((group, gi) => {
               const frecuenciaGrupo = frecuenciaDeItem(group.items[0]?.label);
               const grupoOculto =
-                frecuenciaGuardada !== null &&
-                !itemAplicaAFrecuencia(String(group.items[0]?.label ?? ""), frecuenciaGuardada);
+                frecuenciaInicial !== null &&
+                !itemAplicaAFrecuencia(String(group.items[0]?.label ?? ""), frecuenciaInicial);
               return (
               <details
                 key={group.name}

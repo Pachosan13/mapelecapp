@@ -323,6 +323,10 @@ export type BuildingScope = {
   // Aquapoint tiene dos (Área Social y Apartamentos) y con el booleano solo salía una —
   // feedback William 24-sep-2026.
   generatorCount: number;
+  // TODAS las bombas contra incendio del edificio (sin jockeys) son diésel. Esconde el
+  // bloque "IPM · Sistema de bombas eléctricas" del formato de RED HÚMEDA — ver
+  // ipmAplicaAlEdificio. Como `dieselFireCount`, SOBREVIVE a la cuarentena.
+  soloIncendioDiesel: boolean;
   // Ventiladores de presurización de escaleras registrados en el edificio.
   // 0 significa "no sabemos", NO "no tiene" — ver la regla en itemAppliesToBuilding.
   fanCount: number;
@@ -352,6 +356,7 @@ export const EMPTY_SCOPE: BuildingScope = {
   dieselFireCount: 0,
   hasGenerator: false,
   generatorCount: 0,
+  soloIncendioDiesel: false,
   fanCount: 0,
 };
 
@@ -382,8 +387,15 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
   // dieselFireCount = 0 y no ve nada. La excepción solo puede mostrar de más si alguien
   // marcó esa bomba a mano.
   const dieselFireCount = rows.filter(esBombaIncendioDiesel).length;
+  const bombasIncendio = rows.filter(
+    (r) => isFireSystem(r.system) && classifyEquipment(r) === "bomba"
+  );
+  const soloIncendioDiesel =
+    bombasIncendio.length > 0 && bombasIncendio.every(esBombaIncendioDiesel);
 
-  if (rows.some(equipoSinVerificar)) return { ...EMPTY_SCOPE, dieselFireCount };
+  if (rows.some(equipoSinVerificar)) {
+    return { ...EMPTY_SCOPE, dieselFireCount, soloIncendioDiesel };
+  }
 
   const systems = new Set<string>();
   const pumpCounts = new Map<string, number>();
@@ -503,6 +515,7 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
     dieselFireCount,
     hasGenerator,
     generatorCount,
+    soloIncendioDiesel,
     fanCount,
   };
 };
@@ -704,3 +717,34 @@ export const itemAppliesToBuilding = (label: string, scope: BuildingScope) => {
   const requirement = GROUP_TO_REQUIREMENT_NORM[groupNorm];
   return requirement ? requirement(scope) : true;
 };
+
+// ── Formato de RED HÚMEDA / IPM (plantillas fire) ──────────────────────────────
+// Esas plantillas NO se recortan por inventario (decisión 15-jul: sus bloques siempre
+// salen). Única excepción, pedida por William el 24-sep-2026 con video desde P.H. VIVA
+// PLAZA: *"esta no va"* señalando "IPM · Sistema de bombas eléctricas" en un edificio
+// cuya bomba contra incendio es diésel.
+//
+// Solo se esconde el bloque ELÉCTRICO y solo con evidencia positiva: todas las bombas
+// contra incendio del edificio marcadas diésel. El bloque diésel NUNCA se esconde: la
+// lista de diésel la dictó William y no está completa (Gran Plaza llegó después, 23-sep);
+// esconderlo por ausencia de marca borraría una sección que el edificio sí tiene.
+export const ipmAplicaAlEdificio = (label: string, scope: BuildingScope) => {
+  const grupo = norm(groupOf(label));
+  if (/^ipm\s*·\s*sistema de bombas electricas$/.test(grupo)) {
+    return !scope.soloIncendioDiesel;
+  }
+  return true;
+};
+
+// Punto único para decidir si un ítem sale según el inventario del edificio:
+// - plantilla de bombas / presurización con inventario → filtro completo por unidad;
+// - cualquier otra plantilla → solo la excepción de IPM de arriba.
+// Lo usan el formulario, el guardado, el informe, el PDF y la vista previa del formato.
+export const itemAplicaPorInventario = (
+  label: string,
+  scope: BuildingScope,
+  filtroCompleto: boolean
+) =>
+  filtroCompleto
+    ? itemAppliesToBuilding(label, scope)
+    : ipmAplicaAlEdificio(label, scope);

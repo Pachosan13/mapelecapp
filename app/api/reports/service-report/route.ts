@@ -14,6 +14,7 @@ import {
   type PdfVisitBlock,
   type PdfResponseValue,
 } from "@/lib/reports/pdf";
+import { nombreArchivoInforme } from "@/lib/reports/nombreArchivo";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -284,7 +285,11 @@ export async function GET(request: Request) {
         "Content-Type": "application/pdf",
         "Content-Disposition": `${
           inline ? "inline" : "attachment"
-        }; filename="informe-servicio-${effReportDate}.pdf"`,
+        }; filename="${nombreArchivoInforme(
+          effReportDate,
+          data.building.name,
+          sections.map((s) => s.title)
+        )}"`,
       },
     });
   } catch (err: any) {

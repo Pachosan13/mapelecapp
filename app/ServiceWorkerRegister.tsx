@@ -57,6 +57,12 @@ function warmCurrentPage() {
       const enlaces = Array.from(
         document.querySelectorAll<HTMLAnchorElement>('a[href^="/tech/visits/"]')
       )
+        // Hoy y en curso primero (data-prioridad 0-3, ver /tech/today). sort es estable:
+        // dentro de cada prioridad se respeta el orden de la lista.
+        .sort(
+          (a, b) =>
+            Number(a.dataset.prioridad ?? 9) - Number(b.dataset.prioridad ?? 9)
+        )
         .map((a) => a.getAttribute("href"))
         .filter((href): href is string => Boolean(href));
       for (const href of enlaces) {
@@ -109,10 +115,16 @@ export default function ServiceWorkerRegister() {
     };
 
     const onVisibility = () => warmCurrentPage();
+    // Versión nueva del SW = caché nuevo y vacío. El freno de 5/30 min recuerda lo que se
+    // precalentó en el caché ANTERIOR y dejaba el nuevo sin llenar hasta media hora.
+    const onControllerChange = () => {
+      ultimoPrecalentado.clear();
+      warmCurrentPage();
+    };
     window.addEventListener("online", warmCurrentPage);
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pagehide", warmCurrentPage);
-    navigator.serviceWorker.addEventListener("controllerchange", warmCurrentPage);
+    navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
 
     if (document.readyState === "complete") {
       register();
@@ -126,7 +138,7 @@ export default function ServiceWorkerRegister() {
       window.removeEventListener("pagehide", warmCurrentPage);
       navigator.serviceWorker.removeEventListener(
         "controllerchange",
-        warmCurrentPage
+        onControllerChange
       );
     };
   }, []);

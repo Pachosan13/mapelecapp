@@ -3,7 +3,7 @@ import { getPanamaDayRange } from "@/lib/dates/panama";
 import {
   buildBuildingScope,
   isBombasTemplate,
-  itemAppliesToBuilding,
+  itemAplicaPorInventario,
 } from "@/lib/bombas/checklistFilter";
 import {
   esItemTipoInspeccion,
@@ -403,11 +403,14 @@ export async function getServiceReportData(params: {
   const templateItemsByTemplateId = new Map<string, TemplateItem[]>();
   templateItems.forEach((item) => {
     if (!item.template_id) return;
-    // Filtra las secciones/unidades ausentes en el edificio (solo plantilla de bombas).
+    // Filtra las secciones/unidades ausentes en el edificio: filtro completo en la
+    // plantilla de bombas; en las demás solo la excepción de IPM eléctricas (24-sep).
     if (
-      applyBombasFilter &&
-      bombasTemplateIds.has(item.template_id) &&
-      !itemAppliesToBuilding(item.label ?? "", buildingScope)
+      !itemAplicaPorInventario(
+        item.label ?? "",
+        buildingScope,
+        applyBombasFilter && bombasTemplateIds.has(item.template_id)
+      )
     ) {
       return;
     }

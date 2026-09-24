@@ -8,7 +8,7 @@ import { isRecorridoPorPisosItem } from "@/lib/reports/serviceReport";
 import {
   buildBuildingScope,
   isBombasTemplate,
-  itemAppliesToBuilding,
+  itemAplicaPorInventario,
 } from "@/lib/bombas/checklistFilter";
 import {
   esItemTipoInspeccion,
@@ -246,11 +246,9 @@ export default async function OpsVisitReportPage({
   const applyBuildingFilter =
     isBombasTemplate(templateMeta?.name, templateMeta?.category) &&
     buildingScope.systems.size > 0;
-  const itemsPorEdificio = applyBuildingFilter
-    ? (allTemplateItems ?? []).filter((item) =>
-        itemAppliesToBuilding(String(item.label ?? ""), buildingScope)
-      )
-    : allTemplateItems ?? [];
+  const itemsPorEdificio = (allTemplateItems ?? []).filter((item) =>
+    itemAplicaPorInventario(String(item.label ?? ""), buildingScope, applyBuildingFilter)
+  );
 
   const { data: responses } = await supabase
     .from("visit_responses")

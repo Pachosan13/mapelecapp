@@ -261,6 +261,14 @@ export default async function TechTodayPage({
                     si el técnico ya la abrió antes online. */}
                 <a
                   href={`/tech/visits/${visit.id}`}
+                  // Orden del precalentado offline (ServiceWorkerRegister): primero lo de
+                  // HOY y lo que está en curso. La lista pone arriba las atrasadas, y con
+                  // 11 atrasadas el tope de 12 dejaba afuera las visitas del día (Edgar,
+                  // Viva Plaza, 24-sep-2026).
+                  data-prioridad={
+                    (visit.scheduled_for >= today ? 0 : 2) +
+                    (visit.status === "in_progress" ? 0 : 1)
+                  }
                   className="text-sm font-medium text-gray-700 hover:text-gray-900"
                 >
                   Abrir →
