@@ -14,6 +14,7 @@ import {
 } from "@/lib/fire/frecuencia";
 import { fetchAllRows } from "@/lib/db/fetchAllRows";
 import { formatChecklistValue } from "@/lib/formatters/checklistLabels";
+import { panamaDateOf } from "@/lib/reports/fecha";
 
 type TemplateItem = {
   id: string;
@@ -152,13 +153,6 @@ export const formatResponseValue = (
   return trimmed || "—";
 };
 
-const panamaDateOf = (iso: string): string =>
-  new Intl.DateTimeFormat("en-CA", {
-    timeZone: PANAMA_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(iso));
 
 export async function getServiceReportData(params: {
   buildingId?: string;
