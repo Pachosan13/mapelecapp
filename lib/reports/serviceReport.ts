@@ -403,6 +403,11 @@ export async function getServiceReportData(params: {
   const templateItemsByTemplateId = new Map<string, TemplateItem[]>();
   templateItems.forEach((item) => {
     if (!item.template_id) return;
+    // "Tipo de inspección" no va en el PDF del cliente (William, 25-sep-2026: *"lo de tipo
+    // de inspección sí sería bueno quitarlo"*). Ya se usó arriba para recortar por
+    // periodicidad; acá solo se saca de las filas. En el formulario del técnico sigue:
+    // es el selector que recorta los bloques.
+    if (esItemTipoInspeccion(item.label ?? "")) return;
     // Filtra las secciones/unidades ausentes en el edificio: filtro completo en la
     // plantilla de bombas; en las demás solo la excepción de IPM eléctricas (24-sep).
     if (
