@@ -745,6 +745,20 @@ export const itemAplicaPorInventario = (
   scope: BuildingScope,
   filtroCompleto: boolean
 ) =>
-  filtroCompleto
+  !itemRetirado(label) &&
+  (filtroCompleto
     ? itemAppliesToBuilding(label, scope)
-    : ipmAplicaAlEdificio(label, scope);
+    : ipmAplicaAlEdificio(label, scope));
+
+// Ítems RETIRADOS del formato: ya no se piden ni salen en el PDF, pero se quedan en la
+// plantilla porque tienen respuestas históricas (borrarlos arrastra `visit_responses` por
+// ON DELETE CASCADE).
+//
+// Bombas del foso del elevador, William 25-sep-2026: *"hay que eliminar todas las líneas de
+// voltaje y amperaje y sólo dejar una sola… ya que son dos datos por bomba solamente al ser
+// directo del tomacorriente"*. Son monofásicas: queda el ítem L1-L2 (renombrado a "Voltaje
+// (V)" / "Amperaje (A)" por la migración 20260925190000) y se retiran L2-L3 y L1-L3.
+export const itemRetirado = (label: string) =>
+  /^bombas sumergibles - foso elevador - bomba \d+ - (voltaje|amperaje) l(2-l3|1-l3)\b/.test(
+    norm(label)
+  );

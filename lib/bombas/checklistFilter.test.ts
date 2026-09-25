@@ -7,6 +7,7 @@ import {
   isPresurizacionTemplate,
   itemAppliesToBuilding,
   itemAplicaPorInventario,
+  itemRetirado,
   type EquipmentRow,
 } from "./checklistFilter.ts";
 
@@ -1117,3 +1118,52 @@ describe("IPM · Sistema de bombas eléctricas según inventario", () => {
     );
   });
 });
+
+// --- Foso del elevador: un solo voltaje y un solo amperaje (William, 25-sep) ---
+describe("bombas del foso del elevador (monofásicas, al tomacorriente)", () => {
+  const conFoso = buildBuildingScope([
+    { name: "Bomba Foso Elevador #1", system: "foso_elevador", kind: "bomba" },
+  ]);
+  const base = "Bombas sumergibles - Foso elevador - Bomba 1 - ";
+
+  it("se retiran L2-L3 y L1-L3 de voltaje y amperaje", () => {
+    for (const campo of ["Voltaje L2-L3 (V)", "Voltaje L1-L3 (V)", "Amperaje L2-L3 (A)", "Amperaje L1-L3 (A)"]) {
+      assert.equal(itemRetirado(base + campo), true, campo);
+      assert.equal(itemAplicaPorInventario(base + campo, conFoso, true), false, campo);
+      assert.equal(itemAplicaPorInventario(base + campo, conFoso, false), false, campo);
+    }
+  });
+
+  it("se quedan el voltaje y el amperaje únicos (antes y después del renombre) y el resto", () => {
+    for (const campo of ["Voltaje (V)", "Amperaje (A)", "Voltaje L1-L2 (V)", "Amperaje L1-L2 (A)", "Check valve", "Pruebas sensor de nivel"]) {
+      assert.equal(itemRetirado(base + campo), false, campo);
+    }
+    assert.equal(itemRetirado("Bombas sumergibles - Foso elevador - Bomba 2 - Voltaje L2-L3 (V)"), true);
+  });
+
+  it("no toca otras bombas trifásicas", () => {
+    assert.equal(itemRetirado("Bombas sumergibles - Sistema pluvial - Pluvial 1 - Bomba 1 - Voltaje L2-L3 (V)"), false);
+    assert.equal(itemRetirado("Bombas principales - Bomba 1 - Voltaje L2-L3 (V)"), false);
+  });
+});
+
+// --- ALEXA: 3 bombas de elevador en inventario (William, 25-sep: "me salen solo 2") ---
+describe("foso del elevador por unidad hasta 6", () => {
+  const alexa = buildBuildingScope([
+    { name: "Bomba de Elevador #1", system: "achique_elevador", kind: "bomba" },
+    { name: "Bomba de Elevador #2", system: "achique_elevador", kind: "bomba" },
+    { name: "Bomba de Elevador #3", system: "achique_elevador", kind: "bomba" },
+  ]);
+  const b = (n: number) => `Bombas sumergibles - Foso elevador - Bomba ${n} - Voltaje (V)`;
+
+  it("salen la 1, 2 y 3; no la 4", () => {
+    assert.equal(itemAplicaPorInventario(b(1), alexa, true), true);
+    assert.equal(itemAplicaPorInventario(b(3), alexa, true), true);
+    assert.equal(itemAplicaPorInventario(b(4), alexa, true), false);
+  });
+
+  it("el estado del foso sale una sola vez, sin número de bomba", () => {
+    assert.equal(itemAplicaPorInventario("Bombas sumergibles - Foso elevador - Estado del foso", alexa, true), true);
+  });
+});
+
