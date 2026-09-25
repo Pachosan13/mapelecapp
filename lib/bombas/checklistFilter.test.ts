@@ -1146,3 +1146,24 @@ describe("bombas del foso del elevador (monofásicas, al tomacorriente)", () => 
     assert.equal(itemRetirado("Bombas principales - Bomba 1 - Voltaje L2-L3 (V)"), false);
   });
 });
+
+// --- ALEXA: 3 bombas de elevador en inventario (William, 25-sep: "me salen solo 2") ---
+describe("foso del elevador por unidad hasta 6", () => {
+  const alexa = buildBuildingScope([
+    { name: "Bomba de Elevador #1", system: "achique_elevador", kind: "bomba" },
+    { name: "Bomba de Elevador #2", system: "achique_elevador", kind: "bomba" },
+    { name: "Bomba de Elevador #3", system: "achique_elevador", kind: "bomba" },
+  ]);
+  const b = (n: number) => `Bombas sumergibles - Foso elevador - Bomba ${n} - Voltaje (V)`;
+
+  it("salen la 1, 2 y 3; no la 4", () => {
+    assert.equal(itemAplicaPorInventario(b(1), alexa, true), true);
+    assert.equal(itemAplicaPorInventario(b(3), alexa, true), true);
+    assert.equal(itemAplicaPorInventario(b(4), alexa, true), false);
+  });
+
+  it("el estado del foso sale una sola vez, sin número de bomba", () => {
+    assert.equal(itemAplicaPorInventario("Bombas sumergibles - Foso elevador - Estado del foso", alexa, true), true);
+  });
+});
+
