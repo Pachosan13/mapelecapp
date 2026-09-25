@@ -14,6 +14,7 @@ import {
 } from "@/lib/fire/frecuencia";
 import { fetchAllRows } from "@/lib/db/fetchAllRows";
 import { formatChecklistValue } from "@/lib/formatters/checklistLabels";
+import { panamaDateOf } from "@/lib/reports/fecha";
 
 type TemplateItem = {
   id: string;
@@ -152,13 +153,6 @@ export const formatResponseValue = (
   return trimmed || "—";
 };
 
-const panamaDateOf = (iso: string): string =>
-  new Intl.DateTimeFormat("en-CA", {
-    timeZone: PANAMA_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(iso));
 
 export async function getServiceReportData(params: {
   buildingId?: string;
@@ -403,6 +397,11 @@ export async function getServiceReportData(params: {
   const templateItemsByTemplateId = new Map<string, TemplateItem[]>();
   templateItems.forEach((item) => {
     if (!item.template_id) return;
+    // "Tipo de inspección" no va en el PDF del cliente (William, 25-sep-2026: *"lo de tipo
+    // de inspección sí sería bueno quitarlo"*). Ya se usó arriba para recortar por
+    // periodicidad; acá solo se saca de las filas. En el formulario del técnico sigue:
+    // es el selector que recorta los bloques.
+    if (esItemTipoInspeccion(item.label ?? "")) return;
     // Filtra las secciones/unidades ausentes en el edificio: filtro completo en la
     // plantilla de bombas; en las demás solo la excepción de IPM eléctricas (24-sep).
     if (
