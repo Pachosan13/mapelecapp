@@ -7,6 +7,7 @@ import {
   isPresurizacionTemplate,
   itemAppliesToBuilding,
   itemAplicaPorInventario,
+  itemRetirado,
   type EquipmentRow,
 } from "./checklistFilter.ts";
 
@@ -1115,5 +1116,33 @@ describe("IPM · Sistema de bombas eléctricas según inventario", () => {
       itemAplicaPorInventario("Planta de Emergencia 1 - Marca", sinInventario, true),
       itemAppliesToBuilding("Planta de Emergencia 1 - Marca", sinInventario)
     );
+  });
+});
+
+// --- Foso del elevador: un solo voltaje y un solo amperaje (William, 25-sep) ---
+describe("bombas del foso del elevador (monofásicas, al tomacorriente)", () => {
+  const conFoso = buildBuildingScope([
+    { name: "Bomba Foso Elevador #1", system: "foso_elevador", kind: "bomba" },
+  ]);
+  const base = "Bombas sumergibles - Foso elevador - Bomba 1 - ";
+
+  it("se retiran L2-L3 y L1-L3 de voltaje y amperaje", () => {
+    for (const campo of ["Voltaje L2-L3 (V)", "Voltaje L1-L3 (V)", "Amperaje L2-L3 (A)", "Amperaje L1-L3 (A)"]) {
+      assert.equal(itemRetirado(base + campo), true, campo);
+      assert.equal(itemAplicaPorInventario(base + campo, conFoso, true), false, campo);
+      assert.equal(itemAplicaPorInventario(base + campo, conFoso, false), false, campo);
+    }
+  });
+
+  it("se quedan el voltaje y el amperaje únicos (antes y después del renombre) y el resto", () => {
+    for (const campo of ["Voltaje (V)", "Amperaje (A)", "Voltaje L1-L2 (V)", "Amperaje L1-L2 (A)", "Check valve", "Pruebas sensor de nivel"]) {
+      assert.equal(itemRetirado(base + campo), false, campo);
+    }
+    assert.equal(itemRetirado("Bombas sumergibles - Foso elevador - Bomba 2 - Voltaje L2-L3 (V)"), true);
+  });
+
+  it("no toca otras bombas trifásicas", () => {
+    assert.equal(itemRetirado("Bombas sumergibles - Sistema pluvial - Pluvial 1 - Bomba 1 - Voltaje L2-L3 (V)"), false);
+    assert.equal(itemRetirado("Bombas principales - Bomba 1 - Voltaje L2-L3 (V)"), false);
   });
 });
