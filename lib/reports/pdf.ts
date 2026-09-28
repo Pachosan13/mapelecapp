@@ -1,5 +1,6 @@
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb, RGB } from "pdf-lib";
 import { systemLabel } from "@/lib/equipment/systems";
+import { agruparFilas, valorConUnidad } from "@/lib/reports/filasPdf";
 
 /* ──────────────────────────────────────────────────────────
    SEMCO — Informe de Servicio Técnico
@@ -476,21 +477,14 @@ const PDF_GROUP_DISPLAY: Record<string, string> = {
 
 function groupedResults(c: Ctx, rows: PdfResponseValue[]) {
   if (!rows.length) return;
-  const groups: { name: string; rows: PdfResponseValue[] }[] = [];
-  for (const r of rows) {
-    const idx = r.label.indexOf(" - ");
-    const name = idx > 0 ? r.label.slice(0, idx).trim() : "General";
-    const cleanLabel = idx > 0 ? r.label.slice(idx + 3).trim() : r.label;
-    let g = groups.find((x) => x.name === name);
-    if (!g) {
-      g = { name, rows: [] };
-      groups.push(g);
-    }
-    g.rows.push({ ...r, label: cleanLabel });
-  }
-  for (const g of groups) {
+  // Bombas principales: una sección por bomba ("Bomba principal #N"), como las demás.
+  // Presiones con psi y caudal con gpm (William, 25-sep).
+  for (const g of agruparFilas(rows)) {
     groupHeading(c, PDF_GROUP_DISPLAY[g.name] ?? g.name);
-    resultsTable(c, g.rows);
+    resultsTable(
+      c,
+      g.rows.map((r) => ({ ...r, value: valorConUnidad(r) }))
+    );
     c.y -= 4;
   }
 }
