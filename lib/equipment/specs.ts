@@ -50,8 +50,8 @@ export function buildSpecs(formData: FormData, kind: string): Record<string, num
  *
  * - `origen` — de qué hoja de mantenimiento salió el equipo. Es lo que permite revertir una
  *   carga mal leída por lote.
- * - `combustible` / `combustible_fuente` — si la bomba contra incendio es diésel, y quién lo
- *   dijo. Es una clasificación del equipo, no una medida de su placa: no cambia porque alguien
+ * - `combustible` / `combustible_fuente` — si la bomba contra incendio es diésel (`diesel`) o
+ *   eléctrica (`electrico`, desde 29-sep-2026), y quién lo dijo. Es una clasificación del equipo, no una medida de su placa: no cambia porque alguien
  *   corrija los HP.
  *
  * 🪤 **Por qué existe esta lista** (9-sep-2026): `combustible` no estaba, y bastó con que

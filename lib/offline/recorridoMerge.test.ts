@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   emptyRow,
+  generarFilasPorDefecto,
   mergeRows,
   rowHasData,
   type RecorridoRowDraft,
@@ -95,5 +96,44 @@ describe("mergeRows", () => {
       merged.every((r, i) => !rowHasData(r, i)),
       true
     );
+  });
+});
+
+describe("filas por defecto de MAYOR a MENOR (William, 29-sep-2026)", () => {
+  it("14 pisos: arriba el 14, abajo el 1", () => {
+    const filas = generarFilasPorDefecto(14);
+    assert.equal(filas.length, 14);
+    assert.equal(filas[0].piso, "14");
+    assert.equal(filas[13].piso, "1");
+  });
+
+  it("el correlativo descendente NO es dato, ni el ascendente de antes", () => {
+    const desc = generarFilasPorDefecto(14);
+    assert.ok(desc.every((r, i) => !rowHasData(r, i, desc.length)));
+    const asc = rows(14, filaDefault);
+    assert.ok(asc.every((r, i) => !rowHasData(r, i, asc.length)));
+  });
+
+  it("un piso con nombre propio (PB, S1, E2) sí es dato", () => {
+    assert.equal(rowHasData({ ...emptyRow(), piso: "S1" }, 13, 14), true);
+    assert.equal(rowHasData({ ...emptyRow(), piso: "PB" }, 12, 14), true);
+  });
+
+  it("merge: filas por defecto locales NO tapan las llenas del server", () => {
+    const server = generarFilasPorDefecto(6).map((f, i) =>
+      i === 2 ? filaLlena(f.piso, "70") : f
+    );
+    const local = generarFilasPorDefecto(6);
+    const merged = mergeRows(server, local);
+    assert.equal(merged[2].presion_entrada, "70");
+    assert.equal(merged.filter((r, i) => rowHasData(r, i, merged.length)).length, 1);
+  });
+
+  it("merge: agregar S1 al final (7ª fila local) se conserva", () => {
+    const server = generarFilasPorDefecto(6);
+    const local = [...server, { ...emptyRow(), piso: "S1", presion_entrada: "80" }];
+    const merged = mergeRows(server, local);
+    assert.equal(merged.length, 7);
+    assert.equal(merged[6].piso, "S1");
   });
 });

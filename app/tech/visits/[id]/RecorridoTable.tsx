@@ -5,6 +5,7 @@
  import { readSnapshot, saveSnapshot } from "@/lib/offline/recorridoSnapshot";
  import {
    emptyRow,
+   generarFilasPorDefecto,
    mergeRows,
    type RecorridoRowDraft,
  } from "@/lib/offline/recorridoMerge";
@@ -50,11 +51,8 @@
 
  const DEFAULT_FLOOR_COUNT = 70;
 
- const generateDefaultRows = (count: number): RecorridoRowDraft[] =>
-   Array.from({ length: count }, (_, i) => ({
-     ...emptyRow(),
-     piso: String(i + 1),
-   }));
+ // De mayor a menor (como se recorre el edificio): ver `generarFilasPorDefecto`.
+ const generateDefaultRows = generarFilasPorDefecto;
 
  const parseInitialRows = (rawValue?: string | null): RecorridoRowDraft[] => {
    if (!rawValue) return generateDefaultRows(DEFAULT_FLOOR_COUNT);
@@ -96,6 +94,11 @@
    const [floorCount, setFloorCount] = useState<string>(String(DEFAULT_FLOOR_COUNT));
    // Solo persistimos tras una edición REAL del usuario (no en el montaje/hidratación).
    const touched = useRef(false);
+   // Tras "+ Agregar fila" la fila nueva queda al FINAL de una tabla con scroll propio:
+   // sin esto no se veía y parecía que el botón no hacía nada (William, 29-sep-2026,
+   // intentando agregar S1 debajo de PB). Se lleva a la vista y se enfoca su "Piso".
+   const tbodyRef = useRef<HTMLTableSectionElement>(null);
+   const enfocarUltima = useRef(false);
 
    // Rehidratación a prueba de HTML viejo, ya montado. FUSIONA con lo que pintó el
    // server en vez de reemplazarlo: el service worker sirve la página cacheada al
@@ -204,8 +207,17 @@
 
    const addRow = () => {
      touched.current = true;
+     enfocarUltima.current = true;
      setRows((prev) => [...prev, emptyRow()]);
    };
+
+   useEffect(() => {
+     if (!enfocarUltima.current) return;
+     enfocarUltima.current = false;
+     const fila = tbodyRef.current?.lastElementChild as HTMLElement | null;
+     fila?.scrollIntoView({ block: "nearest" });
+     fila?.querySelector<HTMLInputElement>("input")?.focus({ preventScroll: true });
+   }, [rows.length]);
 
    const handleGenerateRows = () => {
      const count = parseInt(floorCount, 10);
@@ -272,7 +284,7 @@
                <th className="px-3 py-2 font-medium">Acciones</th>
              </tr>
            </thead>
-           <tbody>
+           <tbody ref={tbodyRef}>
              {rows.length === 0 ? (
                <tr className="border-t">
                  <td className="px-3 py-4 text-gray-500" colSpan={11}>
