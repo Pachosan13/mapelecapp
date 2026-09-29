@@ -95,6 +95,21 @@ export const esBombaIncendioDiesel = (row: EquipmentRow): boolean => {
   );
 };
 
+// ¿Es una bomba contra incendio ELÉCTRICA confirmada? Espejo de `esBombaIncendioDiesel`:
+// solo cuenta con marca positiva (`specs.combustible = "electrico"`), nunca por ausencia de
+// la marca de diésel. Nace del caso Luna (29-sep-2026): William, con captura, mostró la
+// sección "IPM · Sistema de bombas diésel" saliendo en un edificio de bomba eléctrica.
+export const esBombaIncendioElectrica = (row: EquipmentRow): boolean => {
+  if (!isFireSystem(row.system)) return false;
+  if (classifyEquipment(row) !== "bomba") return false;
+  const specs = row.specs;
+  return (
+    typeof specs === "object" &&
+    specs !== null &&
+    norm(String((specs as { combustible?: unknown }).combustible ?? "")) === "electrico"
+  );
+};
+
 export type EquipmentClass =
   | "panel"
   | "jockey"
@@ -327,6 +342,10 @@ export type BuildingScope = {
   // bloque "IPM · Sistema de bombas eléctricas" del formato de RED HÚMEDA — ver
   // ipmAplicaAlEdificio. Como `dieselFireCount`, SOBREVIVE a la cuarentena.
   soloIncendioDiesel: boolean;
+  // Espejo: TODAS las bombas contra incendio del edificio (sin jockeys) están marcadas
+  // eléctricas. Esconde el bloque "IPM · Sistema de bombas diésel". También sobrevive a la
+  // cuarentena.
+  soloIncendioElectrico: boolean;
   // Ventiladores de presurización de escaleras registrados en el edificio.
   // 0 significa "no sabemos", NO "no tiene" — ver la regla en itemAppliesToBuilding.
   fanCount: number;
@@ -357,6 +376,7 @@ export const EMPTY_SCOPE: BuildingScope = {
   hasGenerator: false,
   generatorCount: 0,
   soloIncendioDiesel: false,
+  soloIncendioElectrico: false,
   fanCount: 0,
 };
 
@@ -392,9 +412,11 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
   );
   const soloIncendioDiesel =
     bombasIncendio.length > 0 && bombasIncendio.every(esBombaIncendioDiesel);
+  const soloIncendioElectrico =
+    bombasIncendio.length > 0 && bombasIncendio.every(esBombaIncendioElectrica);
 
   if (rows.some(equipoSinVerificar)) {
-    return { ...EMPTY_SCOPE, dieselFireCount, soloIncendioDiesel };
+    return { ...EMPTY_SCOPE, dieselFireCount, soloIncendioDiesel, soloIncendioElectrico };
   }
 
   const systems = new Set<string>();
@@ -516,6 +538,7 @@ export const buildBuildingScope = (rows: EquipmentRow[]): BuildingScope => {
     hasGenerator,
     generatorCount,
     soloIncendioDiesel,
+    soloIncendioElectrico,
     fanCount,
   };
 };
@@ -724,14 +747,19 @@ export const itemAppliesToBuilding = (label: string, scope: BuildingScope) => {
 // PLAZA: *"esta no va"* señalando "IPM · Sistema de bombas eléctricas" en un edificio
 // cuya bomba contra incendio es diésel.
 //
-// Solo se esconde el bloque ELÉCTRICO y solo con evidencia positiva: todas las bombas
-// contra incendio del edificio marcadas diésel. El bloque diésel NUNCA se esconde: la
-// lista de diésel la dictó William y no está completa (Gran Plaza llegó después, 23-sep);
-// esconderlo por ausencia de marca borraría una sección que el edificio sí tiene.
+// Se esconde el bloque ELÉCTRICO solo con evidencia positiva: todas las bombas contra
+// incendio del edificio marcadas diésel. El bloque DIÉSEL se esconde con el mismo criterio
+// en espejo (29-sep-2026, caso Luna): todas marcadas eléctricas (`combustible=electrico`).
+// Nunca se esconde por AUSENCIA de marca: la lista de diésel la dictó William y no está
+// completa (Gran Plaza llegó después, 23-sep); esconderlo así borraría una sección que el
+// edificio sí tiene.
 export const ipmAplicaAlEdificio = (label: string, scope: BuildingScope) => {
   const grupo = norm(groupOf(label));
   if (/^ipm\s*·\s*sistema de bombas electricas$/.test(grupo)) {
     return !scope.soloIncendioDiesel;
+  }
+  if (/^ipm\s*·\s*sistema de bombas diesel$/.test(grupo)) {
+    return !scope.soloIncendioElectrico;
   }
   return true;
 };

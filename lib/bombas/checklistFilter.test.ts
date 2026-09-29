@@ -1119,6 +1119,76 @@ describe("IPM · Sistema de bombas eléctricas según inventario", () => {
   });
 });
 
+// --- IPM diésel en edificios de bomba eléctrica (William, 29-sep, captura en LUNA) ---
+describe("IPM · Sistema de bombas diésel según inventario", () => {
+  const electricaMarcada = { combustible: "electrico" };
+  const dieselMarcada = { combustible: "diesel" };
+  const luna = buildBuildingScope([
+    { name: "Bomba Contra Incendios", system: "contra_incendios", kind: "bomba", specs: electricaMarcada },
+    { name: "Bomba Jockey", system: "contra_incendios", kind: "bomba" },
+    { name: "Panel de control Bomba Contra Incendios", system: "contra_incendios", kind: "panel_control" },
+  ]);
+  const sinMarca = buildBuildingScope([
+    { name: "Bomba Contra Incendios", system: "contra_incendios", kind: "bomba" },
+  ]);
+  const mixta = buildBuildingScope([
+    { name: "Bomba Contra Incendios #1", system: "contra_incendios", kind: "bomba", specs: electricaMarcada },
+    { name: "Bomba Contra Incendios #2", system: "contra_incendios", kind: "bomba", specs: dieselMarcada },
+  ]);
+  const parcial = buildBuildingScope([
+    { name: "Bomba Contra Incendios #1", system: "contra_incendios", kind: "bomba", specs: electricaMarcada },
+    { name: "Bomba Contra Incendios #2", system: "contra_incendios", kind: "bomba" },
+  ]);
+  const diesel = buildBuildingScope([
+    { name: "Bomba Contra Incendios", system: "contra_incendios", kind: "bomba", specs: dieselMarcada },
+  ]);
+  const elec = "IPM · Sistema de bombas eléctricas - Voltaje L1-L2";
+  const dies = "IPM · Sistema de bombas diésel - Nivel de aceite";
+
+  it("bomba principal marcada eléctrica (la jockey no cuenta): se esconde el diésel", () => {
+    assert.equal(luna.soloIncendioElectrico, true);
+    assert.equal(itemAplicaPorInventario(dies, luna, false), false);
+    assert.equal(itemAplicaPorInventario(elec, luna, false), true);
+  });
+
+  it("sin marca positiva NO se esconde el diésel (la lista de diésel está incompleta)", () => {
+    assert.equal(sinMarca.soloIncendioElectrico, false);
+    assert.equal(itemAplicaPorInventario(dies, sinMarca, false), true);
+    assert.equal(itemAplicaPorInventario(dies, buildBuildingScope([]), false), true);
+  });
+
+  it("mixta o con una bomba sin marcar: salen las dos secciones", () => {
+    for (const scope of [mixta, parcial]) {
+      assert.equal(scope.soloIncendioElectrico, false);
+      assert.equal(itemAplicaPorInventario(dies, scope, false), true);
+    }
+    assert.equal(itemAplicaPorInventario(elec, mixta, false), true);
+  });
+
+  it("el edificio diésel sigue como antes: esconde eléctricas, conserva diésel", () => {
+    assert.equal(diesel.soloIncendioElectrico, false);
+    assert.equal(itemAplicaPorInventario(dies, diesel, false), true);
+    assert.equal(itemAplicaPorInventario(elec, diesel, false), false);
+  });
+
+  it("la marca eléctrica sobrevive a la cuarentena de inventario sin verificar", () => {
+    const enCuarentena = buildBuildingScope([
+      { name: "Bomba Contra Incendios", system: "contra_incendios", kind: "bomba", specs: { ...electricaMarcada, verificado: false } },
+    ]);
+    assert.equal(enCuarentena.soloIncendioElectrico, true);
+    assert.equal(itemAplicaPorInventario(dies, enCuarentena, false), false);
+  });
+
+  it("acepta la grafía con tilde y el resto del formato no se toca", () => {
+    const conTilde = buildBuildingScope([
+      { name: "Bomba Contra Incendios", system: "contra_incendios", kind: "bomba", specs: { combustible: "Eléctrico" } },
+    ]);
+    assert.equal(conTilde.soloIncendioElectrico, true);
+    assert.equal(itemAplicaPorInventario("Rociadores · Mensual - Válvulas", luna, false), true);
+    assert.equal(itemAplicaPorInventario("IPM · Bomba - Marca", luna, false), true);
+  });
+});
+
 // --- Foso del elevador: un solo voltaje y un solo amperaje (William, 25-sep) ---
 describe("bombas del foso del elevador (monofásicas, al tomacorriente)", () => {
   const conFoso = buildBuildingScope([

@@ -33,11 +33,29 @@ export const emptyRow = (): RecorridoRowDraft => ({
 });
 
 /**
+ * Filas que genera la tabla sola: de MAYOR a MENOR, como se recorre el edificio
+ * (William, 29-sep-2026: «empezamos 14 arriba y vamos bajando»). Hasta esa fecha
+ * salían 1→N, así que `rowHasData` reconoce los DOS órdenes como relleno.
+ */
+export const generarFilasPorDefecto = (count: number): RecorridoRowDraft[] =>
+  Array.from({ length: count }, (_, i) => ({
+    ...emptyRow(),
+    piso: String(count - i),
+  }));
+
+/**
  * ¿Esta fila tiene algo puesto por el técnico? El piso cuenta como dato cuando
  * NO es el correlativo que genera la tabla sola: en PH MATISSE el técnico los
  * numeró al revés (53, 52, 51…) y eso es información suya, no relleno.
+ *
+ * `total` (largo de la tabla) permite reconocer también el correlativo
+ * descendente actual. Sin él, solo se reconoce el ascendente de antes.
  */
-export function rowHasData(row: RecorridoRowDraft, index: number): boolean {
+export function rowHasData(
+  row: RecorridoRowDraft,
+  index: number,
+  total?: number
+): boolean {
   return (
     row.presion_entrada.trim() !== "" ||
     row.presion_salida.trim() !== "" ||
@@ -48,7 +66,9 @@ export function rowHasData(row: RecorridoRowDraft, index: number): boolean {
     row.estado_manometro ||
     row.gabinetes_manguera ||
     row.extintores ||
-    (row.piso.trim() !== "" && row.piso.trim() !== String(index + 1))
+    (row.piso.trim() !== "" &&
+      row.piso.trim() !== String(index + 1) &&
+      (total === undefined || row.piso.trim() !== String(total - index)))
   );
 }
 
@@ -68,8 +88,8 @@ export function mergeRows(
   return Array.from({ length: total }, (_, i) => {
     const filaLocal = local[i];
     const filaServer = server[i];
-    if (filaLocal && rowHasData(filaLocal, i)) return filaLocal;
-    if (filaServer && rowHasData(filaServer, i)) return filaServer;
+    if (filaLocal && rowHasData(filaLocal, i, local.length)) return filaLocal;
+    if (filaServer && rowHasData(filaServer, i, server.length)) return filaServer;
     return filaLocal ?? filaServer ?? { ...emptyRow(), piso: String(i + 1) };
   });
 }
