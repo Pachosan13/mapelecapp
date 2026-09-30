@@ -41,7 +41,7 @@ export interface CurrentUser {
   id: string;
   email?: string;
   full_name?: string | null;
-  role: "tech" | "ops_manager" | "director" | null;
+  role: "tech" | "ops_manager" | "director" | "facturacion" | null;
   home_crew_id?: string | null;
 }
 

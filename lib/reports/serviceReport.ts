@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getPanamaDayRange } from "@/lib/dates/panama";
 import {
   buildBuildingScope,
@@ -159,12 +160,22 @@ export async function getServiceReportData(params: {
   reportDate?: string;
   visitId?: string;
   userId?: string | null;
+  /**
+   * Modo de SOLO LECTURA (rol `facturacion`). Lee con el cliente de administración y NO
+   * escribe nada: en el modo normal, si el edificio no tiene todavía un `service_reports`
+   * para esa fecha, esta función lo INSERTA. Un visor no puede disparar eso. Sin esa fila el
+   * PDF sale igual, solo que sin referencia ni resumen del gerente (`report` = null).
+   * El llamador debe haber verificado el rol y que la visita esté completada.
+   */
+  lecturaSolo?: boolean;
 }): Promise<{ data: ServiceReportData | null; error: string | null }> {
-  const { visitId, userId } = params;
+  const { visitId, userId, lecturaSolo } = params;
   let buildingId = params.buildingId ?? "";
   let reportDate = params.reportDate ?? "";
 
-  const supabase = await createClient();
+  const supabase = lecturaSolo
+    ? (createAdminClient() as unknown as Awaited<ReturnType<typeof createClient>>)
+    : await createClient();
 
   // Per-visit mode: 1 visita = 1 formulario = 1 informe. Derivamos edificio + fecha
   // de la propia visita y luego filtramos a esa sola visita.
@@ -221,7 +232,7 @@ export async function getServiceReportData(params: {
 
   let report = existingReport as ServiceReportRow | null;
 
-  if (!report) {
+  if (!report && !lecturaSolo) {
     const { data: insertedReport } = await supabase
       .from("service_reports")
       .insert({

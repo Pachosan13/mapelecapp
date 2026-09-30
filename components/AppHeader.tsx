@@ -9,6 +9,7 @@ const roleLabelMap: Record<string, string> = {
   tech: "Tech",
   ops_manager: "Ops Manager",
   director: "Director",
+  facturacion: "Facturación",
 };
 
 export default async function AppHeader() {
@@ -31,14 +32,18 @@ export default async function AppHeader() {
             { href: "/ops/dashboard", label: "Hoy", activeMatch: "exact" },
             { href: "/ops/buildings", label: "Edificios", activeMatch: "exact" },
             { href: "/ops/hallazgos", label: "Hallazgos", activeMatch: "exact" },
+            { href: "/fact", label: "Facturación", activeMatch: "exact" },
           ]
         : role === "director"
           ? [
               { href: "/dir/overview", label: "Overview", activeMatch: "exact" },
               { href: "/ops/buildings", label: "Buildings", activeMatch: "exact" },
               { href: "/ops/hallazgos", label: "Hallazgos", activeMatch: "exact" },
+              { href: "/fact", label: "Facturación", activeMatch: "exact" },
             ]
-          : [];
+          : role === "facturacion"
+            ? [{ href: "/fact", label: "Facturación", activeMatch: "exact" }]
+            : [];
 
   return (
     <header className="border-b bg-white">
@@ -53,6 +58,7 @@ export default async function AppHeader() {
           <UserMenu
             displayName={displayName}
             roleLabel={roleLabel}
+            soloLectura={role === "facturacion"}
             logoutAction={logout}
           />
         </div>

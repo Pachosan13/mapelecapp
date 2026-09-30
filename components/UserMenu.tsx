@@ -6,12 +6,15 @@
  type UserMenuProps = {
    displayName: string;
    roleLabel: string;
+   /** Rol de solo lectura (facturación): sin los enlaces de gestión de /ops. */
+   soloLectura?: boolean;
    logoutAction: () => void;
  };
 
  export default function UserMenu({
    displayName,
    roleLabel,
+   soloLectura = false,
    logoutAction,
  }: UserMenuProps) {
    const [open, setOpen] = useState(false);
@@ -72,6 +75,8 @@
            >
              Perfil
            </Link>
+          {!soloLectura ? (
+            <>
           <Link
             href="/ops/staff"
              className="block rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900"
@@ -93,6 +98,8 @@
            >
              Formularios
            </Link>
+            </>
+          ) : null}
            <Link
              href="/debug/me#preferencias"
              className="block rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900"

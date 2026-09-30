@@ -620,7 +620,7 @@ export type Database = {
       emergency_status: "open" | "dispatched" | "resolved"
       frequency: "monthly" | "bimonthly"
       obs_status: "open" | "quoted" | "approved" | "in_progress" | "closed"
-      role: "tech" | "ops_manager" | "director"
+      role: "tech" | "ops_manager" | "director" | "facturacion"
       visit_status: "planned" | "in_progress" | "completed" | "missed"
     }
     CompositeTypes: {
@@ -753,7 +753,7 @@ export const Constants = {
       emergency_status: ["open", "dispatched", "resolved"],
       frequency: ["monthly", "bimonthly"],
       obs_status: ["open", "quoted", "approved", "in_progress", "closed"],
-      role: ["tech", "ops_manager", "director"],
+      role: ["tech", "ops_manager", "director", "facturacion"],
       visit_status: ["planned", "in_progress", "completed", "missed"],
     },
   },
