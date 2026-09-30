@@ -182,21 +182,21 @@ export default async function FacturacionPage({
       <div className="space-y-6">
         {grupos.map((g) => (
           <section key={g.dia} aria-label={diaLargo(g.dia)}>
-            <h2 className="mb-2 text-sm font-semibold capitalize text-gray-800">
+            <h2 className="mb-2 text-sm font-semibold text-gray-800 first-letter:uppercase">
               {diaLargo(g.dia)}{" "}
               <span className="font-normal text-gray-500">
                 · {g.filas.length} {g.filas.length === 1 ? "informe" : "informes"}
               </span>
             </h2>
             <div className="overflow-hidden rounded border bg-white">
-              <table className="w-full text-left text-sm">
+              <table className="w-full table-fixed text-left text-sm">
                 <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                   <tr>
-                    <th className="px-4 py-2 font-medium">Edificio</th>
-                    <th className="px-4 py-2 font-medium">Formulario</th>
-                    <th className="px-4 py-2 font-medium">Responsable</th>
-                    <th className="px-4 py-2 font-medium">Hora</th>
-                    <th className="px-4 py-2 font-medium">Informe</th>
+                    <th className="w-[24%] px-4 py-2 font-medium">Edificio</th>
+                    <th className="w-[25%] px-4 py-2 font-medium">Formulario</th>
+                    <th className="w-[14%] px-4 py-2 font-medium">Responsable</th>
+                    <th className="w-[9%] px-4 py-2 font-medium">Hora</th>
+                    <th className="w-[28%] px-4 py-2 font-medium">Informe</th>
                   </tr>
                 </thead>
                 <tbody>
