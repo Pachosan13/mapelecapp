@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import path from "path";
 import { readFile } from "fs/promises";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { decidirAccesoInforme, visitaEsFacturable } from "@/lib/reports/acceso";
 import {
   formatResponseValue,
   getServiceReportData,
@@ -87,14 +89,40 @@ export async function GET(request: Request) {
       .maybeSingle();
 
     const role = profileError ? null : profile?.role ?? null;
-    if (role !== "ops_manager" && role !== "director") {
-      return new Response("Forbidden", { status: 403 });
+    const acceso = decidirAccesoInforme({ role, visitId });
+    if (!acceso.ok) {
+      return new Response(acceso.motivo, { status: acceso.status });
     }
+
+    // Rol `facturacion` (solo lectura): el informe existe solo para visitas COMPLETADAS. Se
+    // comprueba aquí, con el cliente de administración, antes de leer o generar nada.
+    if (acceso.requiereVisitaCompletada) {
+      const { data: visita } = await createAdminClient()
+        .from("visits")
+        .select("status")
+        .eq("id", visitId)
+        .maybeSingle();
+      if (!visita) return new Response("Not found", { status: 404 });
+      if (!visitaEsFacturable(visita.status)) {
+        return new Response(
+          "Este informe todavía no está disponible: la visita no está completada.",
+          { status: 403 }
+        );
+      }
+    }
+
+    // Quién lee los datos del informe: los gerentes y el director, con sus propios permisos;
+    // facturación, con el cliente de administración (no tiene políticas de lectura) y sin
+    // escribir nada (`lecturaSolo`).
+    const db = acceso.soloLectura
+      ? (createAdminClient() as unknown as typeof supabase)
+      : supabase;
+    const dbPublic = db.schema("public");
 
     const { data, error } = await getServiceReportData(
       visitId
-        ? { visitId, userId: user.id }
-        : { buildingId, reportDate, userId: user.id }
+        ? { visitId, userId: user.id, lecturaSolo: acceso.soloLectura }
+        : { buildingId, reportDate, userId: user.id, lecturaSolo: acceso.soloLectura }
     );
 
     if (error || !data) {
@@ -109,7 +137,7 @@ export async function GET(request: Request) {
     const effReportDate = data.report_date;
 
     // ── Supplemental: building meta + crew per visit ──
-    const { data: buildingMeta } = await supabaseDb
+    const { data: buildingMeta } = await dbPublic
       .from("buildings")
       .select("systems,address")
       .eq("id", effBuildingId)
@@ -121,7 +149,7 @@ export async function GET(request: Request) {
 
     const crewByVisitId = new Map<string, string>();
     if (allVisitIds.length > 0) {
-      const { data: visitCrews } = await supabaseDb
+      const { data: visitCrews } = await dbPublic
         .from("visits")
         .select("id,crew:crews(name)")
         .in("id", allVisitIds);
@@ -148,7 +176,7 @@ export async function GET(request: Request) {
       signerRole: string | null;
     }> = [];
     if (allVisitIds.length > 0) {
-      const { data: mediaRows } = await supabase
+      const { data: mediaRows } = await db
         .from("media")
         .select("visit_id,storage_path,mime_type,size_bytes,kind,system,label,signer_role")
         .eq("building_id", effBuildingId)
@@ -187,7 +215,7 @@ export async function GET(request: Request) {
       const isPng = m === "image/png";
       const isJpeg = m === "image/jpeg" || m === "image/jpg";
       if (!isPng && !isJpeg) return null;
-      const { data: blob, error: dErr } = await supabase.storage
+      const { data: blob, error: dErr } = await db.storage
         .from("media")
         .download(storagePath);
       if (dErr || !blob) return null;

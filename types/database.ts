@@ -6,7 +6,7 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
-export type Role = "tech" | "ops_manager" | "director";
+export type Role = "tech" | "ops_manager" | "director" | "facturacion";
 export type Category = "pump" | "fire";
 export type Frequency = "monthly" | "bimonthly";
 export type VisitStatus = "planned" | "in_progress" | "completed";

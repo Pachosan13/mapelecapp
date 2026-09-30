@@ -13,6 +13,7 @@ const roleOptions: Array<{ value: Role; label: string }> = [
   { value: "tech", label: "Tech" },
   { value: "ops_manager", label: "Ops Manager" },
   { value: "director", label: "Director" },
+  { value: "facturacion", label: "Facturación (solo lectura)" },
 ];
 
 async function updateStaffProfile(formData: FormData) {

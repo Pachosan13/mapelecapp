@@ -13,6 +13,8 @@ export default async function Home() {
     redirect("/ops/dashboard");
   } else if (user.role === "director") {
     redirect("/dir/overview");
+  } else if (user.role === "facturacion") {
+    redirect("/fact");
   } else {
     // Default to tech dashboard
     redirect("/tech/today");
