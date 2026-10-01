@@ -40,6 +40,7 @@ export default async function DirectorDashboardPage() {
         .select(
           "id,status,scheduled_for,completed_at,updated_at,building_id,assigned_crew_id,template_id,building:buildings(id,name),crew:crews(id,name,category),template:visit_templates(id,name)"
         )
+        .neq("status", "cancelled")
         .order("scheduled_for", { ascending: false }),
       supabase.from("buildings").select("id,name,systems,address"),
       supabase.from("crews").select("id,name,category"),

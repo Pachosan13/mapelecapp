@@ -47,6 +47,7 @@ export default async function OpsDailyBoardPage({
         "id,status,scheduled_for,assigned_crew_id,assigned_tech_user_id,building_id,template_id,building:buildings(id,name),template:visit_templates(id,name)"
       )
       .eq("scheduled_for", selectedDate)
+      .neq("status", "cancelled")
       .order("scheduled_for", { ascending: true }),
   ]);
 

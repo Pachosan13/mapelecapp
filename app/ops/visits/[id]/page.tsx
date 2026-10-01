@@ -6,6 +6,7 @@ import { getCrewsWithDisplay } from "@/lib/crews/withMembers";
 import { formatAssignmentLabel } from "@/lib/formatters/assignmentLabel";
 import { formatCrewLabel } from "@/lib/formatters/crewLabel";
 import ReassignCrewForm from "./ReassignCrewForm";
+import CancelVisitButton from "../CancelVisitButton";
 import type { Database } from "@/lib/database.types";
 import { fetchAllRows } from "@/lib/db/fetchAllRows";
 
@@ -32,6 +33,8 @@ type VisitWithRefs = Pick<
   | "template_id"
   | "scheduled_for"
   | "status"
+  | "cancel_reason"
+  | "cancelled_at"
   | "assigned_tech_user_id"
   | "assigned_crew_id"
 > & {
@@ -105,7 +108,7 @@ export default async function OpsVisitDetailPage({
   const { data: visit, error: visitError } = await supabase
     .from("visits")
     .select(
-      "id,building_id,template_id,scheduled_for,status,assigned_tech_user_id,assigned_crew_id,building:buildings(id,name),template:visit_templates(id,name)"
+      "id,building_id,template_id,scheduled_for,status,cancel_reason,cancelled_at,assigned_tech_user_id,assigned_crew_id,building:buildings(id,name),template:visit_templates(id,name)"
     )
     .eq("id", params.id)
     .maybeSingle<VisitWithRefs>();
@@ -330,7 +333,17 @@ export default async function OpsVisitDetailPage({
         </div>
       </div>
 
-      {visit.status === "completed" ? null : (
+      {visit.status === "cancelled" ? (
+        <div
+          data-testid="visita-cancelada"
+          className="mb-6 rounded border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+        >
+          <p className="font-semibold">Esta visita fue cancelada.</p>
+          {visit.cancel_reason ? <p className="mt-1">Motivo: {visit.cancel_reason}</p> : null}
+        </div>
+      ) : null}
+
+      {visit.status === "completed" || visit.status === "cancelled" ? null : (
         <ReassignCrewForm
           visitId={visit.id}
           currentCrewId={visit.assigned_crew_id}
@@ -340,6 +353,17 @@ export default async function OpsVisitDetailPage({
           }))}
         />
       )}
+
+      {visit.status === "planned" || visit.status === "in_progress" ? (
+        <div className="mb-6 rounded border p-4">
+          <div className="text-sm font-semibold text-gray-700">Cancelar visita</div>
+          <p className="mt-1 mb-3 text-sm text-gray-500">
+            Para cuando la visita ya no se va a hacer (p. ej. sacaron al técnico a un correctivo).
+            Solo se puede si el técnico no ha cargado respuestas ni fotos.
+          </p>
+          <CancelVisitButton visitId={visit.id} irA={`/ops/visits?date=${visit.scheduled_for}`} />
+        </div>
+      ) : null}
 
       <div className="mb-6 rounded border p-4">
         <div className="mb-2 text-sm font-semibold text-gray-700">

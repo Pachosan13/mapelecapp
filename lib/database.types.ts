@@ -511,6 +511,9 @@ export type Database = {
           assigned_crew_id: string | null
           assigned_tech_user_id: string | null
           building_id: string | null
+          cancel_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
           completed_at: string | null
           completed_by: string | null
           created_at: string | null
@@ -526,6 +529,9 @@ export type Database = {
           assigned_crew_id?: string | null
           assigned_tech_user_id?: string | null
           building_id?: string | null
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           completed_at?: string | null
           completed_by?: string | null
           created_at?: string | null
@@ -541,6 +547,9 @@ export type Database = {
           assigned_crew_id?: string | null
           assigned_tech_user_id?: string | null
           building_id?: string | null
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           completed_at?: string | null
           completed_by?: string | null
           created_at?: string | null
@@ -621,7 +630,7 @@ export type Database = {
       frequency: "monthly" | "bimonthly"
       obs_status: "open" | "quoted" | "approved" | "in_progress" | "closed"
       role: "tech" | "ops_manager" | "director" | "facturacion"
-      visit_status: "planned" | "in_progress" | "completed" | "missed"
+      visit_status: "planned" | "in_progress" | "completed" | "missed" | "cancelled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -754,7 +763,7 @@ export const Constants = {
       frequency: ["monthly", "bimonthly"],
       obs_status: ["open", "quoted", "approved", "in_progress", "closed"],
       role: ["tech", "ops_manager", "director", "facturacion"],
-      visit_status: ["planned", "in_progress", "completed", "missed"],
+      visit_status: ["planned", "in_progress", "completed", "missed", "cancelled"],
     },
   },
 } as const

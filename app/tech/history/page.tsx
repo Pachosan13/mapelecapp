@@ -78,6 +78,7 @@ export default async function TechHistoryPage({
       { count: "exact" }
     )
     .eq("assigned_tech_user_id", userId)
+    .neq("status", "cancelled")
     .order("scheduled_for", { ascending: false })
     .order("created_at", { ascending: false });
 

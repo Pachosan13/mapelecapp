@@ -179,6 +179,11 @@ async function handleResponses(formData: FormData) {
     redirect("/unauthorized");
   }
 
+  // Visita cancelada por gerencia: no se guarda ni se completa (el teléfono pudo quedarse con la página vieja).
+  if (visit.status === "cancelled") {
+    redirect(`/tech/visits/${visitId}`);
+  }
+
   const { data: templateMeta } = visit.template_id
     ? await supabase
         .from("visit_templates")
@@ -594,6 +599,23 @@ export default async function TechVisitPage({
 
   if (!visit || !canAccessVisit) {
     redirect("/unauthorized");
+  }
+
+  if (visit.status === "cancelled") {
+    return (
+      <div className="min-h-screen p-8">
+        <div
+          data-testid="visita-cancelada"
+          className="rounded border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+        >
+          <p className="font-semibold">Esta visita fue cancelada.</p>
+          <p className="mt-1">Ya no hay nada que llenar aquí.</p>
+          <a href="/tech/today" className="mt-3 inline-block font-medium underline">
+            Volver a mis visitas
+          </a>
+        </div>
+      </div>
+    );
   }
 
   const { data: templateItemsData } = visit.template_id
