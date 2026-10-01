@@ -12,7 +12,7 @@ type SearchParams = {
   tech?: string;
 };
 
-const ALLOWED_STATUS_SET = new Set<string>(["planned", "in_progress", "completed"]);
+const ALLOWED_STATUS_SET = new Set<string>(["planned", "in_progress", "completed", "cancelled"]);
 
 function toVisitStatus(value: string | undefined | null): VisitStatus | null {
   if (!value) return null;

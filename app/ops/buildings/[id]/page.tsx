@@ -74,6 +74,7 @@ export default async function BuildingHistoryPage({
       "id,scheduled_for,assigned_tech_user_id,template_id,template:visit_templates(id,name)"
     )
     .eq("building_id", params.id)
+    .neq("status", "cancelled")
     .order("scheduled_for", { ascending: false });
 
   const visits: VisitRow[] = visitsData ?? [];

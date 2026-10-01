@@ -9,7 +9,7 @@ export type Json =
 export type Role = "tech" | "ops_manager" | "director" | "facturacion";
 export type Category = "pump" | "fire";
 export type Frequency = "monthly" | "bimonthly";
-export type VisitStatus = "planned" | "in_progress" | "completed";
+export type VisitStatus = "planned" | "in_progress" | "completed" | "cancelled";
 export type ObsStatus = "open" | "quoted" | "approved" | "in_progress" | "closed";
 export type EmergencyStatus = "open" | "dispatched" | "resolved";
 export type TemplateItemType = "checkbox" | "number" | "text" | "textarea";
@@ -307,6 +307,9 @@ export interface Database {
           started_at: string | null;
           completed_at: string | null;
           completed_by: string | null;
+          cancelled_at: string | null;
+          cancelled_by: string | null;
+          cancel_reason: string | null;
           created_at: string;
           updated_at: string | null;
         };
@@ -321,6 +324,9 @@ export interface Database {
           started_at?: string | null;
           completed_at?: string | null;
           completed_by?: string | null;
+          cancelled_at?: string | null;
+          cancelled_by?: string | null;
+          cancel_reason?: string | null;
           created_at?: string;
           updated_at?: string | null;
         };
@@ -335,6 +341,9 @@ export interface Database {
           started_at?: string | null;
           completed_at?: string | null;
           completed_by?: string | null;
+          cancelled_at?: string | null;
+          cancelled_by?: string | null;
+          cancel_reason?: string | null;
           created_at?: string;
           updated_at?: string | null;
         };

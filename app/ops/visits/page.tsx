@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import OpsVisitsToast from "./OpsVisitsToast";
+import CancelVisitButton from "./CancelVisitButton";
 import { formatDateOnlyLabel, shiftDateOnly } from "@/lib/dates/dateOnly";
 import { getCrewsWithDisplay } from "@/lib/crews/withMembers";
 import { formatAssignmentLabel } from "@/lib/formatters/assignmentLabel";
@@ -78,6 +79,8 @@ export default async function OpsVisitsPage({
     .order("scheduled_for", { ascending: true })
     .limit(100);
   visitsQuery.eq("scheduled_for", selectedDate);
+  // Las canceladas no son trabajo pendiente: quedan en el historial del edificio, no en la agenda.
+  visitsQuery.neq("status", "cancelled");
 
   if (selectedTech) {
     visitsQuery.eq("assigned_tech_user_id", selectedTech);
@@ -312,16 +315,27 @@ export default async function OpsVisitsPage({
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      {visit.building ? (
+                      <div className="flex flex-col items-start gap-1">
+                        {visit.building ? (
+                          <Link
+                            href={`/ops/buildings/${visit.building.id}`}
+                            className="text-blue-600 hover:underline"
+                          >
+                            View building history →
+                          </Link>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
                         <Link
-                          href={`/ops/buildings/${visit.building.id}`}
+                          href={`/ops/visits/${visit.id}`}
                           className="text-blue-600 hover:underline"
                         >
-                          View building history →
+                          Abrir visita →
                         </Link>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
+                        {visit.status === "planned" || visit.status === "in_progress" ? (
+                          <CancelVisitButton visitId={visit.id} compacto />
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 );
