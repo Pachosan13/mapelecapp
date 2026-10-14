@@ -1,9 +1,14 @@
 import Link from "next/link";
 import { getPanamaTodayDateString } from "@/lib/dates/panama";
-import { sumarDias } from "@/lib/fact/rango";
+import { esFechaValida, sumarDias } from "@/lib/fact/rango";
 import { listarCompletados } from "@/lib/fact/queries";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { contarPendientes, estadoPorVisita, type EnvioRegistrado } from "@/lib/envios/pendientes";
+import {
+  contarPendientes,
+  estadoPorVisita,
+  inicioDeLista,
+  type EnvioRegistrado,
+} from "@/lib/envios/pendientes";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +30,11 @@ const fechaHora = (iso: string) =>
     hour12: true,
   }).format(new Date(iso));
 
+const diaCorto = (dia: string) =>
+  new Intl.DateTimeFormat("es-PA", { timeZone: "UTC", day: "numeric", month: "short" }).format(
+    new Date(`${dia}T12:00:00Z`)
+  );
+
 const href = (p: { dias?: number; ver?: string }) => {
   const q = new URLSearchParams();
   if (p.dias) q.set("dias", String(p.dias));
@@ -41,7 +51,8 @@ export default async function EnviosPage({
   const dias = VENTANAS.find((d) => String(d) === searchParams?.dias) ?? 30;
   const verTodos = searchParams?.ver === "todos";
   const hoy = getPanamaTodayDateString();
-  const { filas, error } = await listarCompletados(sumarDias(hoy, -(dias - 1)), hoy);
+  const inicio = inicioDeLista(hoy, dias, process.env.ENVIOS_DESDE, esFechaValida, sumarDias);
+  const { filas, error } = await listarCompletados(inicio.desde, hoy);
 
   const admin = createAdminClient();
   const ids = filas.map((f) => f.id);
@@ -113,7 +124,11 @@ export default async function EnviosPage({
         </p>
       ) : (
         <p className="mb-4 text-sm text-gray-700" data-testid="envios-resumen">
-          <b>{pendientes}</b> de <b>{filas.length}</b> informes sin enviar en los últimos {dias} días.
+          <b>{pendientes}</b> de <b>{filas.length}</b> informes sin enviar{" "}
+          {inicio.recortado
+            ? `desde el ${diaCorto(inicio.desde)}, día en que se estrenó el envío`
+            : `en los últimos ${dias} días`}
+          .
         </p>
       )}
 

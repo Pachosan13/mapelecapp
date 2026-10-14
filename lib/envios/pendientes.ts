@@ -40,3 +40,22 @@ export function contarPendientes(
 ): number {
   return visitIds.filter((id) => (estados.get(id)?.estado ?? "sin_enviar") !== "enviado").length;
 }
+
+/**
+ * Desde qué día cuenta la lista de envíos. Pacho (14-oct-2026): «que arranque desde el día que
+ * se publique», para no mostrar como pendientes los informes que William ya mandó a mano antes
+ * de que existiera el botón. Ese día vive en la variable ENVIOS_DESDE (AAAA-MM-DD); si falta o
+ * no es una fecha válida, no hay corte. Las funciones de fecha llegan por parámetro para que este
+ * archivo siga sin imports y se pruebe solo, como el resto de lib/envios.
+ */
+export function inicioDeLista(
+  hoy: string,
+  dias: number,
+  envioDesde: string | null | undefined,
+  esFechaValida: (v: string | null | undefined) => v is string,
+  sumarDias: (fecha: string, dias: number) => string
+): { desde: string; recortado: boolean } {
+  const ventana = sumarDias(hoy, -(dias - 1));
+  if (!esFechaValida(envioDesde) || envioDesde <= ventana) return { desde: ventana, recortado: false };
+  return { desde: envioDesde > hoy ? hoy : envioDesde, recortado: true };
+}

@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { contarPendientes, estadoPorVisita } from "./pendientes.ts";
+import { contarPendientes, estadoPorVisita, inicioDeLista } from "./pendientes.ts";
+import { esFechaValida, sumarDias } from "../fact/rango.ts";
 
 test("sin envíos no hay estado (la página lo trata como sin_enviar)", () => {
   assert.equal(estadoPorVisita([]).size, 0);
@@ -44,4 +45,21 @@ test("contarPendientes: sin envío y con solo fallos cuentan; enviados no", () =
     { visit_id: "v2", status: "failed", created_at: "2026-10-14T10:00:00Z" },
   ]);
   assert.equal(contarPendientes(["v1", "v2", "v3"], m), 2);
+});
+
+test("inicioDeLista: sin ENVIOS_DESDE usa la ventana completa", () => {
+  assert.deepEqual(inicioDeLista("2026-10-14", 30, undefined, esFechaValida, sumarDias), { desde: "2026-09-15", recortado: false });
+  assert.deepEqual(inicioDeLista("2026-10-14", 30, "basura", esFechaValida, sumarDias), { desde: "2026-09-15", recortado: false });
+});
+
+test("inicioDeLista: el día de estreno recorta la ventana", () => {
+  assert.deepEqual(inicioDeLista("2026-10-20", 30, "2026-10-14", esFechaValida, sumarDias), { desde: "2026-10-14", recortado: true });
+});
+
+test("inicioDeLista: si el estreno es más viejo que la ventana, manda la ventana", () => {
+  assert.deepEqual(inicioDeLista("2026-12-31", 7, "2026-10-14", esFechaValida, sumarDias), { desde: "2026-12-25", recortado: false });
+});
+
+test("inicioDeLista: un estreno en el futuro no deja un rango al revés", () => {
+  assert.deepEqual(inicioDeLista("2026-10-14", 7, "2026-10-20", esFechaValida, sumarDias), { desde: "2026-10-14", recortado: true });
 });
