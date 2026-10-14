@@ -75,6 +75,7 @@ export interface Database {
           id: string;
           name: string;
           address: string | null;
+          client_emails: string[];
           systems: Category[] | null;
           lat: number | null;
           lng: number | null;
@@ -88,6 +89,7 @@ export interface Database {
           id?: string;
           name: string;
           address?: string | null;
+          client_emails?: string[];
           systems?: Category[] | null;
           lat?: number | null;
           lng?: number | null;
@@ -101,6 +103,7 @@ export interface Database {
           id?: string;
           name?: string;
           address?: string | null;
+          client_emails?: string[];
           systems?: Category[] | null;
           lat?: number | null;
           lng?: number | null;

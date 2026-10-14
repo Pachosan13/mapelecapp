@@ -17,6 +17,7 @@ export type Database = {
       buildings: {
         Row: {
           address: string | null
+          client_emails: string[]
           created_at: string | null
           created_by: string
           id: string
@@ -30,6 +31,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          client_emails?: string[]
           created_at?: string | null
           created_by: string
           id?: string
@@ -43,6 +45,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          client_emails?: string[]
           created_at?: string | null
           created_by?: string
           id?: string
@@ -335,6 +338,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      report_sends: {
+        Row: {
+          building_id: string
+          created_at: string
+          error: string | null
+          id: string
+          sent_by: string | null
+          status: string
+          subject: string
+          to_emails: string[]
+          visit_id: string
+        }
+        Insert: {
+          building_id: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          sent_by?: string | null
+          status: string
+          subject: string
+          to_emails: string[]
+          visit_id: string
+        }
+        Update: {
+          building_id?: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          sent_by?: string | null
+          status?: string
+          subject?: string
+          to_emails?: string[]
+          visit_id?: string
+        }
+        Relationships: []
       }
       service_reports: {
         Row: {

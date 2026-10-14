@@ -4,9 +4,20 @@ import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decidirCancelacion, limpiarMotivo } from "@/lib/visits/cancelar";
+import { generarInformePdf } from "@/lib/reports/generarInforme";
+import {
+  aplicarDesvioDePrueba,
+  asuntoInforme,
+  cuerpoInforme,
+  decidirEnvio,
+  leerCorreos,
+  limpiarNota,
+} from "@/lib/envios/correo";
+import { enviarCorreo, leerConfigCorreo } from "@/lib/envios/smtp";
 
 export type ReassignCrewResult = { error: string | null };
 export type CancelVisitResult = { error: string | null };
+export type EnviarInformeResult = { error: string | null; enviadoA?: string[] };
 
 /**
  * Reasigna una visita a otra cuadrilla.
@@ -147,4 +158,95 @@ export async function cancelVisit(
   revalidatePath("/tech/today");
   revalidatePath("/dir/overview");
   return { error: null };
+}
+
+/**
+ * Envía el informe PDF de una visita completada al cliente, por correo (pedido de William,
+ * 30-sep y 14-oct-2026: desde que pasaron a la tablet los informes de red húmeda se quedaban
+ * sin enviar). Lo dispara el gerente con un clic después de revisar el PDF.
+ *
+ * Adjunta el MISMO PDF que se descarga (`generarInformePdf`). Cada intento, salga o falle,
+ * queda en `report_sends`: es lo que dice "ya se le mandó" en la visita y en la lista de
+ * pendientes. Con `guardarEnEdificio`, los correos quedan como los del cliente de ese
+ * edificio para la próxima vez.
+ */
+export async function enviarInformeAlCliente(
+  visitId: string,
+  correosTexto: string,
+  nota: string,
+  guardarEnEdificio: boolean
+): Promise<EnviarInformeResult> {
+  const user = await getCurrentUser();
+  if (!user || (user.role !== "ops_manager" && user.role !== "director")) {
+    return { error: "No autorizado." };
+  }
+  if (!visitId) return { error: "Falta la visita." };
+
+  const config = leerConfigCorreo();
+  if (!config) {
+    return { error: "El envío de correos todavía no está configurado. Avísale a Pacho." };
+  }
+
+  const admin = createAdminClient();
+  const { data: visit, error: visitError } = await admin
+    .from("visits")
+    .select("id,status,building_id")
+    .eq("id", visitId)
+    .maybeSingle();
+  if (visitError) return { error: visitError.message };
+  if (!visit) return { error: "La visita ya no existe." };
+
+  const { validos, invalidos } = leerCorreos(correosTexto);
+  const decision = decidirEnvio({ status: visit.status, destinatarios: validos, invalidos });
+  if (!decision.ok) return { error: decision.motivo };
+
+  const informe = await generarInformePdf({ visitId, userId: user.id, lecturaSolo: false });
+  if (!informe.ok) return { error: `No se pudo generar el PDF: ${informe.error}` };
+
+  const asuntoReal = asuntoInforme(informe.buildingName, informe.reportDateLabel);
+  const { html, texto } = cuerpoInforme({
+    edificio: informe.buildingName,
+    fechaLarga: informe.reportDateLabel,
+    formularios: informe.sectionTitles,
+    nota: limpiarNota(nota),
+    firma: config.fromName,
+  });
+  const { para, asunto } = aplicarDesvioDePrueba(validos, asuntoReal, config.testTo);
+
+  const envio = await enviarCorreo(config, {
+    para,
+    asunto,
+    html,
+    texto,
+    adjunto: { nombre: informe.filename, bytes: informe.bytes },
+  });
+
+  // Se registra lo que se le quiso mandar al cliente (validos), no el desvío de prueba.
+  const { error: logError } = await admin.from("report_sends").insert({
+    visit_id: visit.id,
+    building_id: informe.buildingId,
+    sent_by: user.id,
+    to_emails: validos,
+    subject: asunto,
+    status: envio.ok ? "sent" : "failed",
+    error: envio.ok ? null : envio.error.slice(0, 500),
+  });
+  if (logError) console.error("[enviarInformeAlCliente] no se pudo registrar el envío", logError.message);
+
+  if (!envio.ok) {
+    console.error("[enviarInformeAlCliente] SMTP", envio.error);
+    return { error: "El correo no salió. Inténtalo de nuevo; si sigue igual, avísale a Pacho." };
+  }
+
+  if (guardarEnEdificio) {
+    const { error: saveError } = await admin
+      .from("buildings")
+      .update({ client_emails: validos })
+      .eq("id", informe.buildingId);
+    if (saveError) console.error("[enviarInformeAlCliente] client_emails", saveError.message);
+  }
+
+  revalidatePath(`/ops/visits/${visitId}`);
+  revalidatePath("/ops/envios");
+  return { error: null, enviadoA: validos };
 }

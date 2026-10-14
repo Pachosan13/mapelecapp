@@ -7,6 +7,9 @@ import { formatAssignmentLabel } from "@/lib/formatters/assignmentLabel";
 import { formatCrewLabel } from "@/lib/formatters/crewLabel";
 import ReassignCrewForm from "./ReassignCrewForm";
 import CancelVisitButton from "../CancelVisitButton";
+import EnviarInformeCliente, { type EnvioPrevio } from "./EnviarInformeCliente";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { leerConfigCorreo } from "@/lib/envios/smtp";
 import type { Database } from "@/lib/database.types";
 import { fetchAllRows } from "@/lib/db/fetchAllRows";
 
@@ -278,6 +281,38 @@ export default async function OpsVisitDetailPage({
     : "/ops/buildings";
   const canGenerateReport = visit.status === "completed" && Boolean(visit.building_id);
 
+  // Envío al cliente: correos del edificio + envíos previos. `report_sends` no tiene
+  // políticas de lectura (solo el servidor la toca), por eso se lee con el cliente admin;
+  // esta página ya está detrás de requireRole(["ops_manager"]) en app/ops/layout.tsx.
+  let correosEdificio: string[] = [];
+  let envios: EnvioPrevio[] = [];
+  if (canGenerateReport) {
+    const admin = createAdminClient();
+    const [edificioRes, enviosRes] = await Promise.all([
+      admin.from("buildings").select("client_emails").eq("id", visit.building_id!).maybeSingle(),
+      admin
+        .from("report_sends")
+        .select("id,created_at,to_emails,status,sent_by")
+        .eq("visit_id", visit.id)
+        .order("created_at", { ascending: false })
+        .limit(20),
+    ]);
+    correosEdificio = edificioRes.data?.client_emails ?? [];
+    const filas = enviosRes.data ?? [];
+    const remitentes = Array.from(new Set(filas.map((f) => f.sent_by).filter(Boolean))) as string[];
+    const { data: nombres } = remitentes.length
+      ? await admin.from("profiles").select("user_id,full_name").in("user_id", remitentes)
+      : { data: [] as Array<{ user_id: string; full_name: string | null }> };
+    const nombrePorId = new Map((nombres ?? []).map((n) => [n.user_id, n.full_name ?? ""]));
+    envios = filas.map((f) => ({
+      id: f.id,
+      cuando: formatPanamaDateTime(f.created_at),
+      para: f.to_emails,
+      ok: f.status === "sent",
+      por: (f.sent_by && nombrePorId.get(f.sent_by)) || "—",
+    }));
+  }
+
   return (
     <div className="min-h-screen p-8">
       <div className="mb-6">
@@ -332,6 +367,15 @@ export default async function OpsVisitDetailPage({
           <p className="text-sm font-medium">{templateName}</p>
         </div>
       </div>
+
+      {canGenerateReport ? (
+        <EnviarInformeCliente
+          visitId={visit.id}
+          correosEdificio={correosEdificio}
+          envios={envios}
+          configurado={leerConfigCorreo() !== null}
+        />
+      ) : null}
 
       {visit.status === "cancelled" ? (
         <div
