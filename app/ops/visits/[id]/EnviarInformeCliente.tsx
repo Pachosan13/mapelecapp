@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { enviarInformeAlCliente } from "./actions";
+import { leerCorreos } from "@/lib/envios/correo";
 
 export type EnvioPrevio = {
   id: string;
@@ -37,8 +38,10 @@ export default function EnviarInformeCliente({
   const router = useRouter();
 
   const yaEnviado = envios.some((e) => e.ok);
+  // Se comparan las direcciones, no el texto: "a@x.com; B@x.com" es lo mismo que "a@x.com, b@x.com".
   const correosCambiaron =
-    correos.trim() !== correosEdificio.join(", ") && correosEdificio.length > 0;
+    correosEdificio.length > 0 &&
+    leerCorreos(correos).validos.join(",") !== correosEdificio.join(",");
 
   const enviar = () => {
     setError(null);
