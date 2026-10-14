@@ -5,6 +5,7 @@ import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import { getBuildingById } from "@/lib/buildings/queries";
 import type { Database } from "@/lib/database.types";
 import DeleteButton from "./DeleteButton";
+import { leerCorreos } from "@/lib/envios/correo";
 
 type Category = NonNullable<
   Database["public"]["Tables"]["buildings"]["Row"]["systems"]
@@ -49,9 +50,18 @@ async function updateBuilding(formData: FormData) {
     .getAll("systems")
     .map((value) => String(value));
   const systemsTyped = toCategories(systems);
+  const correos = leerCorreos(String(formData.get("client_emails") ?? ""));
 
   if (!name) {
     redirect(`/ops/buildings/${id}/edit?error=Nombre%20requerido`);
+  }
+
+  if (correos.invalidos.length > 0) {
+    redirect(
+      `/ops/buildings/${id}/edit?error=${encodeURIComponent(
+        `Revisa los correos del cliente: ${correos.invalidos.join(", ")}`
+      )}`
+    );
   }
 
   if (systemsTyped.length === 0) {
@@ -67,6 +77,7 @@ async function updateBuilding(formData: FormData) {
       address: address || null,
       notes: notes || null,
       systems: systemsTyped,
+      client_emails: correos.validos,
     })
     .eq("id", id);
 
@@ -195,6 +206,19 @@ export default async function EditBuildingPage({
             defaultValue={building.notes ?? ""}
             className="w-full rounded border px-3 py-2"
           />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Correos del cliente</label>
+          <input
+            type="text"
+            name="client_emails"
+            defaultValue={(building.client_emails ?? []).join(", ")}
+            placeholder="administracion@edificio.com, gerente@edificio.com"
+            className="w-full rounded border px-3 py-2"
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            A estos correos se envía el informe de mantenimiento. Sepáralos con coma.
+          </p>
         </div>
         <div>
           <p className="mb-2 text-sm font-medium">Sistemas</p>
