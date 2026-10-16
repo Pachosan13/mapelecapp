@@ -19,6 +19,13 @@ const nextConfig = {
       // el tope real de la app (4 MB, ver lib/media/service) más el sobre multipart.
       bodySizeLimit: "5mb",
     },
+    // «Enviar al cliente» arma el PDF dentro del server action de la visita, y el PDF lee
+    // el logo del disco (lib/reports/generarInforme.ts). Vercel solo empaqueta en cada
+    // función los archivos que detecta, y en esta no detectaba el logo: en producción el
+    // envío reventaba con 500 (16-oct-2026) aunque en local, que lee el disco entero, pasaba.
+    outputFileTracingIncludes: {
+      "/ops/visits/[id]": ["./public/logosemco.png"],
+    },
   },
   env: {
     // Se inlinea en el bundle del cliente al construir. Lo consume ServiceWorkerRegister
