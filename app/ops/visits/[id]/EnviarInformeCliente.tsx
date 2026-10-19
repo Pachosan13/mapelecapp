@@ -22,13 +22,15 @@ export default function EnviarInformeCliente({
   visitId,
   correosEdificio,
   envios,
-  configurado,
+  remitente,
 }: {
   visitId: string;
   correosEdificio: string[];
   envios: EnvioPrevio[];
-  configurado: boolean;
+  /** Correo por el que sale el envío de este gerente; null si no hay ninguno configurado. */
+  remitente: string | null;
 }) {
+  const configurado = remitente !== null;
   const [correos, setCorreos] = useState(correosEdificio.join(", "));
   const [nota, setNota] = useState("");
   const [guardar, setGuardar] = useState(correosEdificio.length === 0);
@@ -73,7 +75,12 @@ export default function EnviarInformeCliente({
         )}
       </div>
       <p className="mt-1 mb-3 text-sm text-gray-500">
-        Revisa el PDF con «Ver reporte» y mándalo. Sale de tu correo con el PDF adjunto.
+        Revisa el PDF con «Ver reporte» y mándalo.
+        {remitente ? (
+          <>
+            {" "}Sale desde <span data-testid="enviar-remitente">{remitente}</span> con el PDF adjunto.
+          </>
+        ) : null}
       </p>
 
       {!configurado ? (

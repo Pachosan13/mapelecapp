@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import { formatPanamaDateLabel } from "@/lib/dates/panama";
 import { formatDateOnlyLabel } from "@/lib/dates/dateOnly";
 import { getCrewsWithDisplay } from "@/lib/crews/withMembers";
@@ -286,7 +286,10 @@ export default async function OpsVisitDetailPage({
   // esta página ya está detrás de requireRole(["ops_manager"]) en app/ops/layout.tsx.
   let correosEdificio: string[] = [];
   let envios: EnvioPrevio[] = [];
+  let remitente: string | null = null;
   if (canGenerateReport) {
+    // Cada gerente ve por qué cuenta sale SU envío (la suya o la de William): lib/envios/smtp.ts.
+    remitente = leerConfigCorreo((await getCurrentUser())?.email)?.user ?? null;
     const admin = createAdminClient();
     const [edificioRes, enviosRes] = await Promise.all([
       admin.from("buildings").select("client_emails").eq("id", visit.building_id!).maybeSingle(),
@@ -373,7 +376,7 @@ export default async function OpsVisitDetailPage({
           visitId={visit.id}
           correosEdificio={correosEdificio}
           envios={envios}
-          configurado={leerConfigCorreo() !== null}
+          remitente={remitente}
         />
       ) : null}
 

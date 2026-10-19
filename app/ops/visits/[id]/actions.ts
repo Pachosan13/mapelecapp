@@ -182,7 +182,7 @@ export async function enviarInformeAlCliente(
   }
   if (!visitId) return { error: "Falta la visita." };
 
-  const config = leerConfigCorreo();
+  const config = leerConfigCorreo(user.email);
   if (!config) {
     return { error: "El envío de correos todavía no está configurado. Avísale a Pacho." };
   }
