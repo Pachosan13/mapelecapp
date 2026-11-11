@@ -1237,3 +1237,38 @@ describe("foso del elevador por unidad hasta 6", () => {
   });
 });
 
+
+describe("bombas sumergibles sanitarias y freáticas por unidad (William, ICON, 11-nov-2026)", () => {
+  const S = "Bombas sumergibles - Sistema sanitario - Sanitario";
+  const F = "Bombas sumergibles - Sistema freático - Freático";
+
+  it("con UNA bomba sanitaria sale la Bomba 1 y NO la Bomba 2", () => {
+    const rows = [bomba("Bomba Sanitaria #1", "sanitario")];
+    assert.equal(applies(`${S} - Bomba 1 - Voltaje L1-L2 (V)`, rows), true);
+    assert.equal(applies(`${S} - Bomba 2 - Voltaje L1-L2 (V)`, rows), false);
+    assert.equal(applies(`${S} - Bomba 2 - Pruebas sensor de desborde`, rows), false);
+  });
+
+  it("con DOS bombas sanitarias salen las dos", () => {
+    const rows = [bomba("Bomba Sanitaria #1", "sanitario"), bomba("Bomba Sanitaria #2", "sanitario")];
+    assert.equal(applies(`${S} - Bomba 2 - Check valve`, rows), true);
+  });
+
+  it("el estado del foso y el panel de control sanitario siguen saliendo (nivel foso)", () => {
+    const rows = [bomba("Bomba Sanitaria #1", "sanitario")];
+    assert.equal(applies(`${S} - Estado del foso`, rows), true);
+    assert.equal(applies(`${S} - Panel de control - Luces piloto`, rows), true);
+  });
+
+  it("freático: una bomba → solo la Bomba 1", () => {
+    const rows = [bomba("Bomba Freática #1", "achique_freatico")];
+    assert.equal(applies(`${F} - Bomba 1 - Voltaje L1-L2 (V)`, rows), true);
+    assert.equal(applies(`${F} - Bomba 2 - Voltaje L1-L2 (V)`, rows), false);
+    assert.equal(applies(`${F} - Estado del foso`, rows), true);
+  });
+
+  it("sin sistema sanitario no sale nada del bloque", () => {
+    const rows = [bomba("Bomba pluvial #1", "achique_pluvial")];
+    assert.equal(applies(`${S} - Bomba 1 - Voltaje L1-L2 (V)`, rows), false);
+  });
+});
