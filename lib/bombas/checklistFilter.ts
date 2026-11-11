@@ -714,7 +714,13 @@ export const itemAppliesToBuilding = (label: string, scope: BuildingScope) => {
       return true;
     }
 
-    const unitMatch = (parts[2] ?? "").trim().match(/(\d+)$/);
+    // Sanitario y freático traen una capa de más: "Sistema sanitario - Sanitario - Bomba 2 - …".
+    // Ahí el nº de bomba viene en el 4º segmento, no en el 3º. Antes solo se miraba el 3º
+    // ("Sanitario", sin número), se tomaba como ítem compartido y salían las 2 bombas aunque el
+    // edificio tuviera una (William, ICON, 11-nov-2026).
+    const unitMatch =
+      (parts[2] ?? "").trim().match(/(\d+)$/) ??
+      (parts[3] ?? "").trim().match(/^Bomba (\d+)$/i);
     if (!unitMatch) return true;
     return Number(unitMatch[1]) <= (scope.pumpCounts.get(sys) ?? 0);
   }
