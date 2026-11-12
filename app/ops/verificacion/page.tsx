@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import { equipoSinVerificar } from "@/lib/bombas/checklistFilter";
+import { fetchAllRows } from "@/lib/db/fetchAllRows";
 
 // Los edificios cuyo inventario entró por lectura automática de las hojas de
 // mantenimiento y que SEMCO todavía no revisó.
@@ -51,12 +52,19 @@ export default async function VerificacionPage() {
   const isReadOnly = user.role === "director";
 
   const db = (await createClient()).schema("public");
-  const { data } = await db
-    .from("equipment")
-    .select("id,name,building_id,specs,buildings(name)")
-    .not("specs->origen", "is", null);
+  // Paginado: el 11-nov los equipos con `origen` pasaron de 1.000 (1.249) y PostgREST
+  // cortaba en silencio los más nuevos — los 16 edificios que William cargó ese día no
+  // salían y la lista decía "0 por revisar". El orden fijo hace estable la paginación.
+  const { data } = await fetchAllRows<EquipoFila>((desde, hasta) =>
+    db
+      .from("equipment")
+      .select("id,name,building_id,specs,buildings(name)")
+      .not("specs->origen", "is", null)
+      .order("id", { ascending: true })
+      .range(desde, hasta)
+  );
 
-  const filas = (data ?? []) as unknown as EquipoFila[];
+  const filas = data;
 
   const porEdificio = new Map<
     string,
