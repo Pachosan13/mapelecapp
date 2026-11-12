@@ -57,8 +57,51 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim().then(() => limpiarVersionesViejas()));
 });
 
-// Borra cada versión vieja SOLO cuando la actual ya tiene todas sus páginas. Corre al
-// activar y después de cada precalentado. Las estáticas viejas sin páginas se van de una.
+// Solo las páginas del técnico tienen que sobrevivir al deploy: son las que se abren sin
+// señal en un sótano. Las de /ops y /dir se usan con señal (network-first igual las
+// cachea al visitarlas), así que no se re-bajan ni frenan la limpieza de la versión vieja.
+//
+// 12-nov-2026: antes se re-bajaba TODO lo de la versión vieja, todo junto. El gerente que
+// había abierto cientos de pantallas de /ops (cada equipo de cada edificio) disparaba
+// cientos de renders a la vez tras el deploy del PR #21; las de equipos borrados daban 404,
+// nunca entraban a la versión nueva y la tanda se repetía en cada cambio de pantalla.
+// Supabase se saturó: 504 en todo /ops y William no pudo asignar una visita.
+function necesitaRenovarse(pathname) {
+  return pathname === "/tech" || pathname.startsWith("/tech/");
+}
+
+// Cuántas páginas se piden a la vez al precalentar. Son renders completos con consultas a
+// la base: en paralelo sin tope saturan Supabase.
+const PRECALENTADO_EN_PARALELO = 3;
+
+async function enTandas(items, enParalelo, fn) {
+  const cola = items.slice();
+  const trabajadores = Array.from(
+    { length: Math.min(enParalelo, cola.length) },
+    async () => {
+      while (cola.length > 0) await fn(cola.shift());
+    }
+  );
+  await Promise.all(trabajadores);
+}
+
+// Una página que ya no existe (404/410: p. ej. un equipo borrado) nunca va a entrar a la
+// versión nueva. Se suelta de las viejas para que no se vuelva a pedir en cada precalentado.
+async function soltarDeVersionesViejas(u) {
+  try {
+    for (const k of await caches.keys()) {
+      if (!k.startsWith("semco-pages-") || k === PAGES_CACHE) continue;
+      const vieja = await caches.open(k);
+      await vieja.delete(new Request(u), { ignoreVary: true });
+    }
+  } catch {
+    // best-effort
+  }
+}
+
+// Borra cada versión vieja SOLO cuando la actual ya tiene todas sus páginas del técnico.
+// Corre al activar y después de cada precalentado. Las estáticas viejas sin páginas se van
+// de una.
 async function limpiarVersionesViejas() {
   try {
     const keys = await caches.keys();
@@ -71,6 +114,7 @@ async function limpiarVersionesViejas() {
       if (keys.includes(nombrePaginas)) {
         const vieja = await caches.open(nombrePaginas);
         for (const req of await vieja.keys()) {
+          if (!necesitaRenovarse(new URL(req.url).pathname)) continue;
           if (!(await actual.match(req, { ignoreVary: true }))) {
             cubiertas = false;
             break;
@@ -97,8 +141,9 @@ async function paginasPorRenovar() {
       if (!k.startsWith("semco-pages-") || k === PAGES_CACHE) continue;
       const vieja = await caches.open(k);
       for (const req of await vieja.keys()) {
+        const u = new URL(req.url);
+        if (!necesitaRenovarse(u.pathname)) continue;
         if (!(await actual.match(req, { ignoreVary: true }))) {
-          const u = new URL(req.url);
           salida.push(u.pathname + u.search);
         }
       }
@@ -222,17 +267,29 @@ async function warmAssetsOf(response) {
   }
 }
 
+// Las de la versión vieja se re-bajan UNA tanda a la vez: visibilitychange y pagehide
+// llegan juntos y cada uno pediría la lista entera otra vez.
+let renovandoVersionVieja = false;
+
 self.addEventListener("message", (event) => {
   const data = event.data;
   if (!data || data.type !== "WARM_PAGES" || !Array.isArray(data.urls)) return;
   event.waitUntil(
     (async () => {
       const cache = await caches.open(PAGES_CACHE);
-      const urls = Array.from(new Set([...data.urls, ...(await paginasPorRenovar())]));
-      await Promise.all(
-        urls.map(async (u) => {
+      const renueva = !renovandoVersionVieja;
+      if (renueva) renovandoVersionVieja = true;
+      try {
+        const urls = Array.from(
+          new Set([...data.urls, ...(renueva ? await paginasPorRenovar() : [])])
+        );
+        await enTandas(urls, PRECALENTADO_EN_PARALELO, async (u) => {
           try {
             const res = await fetch(u, { credentials: "same-origin" });
+            if (res.status === 404 || res.status === 410) {
+              await soltarDeVersionesViejas(u);
+              return;
+            }
             const finalUrl = new URL(res.url || u, self.location.origin);
             if (
               res.ok &&
@@ -252,8 +309,10 @@ self.addEventListener("message", (event) => {
           } catch {
             // sin señal o error: no pasa nada, se intentará de nuevo al reabrir online.
           }
-        })
-      );
+        });
+      } finally {
+        if (renueva) renovandoVersionVieja = false;
+      }
       await limpiarVersionesViejas();
     })()
   );
