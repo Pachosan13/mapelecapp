@@ -255,6 +255,14 @@ const piscinaUnitOf = (groupName: string) => {
   return m ? Number(m[1]) : null;
 };
 
+// Nº de unidad de una bomba de pozo: grupo "Bomba de pozo N". null si no aplica.
+// Lo que se le revisa, dictado por William el 17-nov-2026: estado, voltaje y amperaje con
+// la bomba en marcha, alarmas del controlador y arranque automático por demanda de llenado.
+const pozoUnitOf = (groupName: string) => {
+  const m = groupName.match(/^Bomba de pozo (\d+)$/i);
+  return m ? Number(m[1]) : null;
+};
+
 // Nº de unidad de una planta de emergencia: "Planta de Emergencia N - campo". Se mira la
 // ETIQUETA, no el grupo, porque el template traía labels sin espacio antes del guion
 // ("Planta de Emergencia- Modelo") que `groupOf` manda a "Datos generales". Devuelve 1 para
@@ -639,6 +647,10 @@ export const itemAppliesToBuilding = (label: string, scope: BuildingScope) => {
   // Bombas de piscina: una sección por unidad, recortada al nº de bombas de piscina.
   const piscinaUnit = piscinaUnitOf(group);
   if (piscinaUnit !== null) return piscinaUnit <= (scope.pumpCounts.get("piscina") ?? 0);
+
+  // Bombas de pozo: una sección por unidad, recortada al nº de bombas de pozo.
+  const pozoUnit = pozoUnitOf(group);
+  if (pozoUnit !== null) return pozoUnit <= (scope.pumpCounts.get("pozo") ?? 0);
 
   // Ventiladores de presurización: un grupo por unidad, como las reforzadoras, PERO con
   // una regla asimétrica a propósito.

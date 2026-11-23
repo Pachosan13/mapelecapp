@@ -36,12 +36,56 @@ export const isEstadoFosoLabel = (label?: string | null) =>
 export const isEstadoGeneralPanelLabel = (label?: string | null) =>
   (label ?? "").trim().toLowerCase().endsWith("estado general del panel");
 
+export type OpcionChecklist = { value: "approved" | "failed" | "na"; text: string };
+
+/**
+ * Bomba de pozo: las tres casillas con las palabras exactas que dictó William (17-nov-2026).
+ * Ancladas a "Bomba de pozo N" para no cambiarle el texto a ningún otro sistema. Las dos
+ * primeras no llevan N/A porque él no lo pidió; en el arranque, "No verificado" ES el na.
+ * null si el ítem no es una de estas casillas.
+ */
+export const opcionesPozo = (label?: string | null): OpcionChecklist[] | null => {
+  const m = (label ?? "").trim().toLowerCase().match(/^bomba de pozo \d+ - (.+)$/);
+  switch (m?.[1]) {
+    case "estado de la bomba":
+      return [
+        { value: "approved", text: "Operativa" },
+        { value: "failed", text: "No opera" },
+      ];
+    case "alarmas del controlador":
+      return [
+        { value: "approved", text: "Sin alarmas" },
+        { value: "failed", text: "Con alarma" },
+      ];
+    case "arranque automático por demanda de llenado":
+      return [
+        { value: "approved", text: "Correcto" },
+        { value: "failed", text: "Falla" },
+        { value: "na", text: "No verificado" },
+      ];
+    default:
+      return null;
+  }
+};
+
 /** Texto de una casilla ya respondida, común a informe en pantalla y PDF. */
 export const formatChecklistValue = (
   valueBool: boolean | null,
   valueText: string | null | undefined,
   label?: string | null
 ): string => {
+  const pozo = opcionesPozo(label);
+  if (pozo) {
+    const valor =
+      valueBool === true
+        ? "approved"
+        : valueBool === false
+          ? "failed"
+          : valueText === "na"
+            ? "na"
+            : null;
+    return pozo.find((o) => o.value === valor)?.text ?? (valor === "na" ? "N/A" : "—");
+  }
   if (isEstadoGeneralPanelLabel(label)) {
     // "Regular" ES el estado na, así que va antes del chequeo de null.
     if (valueBool === true) return "Bueno";

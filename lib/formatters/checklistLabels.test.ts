@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { formatChecklistValue, isNivelLabel } from "./checklistLabels.ts";
+import { formatChecklistValue, isNivelLabel, opcionesPozo } from "./checklistLabels.ts";
 
 const P = "Sistema de bombas diésel";
 
@@ -48,5 +48,39 @@ describe("etiquetas de casillas del checklist", () => {
     assert.equal(formatChecklistValue(false, null, panel), "Malo");
     // "Regular" ES el estado na: no se puede leer como N/A.
     assert.equal(formatChecklistValue(null, "na", panel), "Regular");
+  });
+});
+
+describe("casillas de la bomba de pozo (William, 17-nov-2026)", () => {
+  const G = "Bomba de pozo 1 - ";
+  const textos = (l: string) => opcionesPozo(l)?.map((o) => o.text);
+
+  it("ofrece exactamente las opciones que dictó", () => {
+    assert.deepEqual(textos(G + "Estado de la bomba"), ["Operativa", "No opera"]);
+    assert.deepEqual(textos(G + "Alarmas del controlador"), ["Sin alarmas", "Con alarma"]);
+    assert.deepEqual(textos(G + "Arranque automático por demanda de llenado"), [
+      "Correcto",
+      "Falla",
+      "No verificado",
+    ]);
+  });
+
+  it("el informe imprime las mismas palabras que marcó el técnico", () => {
+    assert.equal(formatChecklistValue(true, null, G + "Estado de la bomba"), "Operativa");
+    assert.equal(formatChecklistValue(false, null, G + "Estado de la bomba"), "No opera");
+    assert.equal(formatChecklistValue(true, null, G + "Alarmas del controlador"), "Sin alarmas");
+    assert.equal(formatChecklistValue(false, null, G + "Alarmas del controlador"), "Con alarma");
+    const arranque = G + "Arranque automático por demanda de llenado";
+    assert.equal(formatChecklistValue(true, null, arranque), "Correcto");
+    assert.equal(formatChecklistValue(false, null, arranque), "Falla");
+    assert.equal(formatChecklistValue(null, "na", arranque), "No verificado");
+    assert.equal(formatChecklistValue(null, null, arranque), "—");
+  });
+
+  it("no le cambia el texto a otros sistemas", () => {
+    assert.equal(opcionesPozo("Bomba de piscina 1 - Limpieza general"), null);
+    assert.equal(opcionesPozo("Bombas principales - Bomba 1 - Estado de la bomba"), null);
+    assert.equal(opcionesPozo(G + "Voltaje con la bomba en marcha (V)"), null);
+    assert.equal(opcionesPozo(null), null);
   });
 });

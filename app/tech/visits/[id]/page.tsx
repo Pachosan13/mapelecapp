@@ -48,6 +48,7 @@ import {
   isNivelLabel,
   isEstadoFosoLabel,
   isEstadoGeneralPanelLabel,
+  opcionesPozo,
 } from "@/lib/formatters/checklistLabels";
 
 export const dynamic = "force-dynamic";
@@ -95,7 +96,8 @@ const isFireTemplate = (templateCategory?: string | null) =>
   (templateCategory ?? "").trim().toLowerCase() === "fire";
 
 const checklistOptions = (label?: string | null) =>
-  isNivelLabel(label)
+  opcionesPozo(label) ??
+  (isNivelLabel(label)
     ? [
         { value: "approved", text: "Buen nivel" },
         { value: "failed", text: "Bajo nivel" },
@@ -118,7 +120,7 @@ const checklistOptions = (label?: string | null) =>
           { value: "approved", text: "Aprobado" },
           { value: "failed", text: "Falla" },
           { value: "na", text: "N/A" },
-        ];
+        ]);
 
 // Nombres bonitos de los encabezados de sección del checklist. La clave es el prefijo
 // interno del label (el grupo); el valor es lo que ve el técnico. Los paneles de control se
