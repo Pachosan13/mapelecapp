@@ -1272,3 +1272,54 @@ describe("bombas sumergibles sanitarias y freáticas por unidad (William, ICON, 
     assert.equal(applies(`${S} - Bomba 1 - Voltaje L1-L2 (V)`, rows), false);
   });
 });
+
+describe("bombas de pozo (William, 17-nov-2026: PH Piamonte y PH Siena)", () => {
+  const pozo = (name: string): EquipmentRow => ({ name, system: "pozo", kind: "bomba" });
+  const estado = "Bomba de pozo 1 - Estado de la bomba";
+
+  it("una sección por bomba, ni una más", () => {
+    const rows = [pozo("Bomba de pozo #1"), pozo("Bomba de pozo #2")];
+    assert.equal(applies(estado, rows), true);
+    assert.equal(applies("Bomba de pozo 2 - Alarmas del controlador", rows), true);
+    assert.equal(applies("Bomba de pozo 3 - Estado de la bomba", rows), false);
+  });
+
+  it("un edificio sin bomba de pozo no ve la sección", () => {
+    assert.equal(applies(estado, [bomba("Bomba Pluvial #1", "achique_pluvial")]), false);
+  });
+
+  it("una bomba de pozo NO activa las sumergibles pluviales", () => {
+    const rows = [pozo("Bomba de pozo #1")];
+    assert.equal(applies("Bombas sumergibles - Sistema pluvial - Pluvial 1 - Bomba 1 - Voltaje", rows), false);
+  });
+
+  it("pozo y pluvial conviven: cada uno cuenta lo suyo", () => {
+    const rows = [pozo("Bomba de pozo #1"), bomba("Bomba Pluvial #1", "achique_pluvial")];
+    assert.equal(applies(estado, rows), true);
+    assert.equal(applies("Bomba de pozo 2 - Estado de la bomba", rows), false);
+    assert.equal(applies("Bombas sumergibles - Sistema pluvial - Pluvial 1 - Bomba 1 - Voltaje", rows), true);
+    assert.equal(applies("Bombas sumergibles - Sistema pluvial - Pluvial 1 - Bomba 2 - Voltaje", rows), false);
+  });
+
+  it("el panel no cuenta como bomba", () => {
+    assert.equal(applies(estado, [panel("Panel de Control Pozo", "pozo")]), false);
+  });
+
+  // Inventario real de PH Piamonte y PH Siena (capturas de William, 23-nov-2026).
+  it("Piamonte/Siena ya movidos a pozo: 1 de pozo, sin pluvial ni panel pluvial, reforzador igual", () => {
+    const rows = [
+      bomba("Bomba Reforzadora #1", "reforzador_agua_potable"),
+      bomba("Bomba Reforzadora #2", "reforzador_agua_potable"),
+      bomba("Bomba Reforzadora #3", "reforzador_agua_potable"),
+      panel("Panel de Control de Bombas Reforzadoras", "reforzador_agua_potable"),
+      bomba("Bomba De Pozo", "pozo"),
+      panel("Panel de Control de Bomba de Pozo", "pozo"),
+    ];
+    assert.equal(applies(estado, rows), true);
+    assert.equal(applies("Bomba de pozo 2 - Estado de la bomba", rows), false);
+    assert.equal(applies("Bombas sumergibles - Sistema pluvial - Pluvial 1 - Bomba 1 - Voltaje", rows), false);
+    assert.equal(applies("Panel pluvial - Contactor", rows), false);
+    assert.equal(applies("Bomba reforzadora 3 - Voltaje L1-L2", rows), true);
+    assert.equal(applies("Tablero reforzador 1 - Contactor", rows), true);
+  });
+});

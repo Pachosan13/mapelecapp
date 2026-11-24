@@ -30,6 +30,10 @@ export const SYSTEM_LABELS: Record<string, string> = {
   // Alegría. Sin este sistema, sus dos bombas quedaron registradas como `achique_pluvial` y
   // el técnico recibía el checklist de sumergibles pluviales, que no aplica.
   piscina: "Piscina",
+  // Pozo. William, 17-nov-2026: *"tengo dos proyectos puntuales que tengo bombas de pozo…
+  // PH PIAMONTE y PH Siena… las coloque por mientras como bombas pluviales"*. Igual que
+  // riego y piscina: sin sistema propio el técnico recibía el checklist de pluviales.
+  pozo: "Pozo",
   planta_diesel: "Planta diésel",
   // Ventiladores de presurización de escaleras. La plantilla de presurización trae
   // "Ventilador 1..4" fijos; sin este sistema no había forma de saber cuántos tiene el
@@ -50,6 +54,7 @@ export const SYSTEMS: [string, string][] = [
   "sanitario",
   "riego",
   "piscina",
+  "pozo",
   "planta_diesel",
   "presurizacion_escaleras",
 ].map((key) => [key, SYSTEM_LABELS[key]] as [string, string]);
