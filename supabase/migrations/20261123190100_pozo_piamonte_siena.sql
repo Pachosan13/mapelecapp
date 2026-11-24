@@ -11,6 +11,7 @@
 --  2. Si alguna visita de esos edificios ya tiene respuestas en las secciones pluviales: los
 --     informes se filtran con el inventario actual y esas respuestas dejarían de salir.
 -- Idempotente: si ya están en "pozo", no hace nada.
+-- El nombre se compara con los espacios normalizados: en Piamonte es "Bomba  De Pozo" (doble espacio).
 
 do $$
 declare
@@ -34,7 +35,7 @@ begin
     into v_pendientes, v_hechos
     from equipment
    where building_id = any (v_edificios)
-     and lower(trim(name)) in ('bomba de pozo', 'panel de control de bomba de pozo');
+     and lower(regexp_replace(trim(name), '\s+', ' ', 'g')) in ('bomba de pozo', 'panel de control de bomba de pozo');
 
   if v_pendientes = 0 and v_hechos = 4 then
     raise notice 'Ya estaban en pozo: nada que hacer';
@@ -65,5 +66,5 @@ begin
      set system = 'pozo'
    where building_id = any (v_edificios)
      and system = 'achique_pluvial'
-     and lower(trim(name)) in ('bomba de pozo', 'panel de control de bomba de pozo');
+     and lower(regexp_replace(trim(name), '\s+', ' ', 'g')) in ('bomba de pozo', 'panel de control de bomba de pozo');
 end $$;
